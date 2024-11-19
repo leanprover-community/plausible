@@ -365,7 +365,10 @@ partial def minimizeAux [SampleableExt α] {β : α → Prop} [∀ x, Testable (
     if res.isFailure then
       if cfg.traceShrink then
         slimTrace s!"{var} shrunk to {repr candidate} from {repr x}"
-      let currentStep := OptionT.lift <| return Sigma.mk candidate (addShrinks (n + 1) res)
+      -- Adaptation note:
+      -- The type ascription was not needed here before https://github.com/leanprover/lean4/pull/6104
+      let currentStep : OptionT Gen ((x : _) × TestResult (β (SampleableExt.interp x))) :=
+        OptionT.lift <| return Sigma.mk candidate (addShrinks (n + 1) res)
       let nextStep := minimizeAux cfg var candidate (n + 1)
       return ← (nextStep <|> currentStep)
   if cfg.traceShrink then
