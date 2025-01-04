@@ -4,6 +4,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Henrik Böving, Simon Hudon
 -/
 import Lean.Elab.Command
+import Lean.Meta.Eval
 import Plausible.Gen
 
 /-!
