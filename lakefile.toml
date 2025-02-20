@@ -13,3 +13,8 @@ name = "Plausible"
 name = "batteries"
 scope = "leanprover-community"
 rev = "v4.17.0-rc1"
+
+[[require]]
+name = "Qq"
+scope = "leanprover-community"
+rev = "v4.17.0-rc1"
