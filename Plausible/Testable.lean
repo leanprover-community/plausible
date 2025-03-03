@@ -82,7 +82,7 @@ inductive TestResult (p : Prop) where
   where `p` holds. With a proof, the one test was sufficient to
   prove that `p` holds and we do not need to keep finding examples.
   -/
-  | success : Unit ⊕' p → TestResult p
+  | success : Unit ⊕' p → List String → TestResult p
   /--
   Give up when a well-formed example cannot be generated.
   `gaveUp n` tells us that `n` invalid examples were tried.
@@ -125,6 +125,10 @@ structure Configuration where
   -/
   traceShrinkCandidates : Bool := false
   /--
+  Enable detailed reporting with Tyche.
+  -/
+  detailedReportingWithName : Option String := none
+  /--
   Hard code the seed to use for the RNG
   -/
   randomSeed : Option Nat := none
@@ -137,9 +141,10 @@ structure Configuration where
 open Lean in
 instance : ToExpr Configuration where
   toTypeExpr := mkConst `Configuration
-  toExpr cfg := mkApp9 (mkConst ``Configuration.mk)
+  toExpr cfg := mkApp10 (mkConst ``Configuration.mk)
     (toExpr cfg.numInst) (toExpr cfg.maxSize) (toExpr cfg.numRetries) (toExpr cfg.traceDiscarded)
     (toExpr cfg.traceSuccesses) (toExpr cfg.traceShrink) (toExpr cfg.traceShrinkCandidates)
+    (toExpr cfg.detailedReportingWithName)
     (toExpr cfg.randomSeed) (toExpr cfg.quiet)
 
 /--
@@ -171,8 +176,8 @@ def NamedBinder (_n : String) (p : Prop) : Prop := p
 namespace TestResult
 
 def toString : TestResult p → String
-  | success (PSum.inl _) => "success (no proof)"
-  | success (PSum.inr _) => "success (proof)"
+  | success (PSum.inl _) _ => "success (no proof)"
+  | success (PSum.inr _) _ => "success (proof)"
   | gaveUp n => s!"gave {n} times"
   | failure _ counters _ => s!"failed {counters}"
 
@@ -187,7 +192,7 @@ def combine {p q : Prop} : Unit ⊕' (p → q) → Unit ⊕' p → Unit ⊕' q
 def and : TestResult p → TestResult q → TestResult (p ∧ q)
   | failure h xs n, _ => failure (fun h2 => h h2.left) xs n
   | _, failure h xs n => failure (fun h2 => h h2.right) xs n
-  | success h1, success h2 => success <| combine (combine (PSum.inr And.intro) h1) h2
+  | success h1 xs, success h2 ys => success (combine (combine (PSum.inr And.intro) h1) h2) (xs ++ ys)
   | gaveUp n, gaveUp m => gaveUp <| n + m
   | gaveUp n, _ => gaveUp n
   | _, gaveUp n => gaveUp n
@@ -200,8 +205,8 @@ def or : TestResult p → TestResult q → TestResult (p ∨ q)
       | Or.inl h3 => h1 h3
       | Or.inr h3 => h2 h3
     failure h3 (xs ++ ys) (n + m)
-  | success h, _ => success <| combine (PSum.inr Or.inl) h
-  | _, success h => success <| combine (PSum.inr Or.inr) h
+  | success h xs, _ => success (combine (PSum.inr Or.inl) h) xs
+  | _, success h xs => success (combine (PSum.inr Or.inr) h) xs
   | gaveUp n, gaveUp m => gaveUp <| n + m
   | gaveUp n, _ => gaveUp n
   | _, gaveUp n => gaveUp n
@@ -212,7 +217,7 @@ def imp (h : q → p) (r : TestResult p)
     (p : Unit ⊕' (p → q) := PSum.inl ()) : TestResult q :=
   match r with
   | failure h2 xs n => failure (mt h h2) xs n
-  | success h2 => success <| combine p h2
+  | success h2 xs => success (combine p h2) xs
   | gaveUp n => gaveUp n
 
 /-- Test `q` by testing `p` and proving the equivalence between the two. -/
@@ -224,10 +229,10 @@ we record that value using this function so that our counter-examples
 can be informative. -/
 def addInfo (x : String) (h : q → p) (r : TestResult p)
     (p : Unit ⊕' (p → q) := PSum.inl ()) : TestResult q :=
-  if let failure h2 xs n := r then
-    failure (mt h h2) (x :: xs) n
-  else
-    imp h r p
+  match r with
+  | failure h2 xs n => failure (mt h h2) (x :: xs) n
+  | success h2 xs => imp h (success h2 (x :: xs)) p
+  | _ => imp h r p
 
 /-- Add some formatting to the information recorded by `addInfo`. -/
 def addVarInfo {γ : Type _} [Repr γ] (var : String) (x : γ) (h : q → p) (r : TestResult p)
@@ -273,8 +278,8 @@ instance orTestable [Testable p] [Testable q] : Testable (p ∨ q) where
     -- As a little performance optimization we can just not run the second
     -- test if the first succeeds
     match xp with
-    | success (PSum.inl h) => return success (PSum.inl h)
-    | success (PSum.inr h) => return success (PSum.inr <| Or.inl h)
+    | success (PSum.inl h) xs => return success (PSum.inl h) xs
+    | success (PSum.inr h) xs => return success (PSum.inr <| Or.inl h) xs
     | _ =>
       let xq ← runProp q cfg min
       return or xp xq
@@ -440,7 +445,7 @@ instance (priority := low) decidableTestable {p : Prop} [PrintableProp p] [Decid
     Testable p where
   run := fun _ _ =>
     if h : p then
-      return success (PSum.inr h)
+      return success (PSum.inr h) []
     else
       let s := printProp p
       return failure h [s!"issue: {s} does not hold"] 0
@@ -500,20 +505,31 @@ def retry (cmd : Rand (TestResult p)) : Nat → Rand (TestResult p)
   | n+1 => do
     let r ← cmd
     match r with
-    | .success hp => return success hp
+    | .success hp xs => return success hp xs
     | .failure h xs n => return failure h xs n
     | .gaveUp _ => retry cmd n
 
 /-- Count the number of times the test procedure gave up. -/
 def giveUp (x : Nat) : TestResult p → TestResult p
-  | success (PSum.inl ()) => gaveUp x
-  | success (PSum.inr p) => success <| (PSum.inr p)
+  | success (PSum.inl ()) _ => gaveUp x
+  | success (PSum.inr p) xs => success (PSum.inr p) xs
   | gaveUp n => gaveUp <| n + x
   | TestResult.failure h xs n => failure h xs n
 
+structure RunResult (p : Prop) where
+  /--
+  The running test result.
+  -/
+  testResult : TestResult p
+  /--
+  A history of all previous test results.
+  -/
+  history : List (TestResult p)
+  deriving Inhabited
+
 /-- Try `n` times to find a counter-example for `p`. -/
 def Testable.runSuiteAux (p : Prop) [Testable p] (cfg : Configuration) :
-    TestResult p → Nat → Rand (TestResult p)
+    RunResult p → Nat → Rand (RunResult p)
   | r, 0 => return r
   | r, n+1 => do
     let size := (cfg.numInst - n - 1) * cfg.maxSize / cfg.numInst
@@ -521,17 +537,20 @@ def Testable.runSuiteAux (p : Prop) [Testable p] (cfg : Configuration) :
       slimTrace s!"New sample"
       slimTrace s!"Retrying up to {cfg.numRetries} times until guards hold"
     let x ← retry (ReaderT.run (Testable.runProp p cfg true) ⟨size⟩) cfg.numRetries
+    let r' := if Option.isSome cfg.detailedReportingWithName
+      then {testResult := x, history := r.testResult :: r.history}
+      else {testResult := x, history := []}
     match x with
-    | success (PSum.inl ()) => runSuiteAux p cfg r n
-    | gaveUp g => runSuiteAux p cfg (giveUp g r) n
-    | _ => return x
+    | success (PSum.inl ()) _ => runSuiteAux p cfg r' n
+    | gaveUp g => runSuiteAux p cfg {r' with testResult := giveUp g r.testResult} n
+    | _ => return r'
 
 /-- Try to find a counter-example of `p`. -/
-def Testable.runSuite (p : Prop) [Testable p] (cfg : Configuration := {}) : Rand (TestResult p) :=
-  Testable.runSuiteAux p cfg (success <| PSum.inl ()) cfg.numInst
+def Testable.runSuite (p : Prop) [Testable p] (cfg : Configuration := {}) : Rand (RunResult p) :=
+  Testable.runSuiteAux p cfg {testResult := success (PSum.inl ()) [], history := []} cfg.numInst
 
 /-- Run a test suite for `p` in `BaseIO` using the global RNG in `stdGenRef`. -/
-def Testable.checkIO (p : Prop) [Testable p] (cfg : Configuration := {}) : BaseIO (TestResult p) :=
+def Testable.checkIO (p : Prop) [Testable p] (cfg : Configuration := {}) : BaseIO (RunResult p) :=
   letI : MonadLift Id BaseIO := ⟨fun f => return Id.run f⟩
   match cfg.randomSeed with
   | none => runRand (Testable.runSuite p cfg)
@@ -584,12 +603,53 @@ scoped elab "mk_decorations" : tactic => do
 
 end Decorations
 
+open Lean.Json in
+def writeReport (thmName : String) (xs : List (TestResult p)) : Lean.CoreM PUnit := do
+  let now ← IO.monoMsNow
+  let transformLine x :=
+    let status := match x with | .success _ _ => "passed" | .failure _ _ _ => "failed" | .gaveUp _ => "gave_up"
+    let representation :=
+      match x with
+      | .success _ xs => s!"{xs}"
+      | .failure _ xs _ => s!"{xs}"
+      | .gaveUp _ => ""
+    let arguments := mkObj [] -- TODO: Actually break out the arguments
+    let features := mkObj [] -- TODO: Add features
+    let property := thmName
+    let runStart := .num now
+    mkObj [
+      ("type", "test_case"),
+      ("status", status),
+      ("status_reason", ""), -- NOTE: Could add
+      ("representation", representation),
+      ("arguments", arguments),
+      ("how_generated", ""), -- NOTE: Could add
+      ("features", features),
+      ("coverage", mkObj []),
+      ("timing", mkObj []),
+      ("metadata", mkObj []),
+      ("property", property),
+      ("run_start", runStart),
+    ]
+  let jsonlines := xs.map transformLine
+  let results := String.intercalate "\n" (jsonlines.map (fun x => s!"{compress x}")) ++ "\n"
+  let fname := s!"theorem_{thmName}"
+  let dir := ".lean/observations"
+  let fpath := s!"{dir}/{fname}.jsonl"
+  IO.FS.createDirAll dir
+  let h ← IO.FS.Handle.mk fpath IO.FS.Mode.append
+  h.putStr results
+  Lean.logInfo s!"Wrote data to {fpath}"
+
 open Decorations in
 /-- Run a test suite for `p` and throw an exception if `p` does not hold. -/
 def Testable.check (p : Prop) (cfg : Configuration := {})
     (p' : Decorations.DecorationsOf p := by mk_decorations) [Testable p'] : Lean.CoreM PUnit := do
-  match ← Testable.checkIO p' cfg with
-  | TestResult.success _ => if !cfg.quiet then Lean.logInfo "Unable to find a counter-example"
+  let r ← Testable.checkIO p' cfg
+  if let some thmName := cfg.detailedReportingWithName then
+    writeReport thmName (r.testResult :: r.history).reverse
+  match r.testResult with
+  | TestResult.success _ _ => if !cfg.quiet then Lean.logInfo "Unable to find a counter-example"
   | TestResult.gaveUp n =>
     if !cfg.quiet then
       let msg := s!"Gave up after failing to generate values that fulfill the preconditions {n} times."
