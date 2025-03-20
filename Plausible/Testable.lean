@@ -595,7 +595,7 @@ def Testable.check (p : Prop) (cfg : Configuration := {})
       let msg := s!"Gave up after failing to generate values that fulfill the preconditions {n} times."
       Lean.logWarning msg
   | TestResult.failure _ xs n =>
-    let msg := "Found a counter-example!"
+    let msg := "Counterexample identified"
     if cfg.quiet then
       Lean.throwError msg
     else
