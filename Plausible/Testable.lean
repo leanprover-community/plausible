@@ -232,7 +232,7 @@ def addInfo (x : String) (h : q → p) (r : TestResult p)
 /-- Add some formatting to the information recorded by `addInfo`. -/
 def addVarInfo {γ : Type _} [Repr γ] (var : String) (x : γ) (h : q → p) (r : TestResult p)
     (p : Unit ⊕' (p → q) := PSum.inl ()) : TestResult q :=
-  addInfo s!"{var} := {repr x}" h r p
+  addInfo s!"  {var} := {repr x}" h r p
 
 def isFailure : TestResult p → Bool
   | failure _ _ _ => true
@@ -390,12 +390,12 @@ instance varTestable [SampleableExt α] {β : α → Prop} [∀ x, Testable (β 
   run := fun cfg min => do
     let x ← SampleableExt.sample
     if cfg.traceSuccesses || cfg.traceDiscarded then
-      slimTrace s!"{var} := {repr x}"
+      slimTrace s!"  {var} := {repr x}"
     let r ← Testable.runProp (β <| SampleableExt.interp x) cfg false
     let ⟨finalX, finalR⟩ ←
       if isFailure r then
         if cfg.traceSuccesses then
-          slimTrace s!"{var} := {repr x} is a failure"
+          slimTrace s!"  {var} := {repr x} is a failure"
         if min then
           minimize cfg var x r
         else
