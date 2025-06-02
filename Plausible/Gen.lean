@@ -97,8 +97,8 @@ def elements (xs : List α) (pos : 0 < xs.length) : Gen α := do
   let ⟨x, _, h2⟩ ← up <| chooseNatLt 0 xs.length pos
   return xs[x]
 
-open List in
 
+open List in
 /-- Generate a random permutation of a given list. -/
 def permutationOf : (xs : List α) → Gen { ys // xs ~ ys }
   | [] => pure ⟨[], Perm.nil⟩

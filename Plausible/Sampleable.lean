@@ -158,7 +158,7 @@ instance Nat.shrinkable : Shrinkable Nat where
   shrink := Nat.shrink
 
 instance Fin.shrinkable {n : Nat} : Shrinkable (Fin n.succ) where
-  shrink m := Nat.shrink m |>.map (Fin.ofNat' _)
+  shrink m := Nat.shrink m |>.map (Fin.ofNat _)
 
 instance BitVec.shrinkable {n : Nat} : Shrinkable (BitVec n) where
   shrink m := Nat.shrink m.toNat |>.map (BitVec.ofNat n)
@@ -270,7 +270,7 @@ instance Nat.sampleableExt : SampleableExt Nat :=
 instance Fin.sampleableExt {n : Nat} : SampleableExt (Fin (n.succ)) :=
   mkSelfContained do
     let m ← choose Nat 0 (min (← getSize) n) (Nat.zero_le _)
-    return (Fin.ofNat' _ m)
+    return (Fin.ofNat _ m)
 
 instance BitVec.sampleableExt {n : Nat} : SampleableExt (BitVec n) :=
   mkSelfContained do
