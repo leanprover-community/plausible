@@ -8,3 +8,13 @@ name = "Test"
 
 [[lean_lib]]
 name = "Plausible"
+
+[[require]]
+name = "batteries"
+scope = "leanprover-community"
+rev = "v4.19.0-rc2"
+
+[[require]]
+name = "Qq"
+scope = "leanprover-community"
+rev = "v4.19.0-rc2"
