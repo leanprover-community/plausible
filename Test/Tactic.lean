@@ -24,97 +24,97 @@ Demonstrate that Plausible can handle the basic types from core:
 -/
 
 
-/-- error: Found a counter-example! -/
+/-- error: Counterexample identified -/
 #guard_msgs in
 example (a b : Sum Nat Nat) : a = b := by
   plausible (config := {quiet := true})
 
-/-- error: Found a counter-example! -/
+/-- error: Counterexample identified -/
 #guard_msgs in
 example (a b : Σ n : Nat, Nat) : a.fst = b.snd := by
   plausible (config := {quiet := true})
 
-/-- error: Found a counter-example! -/
+/-- error: Counterexample identified -/
 #guard_msgs in
 example (a b : Unit) : a ≠ b := by
   plausible (config := {quiet := true})
 
-/-- error: Found a counter-example! -/
+/-- error: Counterexample identified -/
 #guard_msgs in
 example (x y : Nat × Unit) : x = y := by
   plausible (config := {quiet := true})
 
-/-- error: Found a counter-example! -/
+/-- error: Counterexample identified -/
 #guard_msgs in
 example (a b : Bool) : a = b :=  by
   plausible (config := {quiet := true})
 
-/-- error: Found a counter-example! -/
+/-- error: Counterexample identified -/
 #guard_msgs in
 example (a b c : Nat) : a + (b - c) = (a + b) - c := by
   plausible (config := {quiet := true})
 
-/-- error: Found a counter-example! -/
+/-- error: Counterexample identified -/
 #guard_msgs in
 example (a : Fin (n + 1)) : a + 1 > a := by
   plausible (config := {quiet := true})
 
-/-- error: Found a counter-example! -/
+/-- error: Counterexample identified -/
 #guard_msgs in
 example (a : BitVec n) : a + 1 > a := by
   plausible (config := {quiet := true})
 
-/-- error: Found a counter-example! -/
+/-- error: Counterexample identified -/
 #guard_msgs in
 example (a : UInt8) : a - 1 < a := by
   plausible (config := {quiet := true})
 
-/-- error: Found a counter-example! -/
+/-- error: Counterexample identified -/
 #guard_msgs in
 example (a : UInt16) : a - 1 < a := by
   plausible (config := {quiet := true})
 
-/-- error: Found a counter-example! -/
+/-- error: Counterexample identified -/
 #guard_msgs in
 example (a : UInt32) : a - 1 < a := by
   plausible (config := {quiet := true})
 
-/-- error: Found a counter-example! -/
+/-- error: Counterexample identified -/
 #guard_msgs in
 example (a : UInt64) : a - 1 < a := by
   plausible (config := {quiet := true})
 
-/-- error: Found a counter-example! -/
+/-- error: Counterexample identified -/
 #guard_msgs in
 example (a : USize) : a - 1 < a := by
   plausible (config := {quiet := true})
 
-/-- error: Found a counter-example! -/
+/-- error: Counterexample identified -/
 #guard_msgs in
 example (a : Char) : a ≠ a := by
   plausible (config := {quiet := true})
 
-/-- error: Found a counter-example! -/
+/-- error: Counterexample identified -/
 #guard_msgs in
 example (a : Option Char) : a ≠ a := by
   plausible (config := {quiet := true})
 
-/-- error: Found a counter-example! -/
+/-- error: Counterexample identified -/
 #guard_msgs in
 example (xs ys : List Nat) : xs.length = ys.length → xs = ys := by
   plausible (config := {quiet := true})
 
-/-- error: Found a counter-example! -/
+/-- error: Counterexample identified -/
 #guard_msgs in
 example (xs ys : String) : xs.length = ys.length → xs = ys := by
   plausible (config := {quiet := true})
 
-/-- error: Found a counter-example! -/
+/-- error: Counterexample identified -/
 #guard_msgs in
 example (xs ys : Array Nat) : xs.size = ys.size → xs = ys := by
   plausible (config := {quiet := true})
 
-/-- error: Found a counter-example! -/
+/-- error: Counterexample identified -/
 #guard_msgs in
 example (xs : List Int) (f : Int → Int) : xs.map f = xs := by
   plausible (config := {quiet := true})
@@ -150,12 +150,12 @@ theorem testBit_pred :
       (Bool.xor ((List.range i).all fun j => ! testBit x j) (testBit x i))) := by
   plausible
 
-/-- error: Found a counter-example! -/
+/-- error: Counterexample identified -/
 #guard_msgs in
 theorem ulift_nat (f : ULift.{1} Nat) : f = ⟨0⟩ := by
   plausible (config := {quiet := true})
 
-/-- error: Found a counter-example! -/
+/-- error: Counterexample identified -/
 #guard_msgs in
 theorem type_u (α : Type u) (l : List α) : l = l ++ l := by
   plausible (config := {quiet := true})
