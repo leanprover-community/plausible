@@ -34,7 +34,7 @@ def getCtorArgsNamesAndTypes (ctorName : Name) : MetaM (Array (Name × Expr)) :=
       let mut argName := localDecl.userName
       -- Check if the name has macro scopes
       -- If so, remove them so that we can produce a user-accessible name
-      -- (macro scopes appear in the name )
+      -- (where macro scopes don't appear in the name)
       if argName.hasMacroScopes then
         argName := Name.eraseMacroScopes argName
       argNamesAndTypes := Array.push argNamesAndTypes (argName, localDecl.type)
