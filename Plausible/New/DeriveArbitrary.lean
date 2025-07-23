@@ -1,12 +1,11 @@
 import Lean
-import Plausible.IR.Prelude
 import Plausible.New.Idents
 import Plausible.New.TSyntaxCombinators
 import Plausible.New.Arbitrary
 import Plausible.New.Utils
 
 open Lean Elab Command Meta Term Parser
-open Plausible.IR Idents
+open Idents
 
 
 /-- Takes the name of a constructor for an algebraic data type and returns an array
