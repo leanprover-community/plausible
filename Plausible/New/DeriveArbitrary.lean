@@ -56,9 +56,9 @@ def mkArbitrarySizedInstance (targetTypeName : Name) : CommandElabM (TSyntax `co
 
   -- Produce a fresh name for the `size` argument for the lambda
   -- at the end of the generator function, as well as the `aux_arb` inner helper function
-  let freshSizeIdent := mkFreshAccessibleIdent localCtx `size
-  let freshSize' := mkFreshAccessibleIdent localCtx `size'
-  let auxArbIdent := mkFreshAccessibleIdent localCtx `aux_arb
+  let freshSizeIdent := mkIdent $ localCtx.getUnusedName `size
+  let freshSize' := mkIdent $ localCtx.getUnusedName `size'
+  let auxArbIdent := mkIdent $ localCtx.getUnusedName `auxArb
 
   let mut nonRecursiveGenerators := #[]
   let mut recursiveGenerators := #[]
