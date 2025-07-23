@@ -1,9 +1,10 @@
 import Plausible.Gen
 open Plausible
 
--- TODO: figure out some way to avoid having two versions of `frequency, sized, thunkGen`
--- between `GeneratorCombinators.lean` and `OptionTGen.lean`
--- (one for `Gen α`, the other for `OptionT Gen α`)
+----------------------------------------------------------------------------------
+-- Combinators for generators (adapted from QuickChick sourcecode)
+-- https://github.com/QuickChick/QuickChick/blob/master/src/Generators.v
+----------------------------------------------------------------------------------
 
 namespace GeneratorCombinators
 
