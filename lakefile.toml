@@ -19,8 +19,4 @@ name = "batteries"
 scope = "leanprover-community"
 rev = "main"
 
-[[require]]
-name = "LSpec"
-git = "https://github.com/argumentcomputer/LSpec"
-rev = "main"
 
