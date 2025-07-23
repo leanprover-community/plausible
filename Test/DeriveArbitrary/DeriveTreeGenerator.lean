@@ -2,18 +2,24 @@ import Plausible.Gen
 import Plausible.New.Arbitrary
 import Plausible.New.GeneratorCombinators
 import Plausible.New.DeriveArbitrary
-import Plausible.IR.Examples
 
 open Arbitrary GeneratorCombinators
 
 set_option guard_msgs.diff true
+
+/-- A binary tree is either a single `Leaf`,
+    or a `Node` containing a `Nat` with left & right sub-trees -/
+inductive Tree where
+| Leaf : Tree
+| Node : Nat → Tree → Tree → Tree
+deriving Repr
 
 -- Invoke deriving instance handler for the `Arbitrary` typeclass on `type` and `term`
 deriving instance Arbitrary for Tree
 
 -- Test that we can successfully synthesize instances of `Arbitrary` & `ArbitrarySized`
 
-/-- info: instArbitrarySizedTree_test -/
+/-- info: instArbitrarySizedTree -/
 #guard_msgs in
 #synth ArbitrarySized Tree
 

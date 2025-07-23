@@ -2,11 +2,26 @@ import Plausible.Gen
 import Plausible.New.Arbitrary
 import Plausible.New.GeneratorCombinators
 import Plausible.New.DeriveArbitrary
-import Plausible.IR.Examples
 
 open Arbitrary GeneratorCombinators
 
 set_option guard_msgs.diff true
+
+/-- Base types in the Simply-Typed Lambda Calculus (STLC)
+    (either Nat or functions) -/
+inductive type where
+  | Nat : type
+  | Fun : type → type → type
+  deriving BEq, DecidableEq, Repr
+
+/-- Terms in the STLC extended with naturals and addition -/
+inductive term where
+  | Const: Nat → term
+  | Add: term → term → term
+  | Var: Nat → term
+  | App: term → term → term
+  | Abs: type → term → term
+  deriving BEq, Repr
 
 -- Invoke deriving instance handler for the `Arbitrary` typeclass on `type` and `term`
 deriving instance Arbitrary for type, term
@@ -14,11 +29,11 @@ deriving instance Arbitrary for type, term
 -- Test that we can successfully synthesize instances of `Arbitrary` & `ArbitrarySized`
 -- for both `type` & `term`
 
-/-- info: instArbitrarySizedType_test -/
+/-- info: instArbitrarySizedType -/
 #guard_msgs in
 #synth ArbitrarySized type
 
-/-- info: instArbitrarySizedTerm_test -/
+/-- info: instArbitrarySizedTerm -/
 #guard_msgs in
 #synth ArbitrarySized term
 
