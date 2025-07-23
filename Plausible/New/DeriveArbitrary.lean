@@ -58,7 +58,6 @@ def mkArbitrarySizedInstance (targetTypeName : Name) : CommandElabM (TSyntax `co
   -- at the end of the generator function, as well as the `aux_arb` inner helper function
   let freshSizeIdent := mkIdent $ localCtx.getUnusedName `size
   let freshSize' := mkIdent $ localCtx.getUnusedName `size'
-  let auxArbIdent := mkIdent $ localCtx.getUnusedName `auxArb
 
   let mut nonRecursiveGenerators := #[]
   let mut recursiveGenerators := #[]
@@ -151,9 +150,9 @@ def mkArbitrarySizedInstance (targetTypeName : Name) : CommandElabM (TSyntax `co
   let generatorType ← `($genTypeConstructor $targetTypeIdent)
   `(instance : $arbitrarySizedTypeclass $targetTypeIdent where
       $unqualifiedArbitrarySizedFn:ident :=
-        let rec $auxArbIdent:ident $sizeParam : $generatorType :=
+        let rec $auxArbFn:ident $sizeParam : $generatorType :=
           $matchExpr
-      fun $freshSizeIdent => $auxArbIdent $freshSizeIdent)
+      fun $freshSizeIdent => $auxArbFn $freshSizeIdent)
 
 syntax (name := derive_arbitrary) "#derive_arbitrary" term : command
 
@@ -163,11 +162,10 @@ def elabDeriveArbitrary : CommandElab := fun stx => do
   match stx with
   | `(#derive_arbitrary $targetTypeTerm:term) => do
 
-    -- TODO: figure out how to support parameterized types
     let targetTypeIdent ←
       match targetTypeTerm with
       | `($tyIdent:ident) => pure tyIdent
-      | _ => throwErrorAt targetTypeTerm "Parameterized types not supported"
+      | _ => throwErrorAt targetTypeTerm "Deriving Arbitrary not supported for parameterized types"
     let targetTypeName := targetTypeIdent.getId
 
     let isInductiveType ← isInductive targetTypeName
