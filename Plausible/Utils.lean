@@ -1,4 +1,8 @@
-
+/-
+Copyright (c) 2025 Ernest Ng. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Ernest Ng
+-/
 import Lean
 import Batteries.Data.List.Basic
 
