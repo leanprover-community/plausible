@@ -1,7 +1,7 @@
 import Plausible.Gen
-import Plausible.New.Arbitrary
-import Plausible.New.GeneratorCombinators
-import Plausible.New.DeriveArbitrary
+import Plausible.Arbitrary
+import Plausible.GeneratorCombinators
+import Plausible.DeriveArbitrary
 
 open Arbitrary GeneratorCombinators
 

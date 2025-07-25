@@ -1,8 +1,8 @@
 import Lean
-import Plausible.New.Idents
-import Plausible.New.TSyntaxCombinators
-import Plausible.New.Arbitrary
-import Plausible.New.Utils
+import Plausible.Idents
+import Plausible.TSyntaxCombinators
+import Plausible.Arbitrary
+import Plausible.Utils
 
 open Lean Elab Command Meta Term Parser
 open Idents
@@ -195,7 +195,7 @@ def elabDeriveArbitrary : CommandElab := fun stx => do
       -- Pretty-print the derived generator
       let genFormat ← liftCoreM (PrettyPrinter.ppCommand typeClassInstance)
 
-      logInfo m!"Derived generator: {genFormat}"
+      logInfo m!"Try this generator: {genFormat}"
 
       -- Elaborate the typeclass instance and add it to the local context
       elabCommand typeClassInstance

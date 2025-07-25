@@ -1,5 +1,5 @@
 import Plausible.Gen
-import Plausible.New.GeneratorCombinators
+import Plausible.GeneratorCombinators
 import Plausible.Sampleable
 
 open Plausible
