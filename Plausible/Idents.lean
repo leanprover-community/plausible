@@ -1,5 +1,9 @@
 import Lean
 import Plausible.Gen
+
+import Plausible.Arbitrary
+import Plausible.GeneratorCombinators
+
 open Lean Meta Std
 
 -- Create idents for commonly-called functions & commonly-referenced types
@@ -7,28 +11,27 @@ open Lean Meta Std
 namespace Idents
 
 -- Idents for commonly-called functions
-def generatorCombinatorsThunkGenFn : Ident := mkIdent $ Name.mkStr2 "GeneratorCombinators" "thunkGen"
-def frequencyFn : Ident := mkIdent $ Name.mkStr2 "GeneratorCombinators" "frequency"
-def oneOfWithDefaultGenCombinatorFn : Ident := mkIdent $ Name.mkStr2 "GeneratorCombinators" "oneOfWithDefault"
-def oneOfWithDefaultEnumCombinatorFn : Ident := mkIdent $ Name.mkStr2 "EnumeratorCombinators" "oneOfWithDefault"
+def generatorCombinatorsThunkGenFn : Ident := mkIdent ``GeneratorCombinators.thunkGen
+def frequencyFn : Ident := mkIdent ``GeneratorCombinators.frequency
+def oneOfWithDefaultGenCombinatorFn : Ident := mkIdent ``GeneratorCombinators.oneOfWithDefault
 
 /-- Ident for the inner `aux_arb` function that appears in derived generators -/
-def auxArbFn : Ident := mkIdent $ Name.mkStr1 "aux_arb"
+def auxArbFn : Ident := mkIdent `aux_arb
 
-def pureFn : Ident := mkIdent $ Name.mkStr1 "pure"
+def pureFn : Ident := mkIdent ``pure
 def someFn : Ident := mkIdent ``some
 def trueIdent : Ident := mkIdent ``true
 def falseIdent : Ident := mkIdent ``false
 
 -- Idents for size arguments to generators
-def initSizeIdent : Ident := mkIdent $ Name.mkStr1 "initSize"
-def sizeIdent : Ident := mkIdent $ Name.mkStr1 "size"
+def initSizeIdent : Ident := mkIdent `initSize
+def sizeIdent : Ident := mkIdent `size
 
-def arbitrarySizedTypeclass : Ident := mkIdent $ Name.mkStr1 "ArbitrarySized"
+def arbitrarySizedTypeclass : Ident := mkIdent `ArbitrarySized
 
 -- Idents for typeclass functions
-def arbitraryFn : Ident := mkIdent $ Name.mkStr2 "Arbitrary" "arbitrary"
-def arbitrarySizedFn : Ident := mkIdent $ Name.mkStr2 "ArbitrarySized" "arbitrarySized"
+def arbitraryFn : Ident := mkIdent `Arbitrary.arbitrary
+def arbitrarySizedFn : Ident := mkIdent `ArbitrarySized.arbitrarySized
 def unqualifiedArbitrarySizedFn : Ident := mkIdent $ Name.mkStr1 "arbitrarySized"
 
 
