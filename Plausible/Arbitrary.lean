@@ -4,18 +4,23 @@ import Plausible.Sampleable
 
 open Plausible
 
-/-- This is the equivalent of Haskell QuickCheck's `Arbitrary` typeclass
-    reprensenting types for which there exists a random generator suitable
-    for property-based testing.
-    (In QuickChick, this typeclass is called `Gen`, but `Gen` is already
+/-- The `Arbitrary` typeclass represents types for which there exists a
+    random generator suitable for property-based testing.
+    - This is the equivalent of Haskell QuickCheck's `Arbitrary` typeclass.
+    - In QuickChick, this typeclass is called `Gen`, but `Gen` is already
     a reserved keyword in Plausible, so we call this typeclass `Arbitrary`
-    following the Haskell QC convention). -/
+    following the Haskell QuickCheck convention). -/
 class Arbitrary (α : Type) where
+  /-- A random generator for values of the given type. -/
   arbitrary : Gen α
 
-/-- A typeclass for sized generation.
-    Equivalent to QuickChick's `arbitrarySized` typeclass -/
+/-- A typeclass for sized random generation, i.e. a variant of
+    the `Arbitrary` typeclass where the generator's internal size
+    parameter is made explicit.
+    - This typeclass is equivalent to QuickChick's `arbitrarySized` typeclass. -/
 class ArbitrarySized (α : Type) where
+  /-- Takes a `Nat` and produces a random generator dependent on the `Nat` parameter
+      (which indicates the size of the output) -/
   arbitrarySized : Nat → Gen α
 
 /-- Every `ArbitrarySized` instance gives rise to an `Arbitrary` instance -/
@@ -38,5 +43,5 @@ instance [SampleableExt α] : Arbitrary α where
     using `size` as the size parameter for the generator.
     To invoke this function, you will need to specify what type `α` is,
     for example by doing `runArbitrary (α := Nat) 10`. -/
-def runArbitrary {α} [Arbitrary α] (size : Nat) : IO α :=
+def runArbitrary [Arbitrary α] (size : Nat) : IO α :=
   Gen.run Arbitrary.arbitrary size

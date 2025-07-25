@@ -3,8 +3,6 @@
   ["docBlame", "Plausible.TotalFunction.shrink.dedup.insertKey"],
   ["docBlame", "Plausible.Gen.up"],
   ["docBlame", "Plausible.Gen.down"],
-  ["docBlame", "Arbitrary.arbitrary"],
-  ["docBlame", "ArbitrarySized.arbitrarySized"],
   ["docBlame", "derive_arbitrary"],
   ["docBlame", "Plausible.Shrinkable.shrink"],
   ["docBlame", "Plausible.SampleableExt.proxy"],
