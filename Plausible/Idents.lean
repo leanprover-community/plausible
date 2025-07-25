@@ -18,7 +18,7 @@ def oneOfWithDefaultGenCombinatorFn : Ident := mkIdent ``GeneratorCombinators.on
 /-- Ident for the inner `aux_arb` function that appears in derived generators -/
 def auxArbFn : Ident := mkIdent `aux_arb
 
-def pureFn : Ident := mkIdent ``pure
+def pureFn : Ident := mkIdent `pure
 def someFn : Ident := mkIdent ``some
 def trueIdent : Ident := mkIdent ``true
 def falseIdent : Ident := mkIdent ``false
@@ -31,8 +31,8 @@ def arbitrarySizedTypeclass : Ident := mkIdent `ArbitrarySized
 
 -- Idents for typeclass functions
 def arbitraryFn : Ident := mkIdent `Arbitrary.arbitrary
-def arbitrarySizedFn : Ident := mkIdent `ArbitrarySized.arbitrarySized
-def unqualifiedArbitrarySizedFn : Ident := mkIdent $ Name.mkStr1 "arbitrarySized"
+def arbitrarySizedFn : Ident := mkIdent ``ArbitrarySized.arbitrarySized
+def unqualifiedArbitrarySizedFn : Ident := mkIdent `arbitrarySized
 
 
 -- Idents for commonly-used types / constructors / type constructors
