@@ -10,37 +10,67 @@ open Lean Meta Std
 
 namespace Idents
 
--- Idents for commonly-called functions
+/-- Ident for the `GeneratorCombinators.thunkGen` function -/
 def generatorCombinatorsThunkGenFn : Ident := mkIdent ``GeneratorCombinators.thunkGen
+
+/-- Ident for the `GeneratorCombinators.frequency` function -/
 def frequencyFn : Ident := mkIdent ``GeneratorCombinators.frequency
+
+/-- Ident for the `GeneratorCombinators.oneOfWithDefault` function -/
 def oneOfWithDefaultGenCombinatorFn : Ident := mkIdent ``GeneratorCombinators.oneOfWithDefault
 
 /-- Ident for the inner `aux_arb` function that appears in derived generators -/
 def auxArbFn : Ident := mkIdent `aux_arb
 
+/-- Ident for the `pure` function -/
 def pureFn : Ident := mkIdent `pure
+
+/-- Ident for the `some` `Option` constructor -/
 def someFn : Ident := mkIdent ``some
+
+/-- Ident for the `true` boolean literal -/
 def trueIdent : Ident := mkIdent ``true
+
+/-- Ident for the `false` boolean literal -/
 def falseIdent : Ident := mkIdent ``false
 
 -- Idents for size arguments to generators
+/-- Ident for the `initSize` parameter used in generators -/
 def initSizeIdent : Ident := mkIdent `initSize
+
+/-- Ident for the `size` parameter used in generators -/
 def sizeIdent : Ident := mkIdent `size
 
+/-- Ident for the `ArbitrarySized` typeclass -/
 def arbitrarySizedTypeclass : Ident := mkIdent `ArbitrarySized
 
 -- Idents for typeclass functions
+/-- Ident for the `Arbitrary.arbitrary` function -/
 def arbitraryFn : Ident := mkIdent `Arbitrary.arbitrary
+
+/-- Ident for the `ArbitrarySized.arbitrarySized` function -/
 def arbitrarySizedFn : Ident := mkIdent ``ArbitrarySized.arbitrarySized
+
+/-- Ident for the unqualified `arbitrarySized` function -/
 def unqualifiedArbitrarySizedFn : Ident := mkIdent `arbitrarySized
 
-
 -- Idents for commonly-used types / constructors / type constructors
+/-- Ident for the `Bool` type -/
 def boolIdent : Ident := mkIdent ``Bool
+
+/-- Ident for the `Nat` type -/
 def natIdent : Ident := mkIdent ``Nat
+
+/-- Ident for the `Nat.zero` constructor -/
 def zeroIdent : Ident := mkIdent ``Nat.zero
+
+/-- Ident for the `Nat.succ` constructor -/
 def succIdent : Ident := mkIdent ``Nat.succ
+
+/-- Ident for the `Option` type constructor -/
 def optionTypeConstructor : Ident := mkIdent `Option
+
+/-- Ident for the `Plausible.Gen` type constructor -/
 def genTypeConstructor : Ident := mkIdent ``Plausible.Gen
 
 /-- Produces a fresh user-facing & *accessible* identifier with respect to the local context
