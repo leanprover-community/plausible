@@ -64,48 +64,69 @@ def mkArbitrarySizedInstance (targetTypeName : Name) : CommandElabM (TSyntax `co
     let ctorIdent := mkIdent ctorName
 
     let ctorArgNamesTypes ← liftTermElabM $ getCtorArgsNamesAndTypes ctorName
+    let (ctorArgNames, ctorArgTypes) := Array.unzip ctorArgNamesTypes
+
+    /- Produce fresh names for each of the constructor's arguments.
+      Producing fresh names is necessary in order to handle
+      constructors expressed using the following syntax:
+      ```
+      inductive Foo
+        | C : T1 → ... → Tn
+      ```
+      in which all the arguments to the constructor `C` don't have explicit names.
+
+      (Note: we use `genFreshNames` instead of `LocalContext.getUnusedName` here
+      to ensure that when there are multiple arguments,
+      every single argument gets a fresh name. All of the fresh names are added
+      to the `LocalContext` later in this function, ensuring that the `LocalContext`
+      remains updated.)
+    -/
+    let freshArgNames := genFreshNames (existingNames := ctorArgNames) (namePrefixes := ctorArgNames)
+    let freshArgNamesTypes := Array.zip freshArgNames ctorArgTypes
+    let freshArgIdents := Lean.mkIdent <$> freshArgNames
+    let freshArgIdentsTypes := Array.zip freshArgIdents ctorArgTypes
 
     if ctorArgNamesTypes.isEmpty then
       -- Constructor is nullary, we can just use a generator of the form `pure ...`
       let pureGen ← `($pureFn $ctorIdent)
       nonRecursiveGenerators := nonRecursiveGenerators.push pureGen
     else
-      -- Produce a fresh name for each of the args to the constructor
-      let ctorArgNames := Prod.fst <$> ctorArgNamesTypes
-      let freshArgIdents := Lean.mkIdent <$> genFreshNames (existingNames := ctorArgNames) (namePrefixes := ctorArgNames)
+      -- Add all the freshened names for the constructor to the local context,
+      -- then produce the body of the sub-generator
+      let (generatorBody, ctorIsRecursive) ← liftTermElabM $
+        withLocalDeclsDND freshArgNamesTypes (fun _ => do
+          let mut doElems := #[]
 
-      let mut doElems := #[]
+          -- Determine whether the constructor has any recursive arguments
+          let ctorIsRecursive ← isConstructorRecursive targetTypeName ctorName
+          if !ctorIsRecursive then
+            -- Call `arbitrary` to generate a random value for each of the arguments
+            for freshIdent in freshArgIdents do
+              let bindExpr ← mkLetBind freshIdent #[arbitraryFn]
+              doElems := doElems.push bindExpr
+          else
+            -- For recursive constructors, we need to examine each argument to see which of them require
+            -- recursive calls to the generator
+            for (freshIdent, argType) in freshArgIdentsTypes do
+              -- If the argument's type is the same as the target type,
+              -- produce a recursive call to the generator using `aux_arb`,
+              -- otherwise generate a value using `arbitrary`
+              let bindExpr ←
+                if argType.getAppFn.constName == targetTypeName then
+                  mkLetBind freshIdent #[auxArbFn, freshSize']
+                else
+                  mkLetBind freshIdent #[arbitraryFn]
+              doElems := doElems.push bindExpr
 
-      -- Determine whether the constructor has any recursive arguments
-      let ctorIsRecursive ← liftTermElabM $ isConstructorRecursive targetTypeName ctorName
-      if !ctorIsRecursive then
-        -- Call `arbitrary` to generate a random value for each of the arguments
-        for freshIdent in freshArgIdents do
-          let bindExpr ← liftTermElabM $ mkLetBind freshIdent #[arbitraryFn]
-          doElems := doElems.push bindExpr
-      else
-        -- For recursive constructors, we need to examine each argument to see which of them require
-        -- recursive calls to the generator
-        let freshArgIdentsTypes := Array.zip freshArgIdents (Prod.snd <$> ctorArgNamesTypes)
-        for (freshIdent, argType) in freshArgIdentsTypes do
-          -- If the argument's type is the same as the target type,
-          -- produce a recursive call to the generator using `aux_arb`,
-          -- otherwise generate a value using `arbitrary`
-          let bindExpr ←
-            liftTermElabM $
-              if argType.getAppFn.constName == targetTypeName then
-                mkLetBind freshIdent #[auxArbFn, freshSize']
-              else
-                mkLetBind freshIdent #[arbitraryFn]
-          doElems := doElems.push bindExpr
+          -- Create an expression `return C x1 ... xn` at the end of the generator, where
+          -- `C` is the constructor name and the `xi` are the generated values for the args
+          let pureExpr ← `(doElem| return $ctorIdent $freshArgIdents*)
+          doElems := doElems.push pureExpr
 
-      -- Create an expression `return C x1 ... xn` at the end of the generator, where
-      -- `C` is the constructor name and the `xi` are the generated values for the args
-      let pureExpr ← `(doElem| return $ctorIdent $freshArgIdents*)
-      doElems := doElems.push pureExpr
+          -- Put the body of the generator together
+          let generatorBody ← mkDoBlock doElems
+          pure (generatorBody, ctorIsRecursive))
 
-      -- Put the body of the generator together
-      let generatorBody ← liftTermElabM $ mkDoBlock doElems
       if !ctorIsRecursive then
         nonRecursiveGenerators := nonRecursiveGenerators.push generatorBody
       else
