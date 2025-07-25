@@ -195,10 +195,7 @@ def elabDeriveArbitrary : CommandElab := fun stx => do
       -- Pretty-print the derived generator
       let genFormat ← liftCoreM (PrettyPrinter.ppCommand typeClassInstance)
 
-      -- Display the code for the derived typeclass instance to the user
-      -- & prompt the user to accept it in the VS Code side panel
-      liftTermElabM $ Tactic.TryThis.addSuggestion stx
-        (Format.pretty genFormat) (header := "Try this generator: ")
+      logInfo m!"Derived generator: {genFormat}"
 
       -- Elaborate the typeclass instance and add it to the local context
       elabCommand typeClassInstance
