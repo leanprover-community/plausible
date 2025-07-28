@@ -188,7 +188,7 @@ def mkArbitrarySizedInstance (targetTypeName : Name) : CommandElabM (TSyntax `co
   -- Turn each generator into a thunked function and associate each generator with its weight
   -- (1 for non-recursive generators, `.succ size'` for recursive generators)
   let thunkedNonRecursiveGenerators ←
-    Array.mapM (fun generatorBody => `($generatorCombinatorsThunkGenFn (fun _ => $generatorBody))) nonRecursiveGenerators
+    Array.mapM (fun generatorBody => `($thunkGenFn (fun _ => $generatorBody))) nonRecursiveGenerators
 
   let mut weightedThunkedNonRecursiveGens := #[]
   for thunkedGen in thunkedNonRecursiveGenerators do
@@ -197,7 +197,7 @@ def mkArbitrarySizedInstance (targetTypeName : Name) : CommandElabM (TSyntax `co
 
   let mut weightedThunkedRecursiveGens := #[]
   for recursiveGen in recursiveGenerators do
-    let thunkedWeightedGen ← `(($succIdent $freshSize', $generatorCombinatorsThunkGenFn (fun _ => $recursiveGen)))
+    let thunkedWeightedGen ← `(($succIdent $freshSize', $thunkGenFn (fun _ => $recursiveGen)))
     weightedThunkedRecursiveGens := weightedThunkedRecursiveGens.push thunkedWeightedGen
 
   -- Create the cases for the pattern-match on the size argument
