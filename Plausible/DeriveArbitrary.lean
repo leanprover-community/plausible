@@ -38,6 +38,13 @@ Alternatively, instead of writing `deriving Arbitrary`,
 users can also write `deriving instance Arbitrary for T1, ..., Tn`
 as a top-level command to derive `Arbitrary` instances for types `T1, ..., Tn` simultaneously.
 
+To sample from a derived generator, users can simply call `Arbitrary.runArbitrary`, specify the type
+for the desired generated values and provide some Nat to act as the generator's size parameter (10 in the example below):
+
+```lean
+#eval Arbitrary.runArbitrary (α := Tree) 10
+```
+
 For debugging purposes, we also provide a command elaborator for the `#derive_arbitrary` command:
 
 ```lean
@@ -224,6 +231,8 @@ def mkArbitrarySizedInstance (targetTypeName : Name) : CommandElabM (TSyntax `co
           $matchExpr
       fun $freshSizeIdent => $auxArbFn $freshSizeIdent)
 
+/-- The command elaborator `#derive_arbirary`, which derives an instance of the `ArbitrarySized` typeclass
+    and prints the code for the derived generator to stdout. -/
 syntax (name := derive_arbitrary) "#derive_arbitrary" term : command
 
 /-- Command elaborator which derives an instance of the `ArbitrarySized` typeclass -/

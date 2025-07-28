@@ -72,11 +72,15 @@ instance [Repr α] [Shrinkable α] [ArbitrarySized α] : SampleableExt α :=
 instance [SampleableExt α] : Arbitrary α where
   arbitrary := SampleableExt.interp <$> SampleableExt.sample
 
+namespace Arbitrary
+
 /-- Samples from the generator associated with the `Arbitrary` instance for a type,
     using `size` as the size parameter for the generator.
     To invoke this function, you will need to specify what type `α` is,
     for example by doing `runArbitrary (α := Nat) 10`. -/
 def runArbitrary [Arbitrary α] (size : Nat) : IO α :=
   Gen.run Arbitrary.arbitrary size
+
+end Arbitrary
 
 end Plausible
