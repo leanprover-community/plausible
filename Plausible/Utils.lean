@@ -28,7 +28,7 @@ def splitLast? (arr : Array α) : Option (Array α × α) :=
 
 /-- Takes a universally-quantified expression of the form `∀ (x1 : τ1) … (xn : τn), body`
     and returns the pair `(#[(x1, τ1), …, (xn, τn)], body)` -/
-partial def extractForAllBinders (e : Expr) : Array (Name × Expr) × Expr :=
+private partial def extractForAllBinders (e : Expr) : Array (Name × Expr) × Expr :=
   let rec go (e : Expr) (acc : Array (Name × Expr)) :=
     match e with
     | Expr.forallE n t b _ =>
@@ -42,7 +42,7 @@ partial def extractForAllBinders (e : Expr) : Array (Name × Expr) × Expr :=
 /-- Takes a type expression `tyexpr` representing an arrow type, and returns an array of type-expressions
     where each element is a component of the arrow type.
     For example, `getComponentsOfArrowType (A -> B -> C)` produces `#[A, B, C]`. -/
-partial def getComponentsOfArrowType (tyexpr : Expr) : MetaM (Array Expr) := do
+private partial def getComponentsOfArrowType (tyexpr : Expr) : MetaM (Array Expr) := do
   let rec helper (e : Expr) (acc : Array Expr) : MetaM (Array Expr) := do
     match e with
     | Expr.forallE _ domain body _ =>
@@ -55,47 +55,10 @@ partial def getComponentsOfArrowType (tyexpr : Expr) : MetaM (Array Expr) := do
     `(#[(x1, τ1), …, (xn, τn)], Q1 → … → Qn → P, #[Q1, …, Qn, P])`.
     - The 2nd component is the body of the forall-expression
     - The 3rd component is an array containing each subterm of the arrow type -/
-def decomposeType (e : Expr) : MetaM (Array (Name × Expr) × Expr × Array Expr) := do
+private def decomposeType (e : Expr) : MetaM (Array (Name × Expr) × Expr × Array Expr) := do
   let (binder, exp) := extractForAllBinders e
   let tyexp ← getComponentsOfArrowType exp
   return (binder, exp, tyexp)
-
-/-- Looks up the user-facing `Name` corresponding to an `FVarId` in a specific `LocalContext` -/
-def getUserNameInContext (lctx : LocalContext) (fvarId : FVarId) : Name :=
-  (lctx.get! fvarId).userName
-
-/-- Helper function for setting delaborator options
-  (used in `delabExprInLocalContext`, which calls `PrettyPrinter.delab`)
-
-  - Note: this function forces delaborator to pretty-print pattern cases in prefix position,
-    as opposed to using postfix dot-notation, which is not allowed in pattern-matches -/
-def setDelaboratorOptions (opts : Options) : Options :=
-  opts.setBool `pp.fieldNotation false
-    |>.setBool `pp.notation true
-    |>.setBool `pp.instances true
-    |>.setBool `pp.instanceTypes false
-    |>.setBool `pp.all false
-    |>.setBool `pp.explicit false
-
-
-/-- Delaborates an `Expr` in a `LocalContext` to a `TSyntax term` -/
-def delabExprInLocalContext (lctx : LocalContext) (e : Expr) : MetaM (TSyntax `term) :=
-  withOptions setDelaboratorOptions $
-    withLCtx lctx #[] do
-      PrettyPrinter.delab e
-
-/-- Determines if an instance of the typeclass `className` exists for a particular `type`
-    represented as an `Expr`. Under the hood, this tries to synthesize an instance of the typeclass for the type.
-
-    Example:
-    ```
-    #eval hasInstance `Repr (Expr.const `Nat []) -- returns true
-    ```
--/
-def hasInstance (className : Name) (type : Expr) : MetaM Bool := do
-  let classType ← mkAppM className #[type]
-  Option.isSome <$> synthInstance? classType
-
 
 /-- Determines if a constructor for an inductive relation is *recursive*
     (i.e. the constructor's type mentions the inductive relation)
@@ -112,17 +75,3 @@ def isConstructorRecursive (inductiveName : Name) (ctorName : Name) : MetaM Bool
         return true
     return false
   | none => throwError "constructors with non-arrow types are not-considered to be recursive"
-
-/-- `replicateM n act` performs the action `act` for `n` times, returning a list of results. -/
-def replicateM [Monad m] (n : Nat) (action : m α) : m (List α) :=
-  match n with
-  | 0 => pure []
-  | n + 1 => do
-    let x ← action
-    let xs ← replicateM n action
-    pure (x :: xs)
-
-/-- Converts a list of options to an optional list
-    (akin to Haskell's `sequence`) -/
-def List.sequence (xs : List (Option α)) : Option (List α) :=
-  List.traverse id xs
