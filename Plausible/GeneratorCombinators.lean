@@ -6,10 +6,20 @@ Authors: Ernest Ng
 import Plausible.Gen
 open Plausible
 
-----------------------------------------------------------------------------------
--- Combinators for generators (adapted from QuickChick sourcecode)
--- https://github.com/QuickChick/QuickChick/blob/master/src/Generators.v
-----------------------------------------------------------------------------------
+
+/-!
+# Generator combinators for derived generators
+
+This file defines various combinators for generators, which are used
+in the body of derived generators (for derived `Arbitrary` instances).
+
+The code for these combinators closely mirrors those used in Rocq/Coq QuickChick
+(see link in the **References** section below).
+
+## References
+* https://github.com/QuickChick/QuickChick/blob/master/src/Generators.v
+
+-/
 
 namespace GeneratorCombinators
 

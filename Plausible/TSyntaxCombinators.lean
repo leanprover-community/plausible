@@ -6,6 +6,18 @@ Authors: Ernest Ng
 import Lean
 open Lean Elab Command Meta Term Parser
 
+/-!
+# Combinators for `TSyntax`
+
+This file contains combinators for creating `TSyntax` terms and monadic expressions (`doElem`s),
+which are used when deriving the code for generators.
+
+
+## References
+* https://leanprover-community.github.io/lean4-metaprogramming-book/main/05_syntax.html
+
+-/
+
 /-- `mkLetBind lhs rhsTerms` constructs a monadic let-bind expression of the form
     `let lhs ← e0 e1 … en`, where `rhsTerms := #[e0, e1, …, en]`.
     - Note: `rhsTerms` cannot be empty, otherwise this function throws an exception -/

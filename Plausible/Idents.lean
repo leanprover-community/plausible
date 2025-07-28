@@ -9,9 +9,15 @@ import Plausible.Gen
 import Plausible.Arbitrary
 import Plausible.GeneratorCombinators
 
-open Lean Meta Std
+/-!
+# Idents for derived generators
 
--- Create idents for commonly-called functions & commonly-referenced types
+This file defines `Ident`s for commonly-called functions & commonly-referenced types --
+these are used in the body of derived generators (when deriving `Arbitrary` instances).
+
+-/
+
+open Lean Meta Std
 
 namespace Idents
 

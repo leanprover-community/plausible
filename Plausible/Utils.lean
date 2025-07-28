@@ -6,6 +6,14 @@ Authors: Ernest Ng
 import Lean
 import Batteries.Data.List.Basic
 
+/-!
+# Miscellaneous utilities
+
+This file contains miscellaneous helper functions which are used when deriving
+generators (i.e. `Arbitrary` instances).
+
+-/
+
 open Lean Meta
 
 /-- Decomposes an array `arr` into a pair `(xs, x)`
