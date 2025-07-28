@@ -21,23 +21,6 @@ Every `ArbitrarySized` instance automatically leads to an `Arbitrary` instance.
 (Note: the `SampleableExt` describes types which have *both* a generator & a shrinker,
 whereas `Arbitrary` describes types which have a generator only.)
 
-We offer support for automatically deriving `Arbitrary` instances:
-users can write `deriving Arbitrary` after an inductive type definition, e.g.
-
-```lean
--- Datatype for binary trees
-inductive Tree
-  | Leaf : Tree
-  | Node : Nat → Tree → Tree → Tree
-  deriving Arbitrary
-```
-
-At compile time, a generator for random inhabitants of `Tree` is derived.
-
-Alternatively, instead of writing `deriving Arbitrary`,
-users can also write `deriving instance Arbitrary for T1, ..., Tn`
-as a top-level command to derive `Arbitrary` instances for types `T1, ..., Tn` simultaneously.
-
 ## Main definitions
 
 * `Arbitrary` typeclass

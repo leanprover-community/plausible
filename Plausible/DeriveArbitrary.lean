@@ -12,6 +12,49 @@ import Plausible.Utils
 open Lean Elab Command Meta Term Parser
 open Idents
 
+/-!
+
+# Deriving Handler for `Arbitrary` typeclass
+
+This file defines a handler which automatically derives `Arbitrary` instances
+for algebraic data types (i.e. simple `inductive` types).
+
+(Note that the deriving handler technically derives `ArbitrarySized` instancces,
+but every `ArbitrarySized` instance automatically results in an `Arbitrary` instance,
+as detailed in `Arbitrary.lean`.)
+
+users can write `deriving Arbitrary` after an inductive type definition, e.g.
+
+```lean
+-- Datatype for binary trees
+inductive Tree
+  | Leaf : Tree
+  | Node : Nat → Tree → Tree → Tree
+  deriving Arbitrary
+```
+
+At compile time, a generator for random inhabitants of `Tree` is derived.
+
+Alternatively, instead of writing `deriving Arbitrary`,
+users can also write `deriving instance Arbitrary for T1, ..., Tn`
+as a top-level command to derive `Arbitrary` instances for types `T1, ..., Tn` simultaneously.
+
+For debugging purposes, we also provide a command elaborator for the `#derive_arbitrary` command:
+
+```lean
+-- `#derive_arbitrary` derives an instance of `Arbitrary` for `Tree`
+#derive_arbitrary Tree
+```
+
+Running this command prints the code for the derived generator to stdout.
+(Note that the definition of the derived generator is already registered at this point.)
+
+## Main definitions
+* Deriving handler for `ArbitrarySized` typeclass
+* `#derive_arbitrary` command elaborator
+
+-/
+
 
 /-- Takes the name of a constructor for an algebraic data type and returns an array
     containing `(argument_name, argument_type)` pairs.
