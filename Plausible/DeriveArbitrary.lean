@@ -10,6 +10,7 @@ import Plausible.Arbitrary
 import Plausible.Utils
 
 open Lean Elab Command Meta Term Parser
+open Plausible
 open Idents
 
 /-!

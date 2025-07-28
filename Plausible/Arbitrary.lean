@@ -33,7 +33,9 @@ whereas `Arbitrary` describes types which have a generator only.)
 
 -/
 
-open Plausible
+namespace Plausible
+
+open Gen SampleableExt
 
 /-- The `Arbitrary` typeclass represents types for which there exists a
     random generator suitable for property-based testing.
@@ -76,3 +78,5 @@ instance [SampleableExt α] : Arbitrary α where
     for example by doing `runArbitrary (α := Nat) 10`. -/
 def runArbitrary [Arbitrary α] (size : Nat) : IO α :=
   Gen.run Arbitrary.arbitrary size
+
+end Plausible

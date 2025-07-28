@@ -18,6 +18,7 @@ these are used in the body of derived generators (when deriving `Arbitrary` inst
 -/
 
 open Lean Meta Std
+open Plausible
 
 namespace Idents
 

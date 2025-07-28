@@ -3,7 +3,7 @@ import Plausible.Arbitrary
 import Plausible.GeneratorCombinators
 import Plausible.DeriveArbitrary
 
-open Arbitrary GeneratorCombinators
+open Plausible GeneratorCombinators
 
 set_option guard_msgs.diff true
 
