@@ -1,9 +1,9 @@
 import Plausible.Gen
 import Plausible.Arbitrary
-import Plausible.GeneratorCombinators
+import Plausible.Gen
 import Plausible.DeriveArbitrary
 
-open Plausible GeneratorCombinators
+open Plausible Gen
 
 set_option guard_msgs.diff true
 
@@ -29,36 +29,36 @@ structure Foo where
 namespace CommandElaboratorTest
 
 /--
-info: Try this generator: instance : ArbitrarySized Foo where
+info: Try this generator: instance : Plausible.ArbitrarySized Foo where
   arbitrarySized :=
     let rec aux_arb (size : Nat) : Plausible.Gen Foo :=
       match size with
       | Nat.zero =>
-        GeneratorCombinators.oneOfWithDefault
+        Plausible.Gen.oneOfWithDefault
           (do
-            let stringField_0 ← Arbitrary.arbitrary
-            let boolField_0 ← Arbitrary.arbitrary
-            let natField_0 ← Arbitrary.arbitrary
+            let stringField_0 ← Plausible.Arbitrary.arbitrary
+            let boolField_0 ← Plausible.Arbitrary.arbitrary
+            let natField_0 ← Plausible.Arbitrary.arbitrary
             return Foo.mk stringField_0 boolField_0 natField_0)
-          [GeneratorCombinators.thunkGen
+          [Plausible.Gen.thunkGen
               (fun _ => do
-                let stringField_0 ← Arbitrary.arbitrary
-                let boolField_0 ← Arbitrary.arbitrary
-                let natField_0 ← Arbitrary.arbitrary
+                let stringField_0 ← Plausible.Arbitrary.arbitrary
+                let boolField_0 ← Plausible.Arbitrary.arbitrary
+                let natField_0 ← Plausible.Arbitrary.arbitrary
                 return Foo.mk stringField_0 boolField_0 natField_0)]
       | Nat.succ size' =>
-        GeneratorCombinators.frequency
+        Plausible.Gen.frequency
           (do
-            let stringField_0 ← Arbitrary.arbitrary
-            let boolField_0 ← Arbitrary.arbitrary
-            let natField_0 ← Arbitrary.arbitrary
+            let stringField_0 ← Plausible.Arbitrary.arbitrary
+            let boolField_0 ← Plausible.Arbitrary.arbitrary
+            let natField_0 ← Plausible.Arbitrary.arbitrary
             return Foo.mk stringField_0 boolField_0 natField_0)
           [(1,
-              GeneratorCombinators.thunkGen
+              Plausible.Gen.thunkGen
                 (fun _ => do
-                  let stringField_0 ← Arbitrary.arbitrary
-                  let boolField_0 ← Arbitrary.arbitrary
-                  let natField_0 ← Arbitrary.arbitrary
+                  let stringField_0 ← Plausible.Arbitrary.arbitrary
+                  let boolField_0 ← Plausible.Arbitrary.arbitrary
+                  let natField_0 ← Plausible.Arbitrary.arbitrary
                   return Foo.mk stringField_0 boolField_0 natField_0)),
             ]
     fun size => aux_arb size

@@ -7,7 +7,7 @@ import Lean
 import Plausible.Gen
 
 import Plausible.Arbitrary
-import Plausible.GeneratorCombinators
+import Plausible.Gen
 
 /-!
 # Idents for derived generators
@@ -20,16 +20,17 @@ these are used in the body of derived generators (when deriving `Arbitrary` inst
 open Lean Meta Std
 open Plausible
 
+
 namespace Idents
 
-/-- Ident for the `GeneratorCombinators.thunkGen` function -/
-def generatorCombinatorsThunkGenFn : Ident := mkIdent ``GeneratorCombinators.thunkGen
+/-- Ident for the `Gen.thunkGen` function -/
+def generatorCombinatorsThunkGenFn : Ident := mkIdent ``Gen.thunkGen
 
-/-- Ident for the `GeneratorCombinators.frequency` function -/
-def frequencyFn : Ident := mkIdent ``GeneratorCombinators.frequency
+/-- Ident for the `Gen.frequency` function -/
+def frequencyFn : Ident := mkIdent ``Gen.frequency
 
-/-- Ident for the `GeneratorCombinators.oneOfWithDefault` function -/
-def oneOfWithDefaultGenCombinatorFn : Ident := mkIdent ``GeneratorCombinators.oneOfWithDefault
+/-- Ident for the `Gen.oneOfWithDefault` function -/
+def oneOfWithDefaultGenCombinatorFn : Ident := mkIdent ``Gen.oneOfWithDefault
 
 /-- Ident for the inner `aux_arb` function that appears in derived generators -/
 def auxArbFn : Ident := mkIdent `aux_arb
@@ -54,11 +55,11 @@ def initSizeIdent : Ident := mkIdent `initSize
 def sizeIdent : Ident := mkIdent `size
 
 /-- Ident for the `ArbitrarySized` typeclass -/
-def arbitrarySizedTypeclass : Ident := mkIdent `ArbitrarySized
+def arbitrarySizedTypeclass : Ident := mkIdent ``ArbitrarySized
 
 -- Idents for typeclass functions
 /-- Ident for the `Arbitrary.arbitrary` function -/
-def arbitraryFn : Ident := mkIdent `Arbitrary.arbitrary
+def arbitraryFn : Ident := mkIdent ``Arbitrary.arbitrary
 
 /-- Ident for the `ArbitrarySized.arbitrarySized` function -/
 def arbitrarySizedFn : Ident := mkIdent ``ArbitrarySized.arbitrarySized

@@ -4,7 +4,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Ernest Ng
 -/
 import Plausible.Gen
-import Plausible.GeneratorCombinators
+import Plausible.Gen
 import Plausible.Sampleable
 
 /-!
@@ -58,14 +58,14 @@ class ArbitrarySized (α : Type) where
 
 /-- Every `ArbitrarySized` instance gives rise to an `Arbitrary` instance -/
 instance [ArbitrarySized α] : Arbitrary α where
-  arbitrary := GeneratorCombinators.sized ArbitrarySized.arbitrarySized
+  arbitrary := Gen.sized ArbitrarySized.arbitrarySized
 
 /-- If we have `Repr`, `ArbitrarySized` & `Shrinkable` instances for a type,
     then that type gets a `SampleableExt` instance
     - Note: Plausible's `SampleableExt` is analogous to QuickChick's `Arbitrary` typeclass
       (which combines QuickChick's `Gen` and `Shrink` typeclass)-/
 instance [Repr α] [Shrinkable α] [ArbitrarySized α] : SampleableExt α :=
-  SampleableExt.mkSelfContained (GeneratorCombinators.sized ArbitrarySized.arbitrarySized)
+  SampleableExt.mkSelfContained (Gen.sized ArbitrarySized.arbitrarySized)
 
 /-- Any type which implements Plausible's `SampleableExt` typeclass
     can be made an instance of our `Arbitrary` typeclass -/

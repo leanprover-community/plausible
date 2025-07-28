@@ -1,9 +1,9 @@
 import Plausible.Gen
 import Plausible.Arbitrary
-import Plausible.GeneratorCombinators
+import Plausible.Gen
 import Plausible.DeriveArbitrary
 
-open Plausible GeneratorCombinators
+open Plausible Gen
 
 set_option guard_msgs.diff true
 
@@ -50,17 +50,16 @@ deriving instance Arbitrary for type, term
 namespace CommandElaboratorTest
 
 /--
-info: Try this generator: instance : ArbitrarySized type where
+info: Try this generator: instance : Plausible.ArbitrarySized type where
   arbitrarySized :=
     let rec aux_arb (size : Nat) : Plausible.Gen type :=
       match size with
-      | Nat.zero =>
-        GeneratorCombinators.oneOfWithDefault (pure type.Nat) [GeneratorCombinators.thunkGen (fun _ => pure type.Nat)]
+      | Nat.zero => Plausible.Gen.oneOfWithDefault (pure type.Nat) [Plausible.Gen.thunkGen (fun _ => pure type.Nat)]
       | Nat.succ size' =>
-        GeneratorCombinators.frequency (pure type.Nat)
-          [(1, GeneratorCombinators.thunkGen (fun _ => pure type.Nat)),
+        Plausible.Gen.frequency (pure type.Nat)
+          [(1, Plausible.Gen.thunkGen (fun _ => pure type.Nat)),
             (Nat.succ size',
-              GeneratorCombinators.thunkGen
+              Plausible.Gen.thunkGen
                 (fun _ => do
                   let a_0 ← aux_arb size'
                   let a_1 ← aux_arb size'
@@ -71,54 +70,54 @@ info: Try this generator: instance : ArbitrarySized type where
 #derive_arbitrary type
 
 /--
-info: Try this generator: instance : ArbitrarySized term where
+info: Try this generator: instance : Plausible.ArbitrarySized term where
   arbitrarySized :=
     let rec aux_arb (size : Nat) : Plausible.Gen term :=
       match size with
       | Nat.zero =>
-        GeneratorCombinators.oneOfWithDefault
+        Plausible.Gen.oneOfWithDefault
           (do
-            let a_0 ← Arbitrary.arbitrary
+            let a_0 ← Plausible.Arbitrary.arbitrary
             return term.Const a_0)
-          [GeneratorCombinators.thunkGen
+          [Plausible.Gen.thunkGen
               (fun _ => do
-                let a_0 ← Arbitrary.arbitrary
+                let a_0 ← Plausible.Arbitrary.arbitrary
                 return term.Const a_0),
-            GeneratorCombinators.thunkGen
+            Plausible.Gen.thunkGen
               (fun _ => do
-                let a_0 ← Arbitrary.arbitrary
+                let a_0 ← Plausible.Arbitrary.arbitrary
                 return term.Var a_0)]
       | Nat.succ size' =>
-        GeneratorCombinators.frequency
+        Plausible.Gen.frequency
           (do
-            let a_0 ← Arbitrary.arbitrary
+            let a_0 ← Plausible.Arbitrary.arbitrary
             return term.Const a_0)
           [(1,
-              GeneratorCombinators.thunkGen
+              Plausible.Gen.thunkGen
                 (fun _ => do
-                  let a_0 ← Arbitrary.arbitrary
+                  let a_0 ← Plausible.Arbitrary.arbitrary
                   return term.Const a_0)),
             (1,
-              GeneratorCombinators.thunkGen
+              Plausible.Gen.thunkGen
                 (fun _ => do
-                  let a_0 ← Arbitrary.arbitrary
+                  let a_0 ← Plausible.Arbitrary.arbitrary
                   return term.Var a_0)),
             (Nat.succ size',
-              GeneratorCombinators.thunkGen
+              Plausible.Gen.thunkGen
                 (fun _ => do
                   let a_0 ← aux_arb size'
                   let a_1 ← aux_arb size'
                   return term.Add a_0 a_1)),
             (Nat.succ size',
-              GeneratorCombinators.thunkGen
+              Plausible.Gen.thunkGen
                 (fun _ => do
                   let a_0 ← aux_arb size'
                   let a_1 ← aux_arb size'
                   return term.App a_0 a_1)),
             (Nat.succ size',
-              GeneratorCombinators.thunkGen
+              Plausible.Gen.thunkGen
                 (fun _ => do
-                  let a_0 ← Arbitrary.arbitrary
+                  let a_0 ← Plausible.Arbitrary.arbitrary
                   let a_1 ← aux_arb size'
                   return term.Abs a_0 a_1))]
     fun size => aux_arb size

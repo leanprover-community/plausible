@@ -1,9 +1,9 @@
 import Plausible.Gen
 import Plausible.Arbitrary
-import Plausible.GeneratorCombinators
+import Plausible.Gen
 import Plausible.DeriveArbitrary
 
-open Plausible GeneratorCombinators
+open Plausible Gen
 
 set_option guard_msgs.diff true
 
@@ -32,19 +32,18 @@ deriving instance Arbitrary for Tree
 namespace CommandElaboratorTest
 
 /--
-info: Try this generator: instance : ArbitrarySized Tree where
+info: Try this generator: instance : Plausible.ArbitrarySized Tree where
   arbitrarySized :=
     let rec aux_arb (size : Nat) : Plausible.Gen Tree :=
       match size with
-      | Nat.zero =>
-        GeneratorCombinators.oneOfWithDefault (pure Tree.Leaf) [GeneratorCombinators.thunkGen (fun _ => pure Tree.Leaf)]
+      | Nat.zero => Plausible.Gen.oneOfWithDefault (pure Tree.Leaf) [Plausible.Gen.thunkGen (fun _ => pure Tree.Leaf)]
       | Nat.succ size' =>
-        GeneratorCombinators.frequency (pure Tree.Leaf)
-          [(1, GeneratorCombinators.thunkGen (fun _ => pure Tree.Leaf)),
+        Plausible.Gen.frequency (pure Tree.Leaf)
+          [(1, Plausible.Gen.thunkGen (fun _ => pure Tree.Leaf)),
             (Nat.succ size',
-              GeneratorCombinators.thunkGen
+              Plausible.Gen.thunkGen
                 (fun _ => do
-                  let a_0 ← Arbitrary.arbitrary
+                  let a_0 ← Plausible.Arbitrary.arbitrary
                   let a_1 ← aux_arb size'
                   let a_2 ← aux_arb size'
                   return Tree.Node a_0 a_1 a_2))]

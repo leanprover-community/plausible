@@ -1,9 +1,9 @@
 import Plausible.Gen
 import Plausible.Arbitrary
-import Plausible.GeneratorCombinators
+import Plausible.Gen
 import Plausible.DeriveArbitrary
 
-open Plausible GeneratorCombinators
+open Plausible Gen
 
 set_option guard_msgs.diff true
 
@@ -36,41 +36,41 @@ inductive RegExp : Type where
 namespace CommandElaboratorTest
 
 /--
-info: Try this generator: instance : ArbitrarySized RegExp where
+info: Try this generator: instance : Plausible.ArbitrarySized RegExp where
   arbitrarySized :=
     let rec aux_arb (size : Nat) : Plausible.Gen RegExp :=
       match size with
       | Nat.zero =>
-        GeneratorCombinators.oneOfWithDefault (pure RegExp.EmptySet)
-          [GeneratorCombinators.thunkGen (fun _ => pure RegExp.EmptySet),
-            GeneratorCombinators.thunkGen (fun _ => pure RegExp.EmptyStr),
-            GeneratorCombinators.thunkGen
+        Plausible.Gen.oneOfWithDefault (pure RegExp.EmptySet)
+          [Plausible.Gen.thunkGen (fun _ => pure RegExp.EmptySet),
+            Plausible.Gen.thunkGen (fun _ => pure RegExp.EmptyStr),
+            Plausible.Gen.thunkGen
               (fun _ => do
-                let a_0 ← Arbitrary.arbitrary
+                let a_0 ← Plausible.Arbitrary.arbitrary
                 return RegExp.Char a_0)]
       | Nat.succ size' =>
-        GeneratorCombinators.frequency (pure RegExp.EmptySet)
-          [(1, GeneratorCombinators.thunkGen (fun _ => pure RegExp.EmptySet)),
-            (1, GeneratorCombinators.thunkGen (fun _ => pure RegExp.EmptyStr)),
+        Plausible.Gen.frequency (pure RegExp.EmptySet)
+          [(1, Plausible.Gen.thunkGen (fun _ => pure RegExp.EmptySet)),
+            (1, Plausible.Gen.thunkGen (fun _ => pure RegExp.EmptyStr)),
             (1,
-              GeneratorCombinators.thunkGen
+              Plausible.Gen.thunkGen
                 (fun _ => do
-                  let a_0 ← Arbitrary.arbitrary
+                  let a_0 ← Plausible.Arbitrary.arbitrary
                   return RegExp.Char a_0)),
             (Nat.succ size',
-              GeneratorCombinators.thunkGen
+              Plausible.Gen.thunkGen
                 (fun _ => do
                   let a_0 ← aux_arb size'
                   let a_1 ← aux_arb size'
                   return RegExp.App a_0 a_1)),
             (Nat.succ size',
-              GeneratorCombinators.thunkGen
+              Plausible.Gen.thunkGen
                 (fun _ => do
                   let a_0 ← aux_arb size'
                   let a_1 ← aux_arb size'
                   return RegExp.Union a_0 a_1)),
             (Nat.succ size',
-              GeneratorCombinators.thunkGen
+              Plausible.Gen.thunkGen
                 (fun _ => do
                   let a_0 ← aux_arb size'
                   return RegExp.Star a_0))]

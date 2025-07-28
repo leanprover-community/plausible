@@ -1,9 +1,9 @@
 import Plausible.Gen
 import Plausible.Arbitrary
-import Plausible.GeneratorCombinators
+import Plausible.Gen
 import Plausible.DeriveArbitrary
 
-open Plausible GeneratorCombinators
+open Plausible Gen
 
 set_option guard_msgs.diff true
 
@@ -33,55 +33,55 @@ inductive Value where
 namespace CommandElaboratorTest
 
 /--
-info: Try this generator: instance : ArbitrarySized Value where
+info: Try this generator: instance : Plausible.ArbitrarySized Value where
   arbitrarySized :=
     let rec aux_arb (size : Nat) : Plausible.Gen Value :=
       match size with
       | Nat.zero =>
-        GeneratorCombinators.oneOfWithDefault (pure Value.none)
-          [GeneratorCombinators.thunkGen (fun _ => pure Value.none),
-            GeneratorCombinators.thunkGen
+        Plausible.Gen.oneOfWithDefault (pure Value.none)
+          [Plausible.Gen.thunkGen (fun _ => pure Value.none),
+            Plausible.Gen.thunkGen
               (fun _ => do
-                let value_0 ← Arbitrary.arbitrary
+                let value_0 ← Plausible.Arbitrary.arbitrary
                 return Value.bool value_0),
-            GeneratorCombinators.thunkGen
+            Plausible.Gen.thunkGen
               (fun _ => do
-                let value_0 ← Arbitrary.arbitrary
+                let value_0 ← Plausible.Arbitrary.arbitrary
                 return Value.int value_0),
-            GeneratorCombinators.thunkGen
+            Plausible.Gen.thunkGen
               (fun _ => do
-                let value_0 ← Arbitrary.arbitrary
+                let value_0 ← Plausible.Arbitrary.arbitrary
                 return Value.string value_0),
-            GeneratorCombinators.thunkGen (fun _ => pure Value.ellipsis),
-            GeneratorCombinators.thunkGen
+            Plausible.Gen.thunkGen (fun _ => pure Value.ellipsis),
+            Plausible.Gen.thunkGen
               (fun _ => do
-                let shape_0 ← Arbitrary.arbitrary
-                let dtype_0 ← Arbitrary.arbitrary
+                let shape_0 ← Plausible.Arbitrary.arbitrary
+                let dtype_0 ← Plausible.Arbitrary.arbitrary
                 return Value.tensor shape_0 dtype_0)]
       | Nat.succ size' =>
-        GeneratorCombinators.frequency (pure Value.none)
-          [(1, GeneratorCombinators.thunkGen (fun _ => pure Value.none)),
+        Plausible.Gen.frequency (pure Value.none)
+          [(1, Plausible.Gen.thunkGen (fun _ => pure Value.none)),
             (1,
-              GeneratorCombinators.thunkGen
+              Plausible.Gen.thunkGen
                 (fun _ => do
-                  let value_0 ← Arbitrary.arbitrary
+                  let value_0 ← Plausible.Arbitrary.arbitrary
                   return Value.bool value_0)),
             (1,
-              GeneratorCombinators.thunkGen
+              Plausible.Gen.thunkGen
                 (fun _ => do
-                  let value_0 ← Arbitrary.arbitrary
+                  let value_0 ← Plausible.Arbitrary.arbitrary
                   return Value.int value_0)),
             (1,
-              GeneratorCombinators.thunkGen
+              Plausible.Gen.thunkGen
                 (fun _ => do
-                  let value_0 ← Arbitrary.arbitrary
+                  let value_0 ← Plausible.Arbitrary.arbitrary
                   return Value.string value_0)),
-            (1, GeneratorCombinators.thunkGen (fun _ => pure Value.ellipsis)),
+            (1, Plausible.Gen.thunkGen (fun _ => pure Value.ellipsis)),
             (1,
-              GeneratorCombinators.thunkGen
+              Plausible.Gen.thunkGen
                 (fun _ => do
-                  let shape_0 ← Arbitrary.arbitrary
-                  let dtype_0 ← Arbitrary.arbitrary
+                  let shape_0 ← Plausible.Arbitrary.arbitrary
+                  let dtype_0 ← Plausible.Arbitrary.arbitrary
                   return Value.tensor shape_0 dtype_0)),
             ]
     fun size => aux_arb size

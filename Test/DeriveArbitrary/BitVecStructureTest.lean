@@ -1,9 +1,9 @@
 import Plausible.Gen
 import Plausible.Arbitrary
-import Plausible.GeneratorCombinators
+import Plausible.Gen
 import Plausible.DeriveArbitrary
 
-open Plausible GeneratorCombinators
+open Plausible Gen
 
 set_option guard_msgs.diff true
 
@@ -28,36 +28,36 @@ inductive DummyInductive where
 namespace CommandElaboratorTest
 
 /--
-info: Try this generator: instance : ArbitrarySized DummyInductive where
+info: Try this generator: instance : Plausible.ArbitrarySized DummyInductive where
   arbitrarySized :=
     let rec aux_arb (size : Nat) : Plausible.Gen DummyInductive :=
       match size with
       | Nat.zero =>
-        GeneratorCombinators.oneOfWithDefault
+        Plausible.Gen.oneOfWithDefault
           (do
-            let n_0 ← Arbitrary.arbitrary
-            let a_0 ← Arbitrary.arbitrary
-            let a_1 ← Arbitrary.arbitrary
+            let n_0 ← Plausible.Arbitrary.arbitrary
+            let a_0 ← Plausible.Arbitrary.arbitrary
+            let a_1 ← Plausible.Arbitrary.arbitrary
             return DummyInductive.FromBitVec n_0 a_0 a_1)
-          [GeneratorCombinators.thunkGen
+          [Plausible.Gen.thunkGen
               (fun _ => do
-                let n_0 ← Arbitrary.arbitrary
-                let a_0 ← Arbitrary.arbitrary
-                let a_1 ← Arbitrary.arbitrary
+                let n_0 ← Plausible.Arbitrary.arbitrary
+                let a_0 ← Plausible.Arbitrary.arbitrary
+                let a_1 ← Plausible.Arbitrary.arbitrary
                 return DummyInductive.FromBitVec n_0 a_0 a_1)]
       | Nat.succ size' =>
-        GeneratorCombinators.frequency
+        Plausible.Gen.frequency
           (do
-            let n_0 ← Arbitrary.arbitrary
-            let a_0 ← Arbitrary.arbitrary
-            let a_1 ← Arbitrary.arbitrary
+            let n_0 ← Plausible.Arbitrary.arbitrary
+            let a_0 ← Plausible.Arbitrary.arbitrary
+            let a_1 ← Plausible.Arbitrary.arbitrary
             return DummyInductive.FromBitVec n_0 a_0 a_1)
           [(1,
-              GeneratorCombinators.thunkGen
+              Plausible.Gen.thunkGen
                 (fun _ => do
-                  let n_0 ← Arbitrary.arbitrary
-                  let a_0 ← Arbitrary.arbitrary
-                  let a_1 ← Arbitrary.arbitrary
+                  let n_0 ← Plausible.Arbitrary.arbitrary
+                  let a_0 ← Plausible.Arbitrary.arbitrary
+                  let a_1 ← Plausible.Arbitrary.arbitrary
                   return DummyInductive.FromBitVec n_0 a_0 a_1)),
             ]
     fun size => aux_arb size
