@@ -10,8 +10,6 @@ import Plausible.Arbitrary
 import Plausible.Utils
 
 open Lean Elab Command Meta Term Parser
-open Plausible
-open Idents
 
 /-!
 
@@ -56,6 +54,9 @@ Running this command prints the code for the derived generator to stdout.
 
 -/
 
+namespace Plausible
+
+open Arbitrary Idents
 
 /-- Takes the name of a constructor for an algebraic data type and returns an array
     containing `(argument_name, argument_type)` pairs.
@@ -267,3 +268,5 @@ def deriveArbitraryInstanceHandler (declNames : Array Name) : CommandElabM Bool 
 
 initialize
   registerDerivingHandler ``Arbitrary deriveArbitraryInstanceHandler
+
+end Plausible
