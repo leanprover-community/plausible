@@ -7,6 +7,49 @@ import Plausible.Gen
 import Plausible.GeneratorCombinators
 import Plausible.Sampleable
 
+/-!
+# `Arbitrary` Typeclass
+
+The `Arbitrary` typeclass represents types for which there exists a
+random generator suitable for property-based testing, similar to
+Haskell QuickCheck's `Arbitrary` typeclass and Rocq/Coq QuickChick's `Gen` typeclass.
+
+The `ArbitrarySized` typeclass is a verison of `Arbitrary` in which
+the generator's internal size parameter is made explicit.
+Every `ArbitrarySized` instance automatically leads to an `Arbitrary` instance.
+
+(Note: the `SampleableExt` describes types which have *both* a generator & a shrinker,
+whereas `Arbitrary` describes types which have a generator only.)
+
+We offer support for automatically deriving `Arbitrary` instances:
+users can write `deriving Arbitrary` after an inductive type definition, e.g.
+
+```lean
+-- Datatype for binary trees
+inductive Tree
+  | Leaf : Tree
+  | Node : Nat → Tree → Tree → Tree
+  deriving Arbitrary
+```
+
+At compile time, a generator for random inhabitants of `Tree` is derived.
+
+Alternatively, instead of writing `deriving Arbitrary`,
+users can also write `deriving instance Arbitrary for T1, ..., Tn`
+as a top-level command to derive `Arbitrary` instances for types `T1, ..., Tn` simultaneously.
+
+## Main definitions
+
+* `Arbitrary` typeclass
+* `ArbitrarySized` typeclass
+
+## References
+
+* https://hackage.haskell.org/package/QuickCheck
+* https://softwarefoundations.cis.upenn.edu/qc-current/QuickChickInterface.html
+
+-/
+
 open Plausible
 
 /-- The `Arbitrary` typeclass represents types for which there exists a
