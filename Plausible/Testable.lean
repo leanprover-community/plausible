@@ -300,7 +300,7 @@ instance decGuardTestable [PrintableProp p] [Decidable p] {β : p → Prop} [∀
       let s := printProp p
       (fun r => addInfo s!"guard: {s}" (· <| h) r (PSum.inr <| fun q _ => q)) <$> res
     else if cfg.traceDiscarded || cfg.traceSuccesses then
-      let res := fun _ => return gaveUp 1
+      let res := return gaveUp 1
       let s := printProp p
       slimTrace s!"discard: Guard {s} does not hold"; res
     else
@@ -495,7 +495,7 @@ section IO
 open TestResult
 
 /-- Execute `cmd` and repeat every time the result is `gaveUp` (at most `n` times). -/
-def retry (cmd : Rand (TestResult p)) : Nat → Rand (TestResult p)
+def retry (cmd : Gen (TestResult p)) : Nat → Gen (TestResult p)
   | 0 => return TestResult.gaveUp 1
   | n+1 => do
     let r ← cmd
@@ -513,28 +513,27 @@ def giveUp (x : Nat) : TestResult p → TestResult p
 
 /-- Try `n` times to find a counter-example for `p`. -/
 def Testable.runSuiteAux (p : Prop) [Testable p] (cfg : Configuration) :
-    TestResult p → Nat → Rand (TestResult p)
+    TestResult p → Nat → Gen (TestResult p)
   | r, 0 => return r
   | r, n+1 => do
-    let size := (cfg.numInst - n - 1) * cfg.maxSize / cfg.numInst
+    let size (_ : Nat) := (cfg.numInst - n - 1) * cfg.maxSize / cfg.numInst
     if cfg.traceSuccesses then
       slimTrace s!"New sample"
       slimTrace s!"Retrying up to {cfg.numRetries} times until guards hold"
-    let x ← retry (ReaderT.run (Testable.runProp p cfg true) ⟨size⟩) cfg.numRetries
+    let x ← retry ((Testable.runProp p cfg true).resize size) cfg.numRetries
     match x with
     | success (PSum.inl ()) => runSuiteAux p cfg r n
     | gaveUp g => runSuiteAux p cfg (giveUp g r) n
     | _ => return x
 
 /-- Try to find a counter-example of `p`. -/
-def Testable.runSuite (p : Prop) [Testable p] (cfg : Configuration := {}) : Rand (TestResult p) :=
+def Testable.runSuite (p : Prop) [Testable p] (cfg : Configuration := {}) : Gen (TestResult p) :=
   Testable.runSuiteAux p cfg (success <| PSum.inl ()) cfg.numInst
 
 /-- Run a test suite for `p` in `BaseIO` using the global RNG in `stdGenRef`. -/
-def Testable.checkIO (p : Prop) [Testable p] (cfg : Configuration := {}) : BaseIO (TestResult p) :=
-  letI : MonadLift Id BaseIO := ⟨fun f => return Id.run f⟩
+def Testable.checkIO (p : Prop) [Testable p] (cfg : Configuration := {}) : IO (TestResult p) :=
   match cfg.randomSeed with
-  | none => runRand (Testable.runSuite p cfg)
+  | none => Gen.runUntil cfg.numRetries (Testable.runSuite p cfg) 0
   | some seed => runRandWith seed (Testable.runSuite p cfg)
 
 end IO

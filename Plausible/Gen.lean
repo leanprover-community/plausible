@@ -28,29 +28,57 @@ open Random
 
 /-- Monad to generate random examples to test properties with.
 It has a `Nat` parameter so that the caller can decide on the
-size of the examples. -/
-abbrev Gen (α : Type u) := ReaderT (ULift Nat) Rand α
+size of the examples. It allows failure to generate via the `OptionT` transformer -/
+abbrev Gen (α : Type u) := RandT (ReaderT (ULift Nat) (OptionT Id)) α
+
+instance instMonadLiftGen [MonadLift m (ReaderT (ULift Nat) (OptionT Id))] : MonadLift (RandGT StdGen m) Gen where
+  monadLift := λ m ↦ liftM ∘ (m.run)
+
+-- We get the wrong instance by default
+instance instMonadReaderGen : MonadReader (ULift Nat) Gen where
+  read := λ g ↦
+  do
+    let size ← read
+    return ⟨size, g⟩
+
+instance instMonadErrorGen : MonadExcept Unit Gen := by infer_instance
+
+def Gen.genFailure {α : Type} : IO α := throw <| IO.userError "generation failure"
+
+-- Instance that just sets the size to zero (it will be reset later)
+instance instMonadIOGenState : MonadLift (ReaderT (ULift Nat) (OptionT Id)) IO where
+  monadLift m :=
+    match ReaderT.run m ⟨0⟩ with
+    | .some a => return a
+    | .none => Gen.genFailure
 
 namespace Gen
 
 @[inline]
-def up (x : Gen.{u} α) : Gen (ULift.{v} α) := do
-  let size ← read
-  Rand.up <| x.run ⟨size.down⟩
+def up (x : Gen.{u} α) : Gen (ULift.{v} α) :=
+  RandT.up
+    (λ m size ↦
+      match m.run ⟨size.down⟩ with
+      | .none => .none
+      | .some a => .some ⟨a⟩) x
+
 
 @[inline]
-def down (x : Gen (ULift.{v} α)) : Gen α := do
-  let size ← read
-  Rand.down <| x.run ⟨size.down⟩
+def down (x : Gen (ULift.{v} α)) : Gen α :=
+  RandT.down (λ m size ↦
+      match m.run ⟨size.down⟩ with
+      | .none => .none
+      | .some a => .some a.down) x
 
 /-- Lift `Random.random` to the `Gen` monad. -/
 def chooseAny (α : Type u) [Random Id α] : Gen α :=
-  fun _ => rand α
+  rand (g := StdGen) α (m := Id) |> liftM
 
 /-- Lift `BoundedRandom.randomR` to the `Gen` monad. -/
 def choose (α : Type u) [LE α] [BoundedRandom Id α] (lo hi : α) (h : lo ≤ hi) :
     Gen {a // lo ≤ a ∧ a ≤ hi} :=
-  fun _ => randBound α lo hi h
+  randBound (g := StdGen) α (m := Id) lo hi h |> liftM
+
 
 /-- Generate a `Nat` example between `lo` and `hi` (exclusively). -/
 def chooseNatLt (lo hi : Nat) (h : lo < hi) : Gen {a // lo ≤ a ∧ a < hi} := do
@@ -116,8 +144,27 @@ def prodOf {α : Type u} {β : Type v} (x : Gen α) (y : Gen β) : Gen (α × β
 end Gen
 
 /-- Execute a `Gen` inside the `IO` monad using `size` as the example size -/
-def Gen.run {α : Type} (x : Gen α) (size : Nat) : BaseIO α :=
-  letI : MonadLift Id BaseIO := ⟨fun f => pure <| Id.run f⟩
-  runRand (ReaderT.run x ⟨size⟩:)
+def Gen.run {α : Type} (x : Gen α) (size : Nat) : IO α :=
+  let errOfOpt {α} : OptionT Id α → IO α := λ m ↦
+    match m with
+    | .some a => pure a
+    | .none => genFailure
+  letI : MonadLift (ReaderT (ULift Nat) (OptionT Id)) IO := ⟨fun m => errOfOpt <| ReaderT.run m ⟨size⟩⟩
+  runRand x
+
+/-- Execute a `Gen` until it actually produces an output. May diverge for bad generators! -/
+partial def Gen.runUntil {α : Type} (attempts : Option Nat := .none) (x : Gen α) (size : Nat) : IO α :=
+  match attempts with
+  | .some 0 => genFailure
+  | _ =>
+  try
+    Gen.run x size
+  catch
+    | .userError "generation failure" =>
+      Gen.runUntil (decr attempts) x size
+    | e => throw e
+  where decr : Option Nat → Option Nat
+  | .some n => .some (n-1)
+  | .none => .none
 
 end Plausible
