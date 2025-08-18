@@ -166,7 +166,8 @@ elab_rules : tactic | `(tactic| plausible $[$cfg]?) => withMainContext do
     traceSuccesses := cfg.traceSuccesses || (← isTracingEnabledFor `plausible.success),
     traceShrink := cfg.traceShrink || (← isTracingEnabledFor `plausible.shrink.steps),
     traceShrinkCandidates := cfg.traceShrinkCandidates
-      || (← isTracingEnabledFor `plausible.shrink.candidates) }
+      || (← isTracingEnabledFor `plausible.shrink.candidates),
+    detailedReportingWithName := cfg.detailedReportingWithName }
   let inst ← try
     synthInstance (← mkAppM ``Testable #[tgt'])
   catch _ => throwError "\
