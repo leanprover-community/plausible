@@ -3,9 +3,12 @@ Copyright (c) 2022 Henrik Böving. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Henrik Böving, Simon Hudon
 -/
+import Lean.Meta
 import Lean.Elab.Command
 import Lean.Meta.Eval
 import Plausible.Gen
+import Qq
+open Lean Qq
 
 /-!
 # `SampleableExt` Class
@@ -105,27 +108,47 @@ If we test a quantification over functions the
 counter-examples cannot be shrunken or printed meaningfully.
 For that purpose, `SampleableExt` provides a proxy representation
 `proxy` that can be printed and shrunken as well
-as interpreted (using `interp`) as an object of the right type. -/
+as interpreted (using `interp`) as an object of the right type.
+
+SampleableExt can also be used to constuct expressions representing disproofs in some cases. For this,  the `proxy` type should be a type that can be represented as an expression and the field `proxyExpr?` should be set to such a function. Expressions for disproofs will not be generated for sampling involving instances where `proxyExpr?` is `none`.
+-/
 class SampleableExt (α : Sort u) where
   proxy : Type v
   [proxyRepr : Repr proxy]
   [shrink : Shrinkable proxy]
+  /-- Expressions representing terms of type proxy if available.-/
+  proxyExpr? : Option (ToExpr proxy)
   sample : Gen proxy
   interp : proxy → α
 
 attribute [instance] SampleableExt.proxyRepr
 attribute [instance] SampleableExt.shrink
 
+def getProxyExpr? (α : Sort u) [inst: SampleableExt α]  :
+  Option (ToExpr (inst.proxy)) :=
+  inst.proxyExpr?
 namespace SampleableExt
 
 /-- Use to generate instance whose purpose is to simply generate values
 of a type directly using the `Gen` monad -/
-def mkSelfContained [Repr α] [Shrinkable α] (sample : Gen α) : SampleableExt α where
+def mkSelfContained [Repr α] [Shrinkable α] [Lean.ToExpr α] (sample : Gen α) : SampleableExt α where
   proxy := α
   proxyRepr := inferInstance
   shrink := inferInstance
+  proxyExpr? := some inferInstance
   sample := sample
   interp := id
+
+/-- Use to generate instance whose purpose is to simply generate values
+of a type directly using the `Gen` monad -/
+def mkSelfContainedSimple [Repr α] [Shrinkable α] (sample : Gen α) : SampleableExt α where
+  proxy := α
+  proxyRepr := inferInstance
+  shrink := inferInstance
+  proxyExpr? := none
+  sample := sample
+  interp := id
+
 
 /-- First samples a proxy value and interprets it. Especially useful if
 the proxy and target type are the same. -/
@@ -241,7 +264,22 @@ end Shrinkers
 
 section Samplers
 
+variable {α : Type u} {β : Type v}
+#check Impl.unquoteExpr
+
 open SampleableExt
+
+instance instToExprSum [ToExpr α] [ToExpr β] : ToExpr (α ⊕ β) :=
+  let αType : Q(Type) := toTypeExpr α
+  let βType : Q(Type ):= toTypeExpr β
+  { toExpr : α ⊕ β → Q($αType ⊕ $βType)   := fun a =>
+    match a with
+    | .inl a =>
+      mkApp3 (mkConst ``Sum.inl [levelZero, levelZero]) αType βType (toExpr a)
+    | .inr a =>
+      mkApp3 (mkConst ``Sum.inr [levelZero, levelZero]) αType βType (toExpr a),
+    toTypeExpr := mkApp2 (mkConst ``Sum [levelZero, levelZero]) αType βType }
+
 
 instance Sum.SampleableExt [SampleableExt α] [SampleableExt β] : SampleableExt (Sum α β) where
   proxy := Sum (proxy α) (proxy β)
@@ -253,6 +291,10 @@ instance Sum.SampleableExt [SampleableExt α] [SampleableExt β] : SampleableExt
     match s with
     | .inl l => .inl (interp l)
     | .inr r => .inr (interp r)
+  proxyExpr? := do
+    let inst₁ ←  getProxyExpr? α
+    let inst₂ ←  getProxyExpr? β
+    pure <| @instToExprSum _ _ inst₁ inst₂
 
 instance Unit.sampleableExt : SampleableExt Unit :=
   mkSelfContained (return ())
@@ -263,6 +305,9 @@ instance [SampleableExt α] [SampleableExt β] : SampleableExt ((_ : α) × β) 
     let p ← prodOf sample sample
     return ⟨p.fst, p.snd⟩
   interp s := ⟨interp s.fst, interp s.snd⟩
+  proxyExpr? := none -- did not understand the difference with products
+
+
 
 instance Nat.sampleableExt : SampleableExt Nat :=
   mkSelfContained (do choose Nat 0 (← getSize) (Nat.zero_le _))
@@ -325,6 +370,12 @@ def Char.sampleable (length : Nat) (chars : List Char) (pos : 0 < chars.length) 
 instance Char.sampleableDefault : SampleableExt Char :=
   Char.sampleable 3 " 0123abcABC:,;`\\/".toList (by decide)
 
+def optionExpr {α : Type u} [ToExpr α] : ToExpr (Option α) :=
+  { toExpr := fun
+    | none => mkConst ``Option.none
+    | some a => mkApp (mkConst ``Option.some) (toExpr a),
+    toTypeExpr := mkApp (mkConst ``Option [levelZero]) (toTypeExpr α) }
+
 instance Option.sampleableExt [SampleableExt α] : SampleableExt (Option α) where
   proxy := Option (proxy α)
   sample := do
@@ -332,45 +383,81 @@ instance Option.sampleableExt [SampleableExt α] : SampleableExt (Option α) whe
     | true => return none
     | false => return some (← sample)
   interp o := o.map interp
+  proxyExpr? := getProxyExpr? α |>.map fun p => @optionExpr _ p
 
-instance Prod.sampleableExt {α : Type u} {β : Type v} [SampleableExt α] [SampleableExt β] :
+def prodExpr {α : Type u} {β : Type v} [ToExpr α] [ToExpr β] : ToExpr (α × β) :=
+  { toExpr := fun ⟨a, b⟩ =>
+    mkApp2 (mkConst ``Prod.mk [levelZero, levelZero]) (toExpr a) (toExpr b),
+    toTypeExpr := mkApp2 (mkConst ``Prod [levelZero, levelZero]) (toTypeExpr α) (toTypeExpr β) }
+
+instance Prod.sampleableExt {α : Type u} {β : Type v} [inst₁ : SampleableExt α] [inst₂ : SampleableExt β] :
     SampleableExt (α × β) where
   proxy := Prod (proxy α) (proxy β)
   proxyRepr := inferInstance
   shrink := inferInstance
   sample := prodOf sample sample
   interp := Prod.map interp interp
+  proxyExpr? :=
+    match inst₁.proxyExpr?, inst₂.proxyExpr? with
+    | some p₁, some p₂ => some <| @prodExpr _ _ p₁ p₂
+    | _ , _ => none
+
 
 instance Prop.sampleableExt : SampleableExt Prop where
   proxy := Bool
   proxyRepr := inferInstance
   sample := interpSample Bool
   shrink := inferInstance
+  proxyExpr? := some inferInstance
   interp := Coe.coe
+
+def listExpr {α : Type u} [ToExpr α] : ToExpr (List α) :=
+  { toExpr := fun xs =>
+    let xs := xs.toArray
+    let exprs := xs.map (fun x => toExpr x)
+    exprs.foldr (fun e es => mkApp2 (mkConst ``List.cons) e es) (mkConst ``List.nil),
+    toTypeExpr := mkApp (mkConst ``List [levelZero]) (toTypeExpr α) }
 
 instance List.sampleableExt [SampleableExt α] : SampleableExt (List α) where
   proxy := List (proxy α)
   sample := Gen.listOf sample
   interp := List.map interp
+  proxyExpr? := getProxyExpr? α |>.map fun p => (@listExpr _ p)
 
 instance ULift.sampleableExt [SampleableExt α] : SampleableExt (ULift α) where
   proxy := proxy α
   sample := sample
   interp a := ⟨interp a⟩
+  proxyExpr? := none
+
 
 instance String.sampleableExt : SampleableExt String :=
   mkSelfContained do return String.mk (← Gen.listOf (Char.sampleableDefault.sample))
+
+def arrayExpr {α : Type u} [ToExpr α] : ToExpr (Array α) :=
+  { toExpr := fun xs =>
+    let xs := xs.toList
+    let lExpr := @toExpr _ (listExpr) xs
+    mkApp (mkConst ``List.toArray) lExpr,
+    toTypeExpr := mkApp (mkConst ``Array [levelZero]) (toTypeExpr α) }
 
 instance Array.sampleableExt [SampleableExt α] : SampleableExt (Array α) where
   proxy := Array (proxy α)
   sample := Gen.arrayOf sample
   interp := Array.map interp
+  proxyExpr? := getProxyExpr? α |>.map fun p => (@arrayExpr _ p)
+
 
 end Samplers
 
 /-- An annotation for values that should never get shrunk. -/
 def NoShrink (α : Type u) := α
-
+open Lean in
+instance [inst: ToExpr α] : ToExpr (NoShrink α) :=
+  {
+    toExpr := fun x => inst.toExpr x
+    toTypeExpr := inst.toTypeExpr
+  }
 namespace NoShrink
 
 def mk (x : α) : NoShrink α := x
@@ -382,7 +469,7 @@ instance repr [inst : Repr α] : Repr (NoShrink α) := inst
 instance shrinkable : Shrinkable (NoShrink α) where
   shrink := fun _ => []
 
-instance sampleableExt [SampleableExt α] [Repr α] : SampleableExt (NoShrink α) :=
+instance sampleableExt [SampleableExt α] [Repr α] [Lean.ToExpr α] : SampleableExt (NoShrink α) :=
   SampleableExt.mkSelfContained <| (NoShrink.mk ∘ SampleableExt.interp) <$> SampleableExt.sample
 
 end NoShrink
