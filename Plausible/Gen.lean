@@ -36,10 +36,14 @@ instance instMonadLiftGen [MonadLift m (ReaderT (ULift Nat) (OptionT Id))] : Mon
 
 -- We get the wrong instance by default
 instance instMonadReaderGen : MonadReader (ULift Nat) Gen where
-  read := λ g ↦
+  read g :=
   do
     let size ← read
     return ⟨size, g⟩
+
+-- We get the wrong instance by default
+instance instMonadWithReaderGen : MonadWithReader (ULift Nat) Gen where
+  withReader f g := withReader f g
 
 instance instMonadErrorGen : MonadExcept Unit Gen := by infer_instance
 

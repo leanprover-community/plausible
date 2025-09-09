@@ -388,7 +388,7 @@ bound variable with it. -/
 instance varTestable [SampleableExt α] {β : α → Prop} [∀ x, Testable (β x)] :
     Testable (NamedBinder var <| ∀ x : α, β x) where
   run := fun cfg min => do
-    let x ← SampleableExt.sample
+    let x ← Arbitrary.arbitrary
     if cfg.traceSuccesses || cfg.traceDiscarded then
       slimTrace s!"{var} := {repr x}"
     let r ← Testable.runProp (β <| SampleableExt.interp x) cfg false
@@ -421,7 +421,8 @@ where
     let finalR := addInfo s!"{var} is irrelevant (unused)" id r
     return imp (· <| Classical.ofNonempty) finalR (PSum.inr <| fun x _ => x)
 
-instance (priority := 2000) subtypeVarTestable {p : α → Prop} {β : α → Prop}
+universe u in
+instance (priority := 2000) subtypeVarTestable {α : Type u} {p : α → Prop} {β : α → Prop}
     [∀ x, PrintableProp (p x)]
     [∀ x, Testable (β x)]
     [SampleableExt (Subtype p)] {var'} :
