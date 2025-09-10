@@ -257,6 +257,12 @@ open TestResult
 
 def runProp (p : Prop) [Testable p] : Configuration → Bool → Gen (TestResult p) := Testable.run
 
+def runPropE (p : Prop) [Testable p] (cfg : Configuration) (min : Bool) : Gen (TestResult p) :=
+  do
+    try runProp p cfg min
+    catch
+    | .genError _ => return gaveUp 1
+
 /-- A `dbgTrace` with special formatting -/
 def slimTrace {m : Type → Type _} [Pure m] (s : String) : m PUnit :=
   dbgTrace s!"[Plausible: {s}]" (fun _ => pure ())
@@ -391,7 +397,8 @@ instance varTestable [SampleableExt α] {β : α → Prop} [∀ x, Testable (β 
     let x ← Arbitrary.arbitrary
     if cfg.traceSuccesses || cfg.traceDiscarded then
       slimTrace s!"{var} := {repr x}"
-    let r ← Testable.runProp (β <| SampleableExt.interp x) cfg false
+    -- Use `runPropE` here to collect errors from the call to `Arbitrary.arbitrary`.
+    let r ← Testable.runPropE (β <| SampleableExt.interp x) cfg false
     let ⟨finalX, finalR⟩ ←
       if isFailure r then
         if cfg.traceSuccesses then
@@ -534,7 +541,7 @@ def Testable.runSuite (p : Prop) [Testable p] (cfg : Configuration := {}) : Gen 
 /-- Run a test suite for `p` in `BaseIO` using the global RNG in `stdGenRef`. -/
 def Testable.checkIO (p : Prop) [Testable p] (cfg : Configuration := {}) : IO (TestResult p) :=
   match cfg.randomSeed with
-  | none => Gen.runUntil cfg.numRetries (Testable.runSuite p cfg) 0
+  | none => Gen.run (Testable.runSuite p cfg) 0
   | some seed => runRandWith seed (Testable.runSuite p cfg)
 
 end IO

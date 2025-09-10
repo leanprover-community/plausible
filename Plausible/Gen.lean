@@ -26,12 +26,17 @@ namespace Plausible
 
 open Random
 
+/-- Error thrown on generation failure, e.g. because you've run out of resources. -/
+inductive GenError : Type u where
+| genError : String → GenError
+deriving Inhabited
+
 /-- Monad to generate random examples to test properties with.
 It has a `Nat` parameter so that the caller can decide on the
-size of the examples. It allows failure to generate via the `OptionT` transformer -/
-abbrev Gen (α : Type u) := RandT (ReaderT (ULift Nat) (OptionT Id)) α
+size of the examples. It allows failure to generate via the `ExceptT` transformer -/
+abbrev Gen (α : Type u) := RandT (ReaderT (ULift Nat) (ExceptT GenError Id)) α
 
-instance instMonadLiftGen [MonadLift m (ReaderT (ULift Nat) (OptionT Id))] : MonadLift (RandGT StdGen m) Gen where
+instance instMonadLiftGen [MonadLift m (ReaderT (ULift Nat) (ExceptT GenError Id))] : MonadLift (RandGT StdGen m) Gen where
   monadLift := λ m ↦ liftM ∘ (m.run)
 
 -- We get the wrong instance by default
@@ -45,16 +50,11 @@ instance instMonadReaderGen : MonadReader (ULift Nat) Gen where
 instance instMonadWithReaderGen : MonadWithReader (ULift Nat) Gen where
   withReader f g := withReader f g
 
-instance instMonadErrorGen : MonadExcept Unit Gen := by infer_instance
+instance instMonadErrorGen : MonadExcept GenError Gen := by infer_instance
 
-def Gen.genFailure {α : Type} : IO α := throw <| IO.userError "generation failure"
-
--- Instance that just sets the size to zero (it will be reset later)
-instance instMonadIOGenState : MonadLift (ReaderT (ULift Nat) (OptionT Id)) IO where
-  monadLift m :=
-    match ReaderT.run m ⟨0⟩ with
-    | .some a => return a
-    | .none => Gen.genFailure
+def Gen.genFailure (e : GenError) : IO.Error :=
+  let .genError mes := e
+  IO.userError s!"generation failure: {mes}"
 
 namespace Gen
 
@@ -63,16 +63,16 @@ def up (x : Gen.{u} α) : Gen (ULift.{v} α) :=
   RandT.up
     (λ m size ↦
       match m.run ⟨size.down⟩ with
-      | .none => .none
-      | .some a => .some ⟨a⟩) x
+      | .error (.genError s) => .error (.genError s)
+      | .ok a => .ok ⟨a⟩) x
 
 
 @[inline]
 def down (x : Gen (ULift.{v} α)) : Gen α :=
   RandT.down (λ m size ↦
       match m.run ⟨size.down⟩ with
-      | .none => .none
-      | .some a => .some a.down) x
+      | .error e => .error e
+      | .ok a => .ok a.down) x
 
 /-- Lift `Random.random` to the `Gen` monad. -/
 def chooseAny (α : Type u) [Random Id α] : Gen α :=
@@ -147,26 +147,40 @@ def prodOf {α : Type u} {β : Type v} (x : Gen α) (y : Gen β) : Gen (α × β
 
 end Gen
 
+abbrev IOGen α := EIO GenError α
+
+-- Instance that just sets the size to zero (it will be reset later)
+instance instMonadLiftStateIOGen : MonadLift (ReaderT (ULift Nat) (ExceptT GenError Id)) IOGen where
+  monadLift m :=
+    match ReaderT.run m ⟨0⟩ with
+    | .ok a => return a
+    | .error e => throw e
+
+instance instMonadLiftIOGenIO : MonadLift IOGen IO where
+  monadLift := EIO.toIO Gen.genFailure
+
+instance instMonadLiftStateIO : MonadLift (ReaderT (ULift Nat) (ExceptT GenError Id)) IO where
+  monadLift m := instMonadLiftStateIOGen.monadLift m
+
 /-- Execute a `Gen` inside the `IO` monad using `size` as the example size -/
-def Gen.run {α : Type} (x : Gen α) (size : Nat) : IO α :=
-  let errOfOpt {α} : OptionT Id α → IO α := λ m ↦
+def Gen.run {α : Type} (x : Gen α) (size : Nat) : IOGen α :=
+  let errOfOpt {α} : ExceptT GenError Id α → IOGen α := λ m ↦
     match m with
-    | .some a => pure a
-    | .none => genFailure
-  letI : MonadLift (ReaderT (ULift Nat) (OptionT Id)) IO := ⟨fun m => errOfOpt <| ReaderT.run m ⟨size⟩⟩
+    | .ok a => pure a
+    | .error e => throw e
+  letI : MonadLift (ReaderT (ULift Nat) (ExceptT GenError Id)) (IOGen) := ⟨fun m => errOfOpt <| ReaderT.run m ⟨size⟩⟩
   runRand x
 
 /-- Execute a `Gen` until it actually produces an output. May diverge for bad generators! -/
-partial def Gen.runUntil {α : Type} (attempts : Option Nat := .none) (x : Gen α) (size : Nat) : IO α :=
+partial def Gen.runUntil {α : Type} (attempts : Option Nat := .none) (x : Gen α) (size : Nat) : IOGen α :=
   match attempts with
-  | .some 0 => genFailure
+  | .some 0 => throw <| .genError "Gen.runUntil: Out of attempts"
   | _ =>
   try
     Gen.run x size
   catch
-    | .userError "generation failure" =>
+    | .genError _ =>
       Gen.runUntil (decr attempts) x size
-    | e => throw e
   where decr : Option Nat → Option Nat
   | .some n => .some (n-1)
   | .none => .none

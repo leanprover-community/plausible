@@ -120,7 +120,7 @@ attribute [instance] SampleableExt.shrink
 namespace SampleableExt
 
 /-- Default instance whose purpose is to simply generate values
-of a type directly using the `Gen` monad -/
+of a type directly using the `Arbitrary` instance -/
 @[default_instance]
 instance selfContained [Repr α] [Shrinkable α] [Arbitrary α] : SampleableExt α where
   proxy := α
@@ -128,6 +128,11 @@ instance selfContained [Repr α] [Shrinkable α] [Arbitrary α] : SampleableExt 
   shrink := inferInstance
   sample := inferInstance
   interp := id
+
+/-- This is kept for backwards compatibility -/
+def mkSelfContained [Repr α] [Shrinkable α] (g : Gen α) : SampleableExt α :=
+  let : Arbitrary α := ⟨g⟩
+  inferInstance
 
 /-- First samples a proxy value and interprets it. Especially useful if
 the proxy and target type are the same. -/
@@ -326,7 +331,8 @@ end NoShrink
 Print (at most) 10 samples of a given type to stdout for debugging. Sadly specialized to `Type 0`
 -/
 def printSamples {t : Type} [Repr t] (g : Gen t) : IO PUnit := do
-  let xs ← (List.range 10).mapM (Gen.run g)
+  let runIO (x : IOGen t) : IO t := x
+  let xs : List t ← (List.range 10).mapM (runIO ∘ Gen.run g)
   let xs := xs.map repr
   for x in xs do
     IO.println s!"{x}"
