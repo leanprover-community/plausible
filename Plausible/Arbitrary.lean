@@ -13,7 +13,8 @@ The `Arbitrary` typeclass represents types for which there exists a
 random generator suitable for property-based testing, similar to
 Haskell QuickCheck's `Arbitrary` typeclass and Rocq/Coq QuickChick's `Gen` typeclass.
 
-(Note: the `Arbitrary` describes types which have *both* a generator & a shrinker,
+(Note: the `SampleableExt` involvs types which have *both* a generator & a shrinker,
+and possibly a non trivial `proxy` type,
 whereas `Arbitrary` describes types which have a generator only.)
 
 ## Main definitions
@@ -118,18 +119,20 @@ instance Bool.Arbitrary : Arbitrary Bool :=
   ⟨chooseAny Bool⟩
 
 /-- This can be specialized into customized `Arbitrary Char` instances.
-The resulting instance has `1 / length` chances of making an unrestricted choice of characters
-and it otherwise chooses a character from `chars` with uniform probabilities. -/
-def Char.arbitraryFromList (length : Nat) (chars : List Char) (pos : 0 < chars.length) :
+The resulting instance has `1 / p` chances of making an unrestricted choice of characters
+and it otherwise chooses a character from `chars` with uniform probability. -/
+def Char.arbitraryFromList (p : Nat) (chars : List Char) (pos : 0 < chars.length) :
     Arbitrary Char :=
   ⟨do
-    let x ← choose Nat 0 length (Nat.zero_le _)
+    let x ← choose Nat 0 p (Nat.zero_le _)
     if x.val == 0 then
       let n ← arbitrary
       pure <| Char.ofNat n
     else
       elements chars pos⟩
-
+/-- Pick a simple ASCII character 2/3s of the time, and otherwise pick any random `Char` encoded by
+    the next `Nat` (or `\0` if there is no such character)
+-/
 instance Char.arbitraryDefaultInstance : Arbitrary Char :=
   Char.arbitraryFromList 3 " 0123abcABC:,;`\\/".toList (by decide)
 

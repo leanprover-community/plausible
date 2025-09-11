@@ -39,17 +39,6 @@ abbrev Gen (α : Type u) := RandT (ReaderT (ULift Nat) (ExceptT GenError Id)) α
 instance instMonadLiftGen [MonadLift m (ReaderT (ULift Nat) (ExceptT GenError Id))] : MonadLift (RandGT StdGen m) Gen where
   monadLift := λ m ↦ liftM ∘ (m.run)
 
--- We get the wrong instance by default
-instance instMonadReaderGen : MonadReader (ULift Nat) Gen where
-  read g :=
-  do
-    let size ← read
-    return ⟨size, g⟩
-
--- We get the wrong instance by default
-instance instMonadWithReaderGen : MonadWithReader (ULift Nat) Gen where
-  withReader f g := withReader f g
-
 instance instMonadErrorGen : MonadExcept GenError Gen := by infer_instance
 
 def Gen.genFailure (e : GenError) : IO.Error :=
@@ -116,8 +105,7 @@ def arrayOf (x : Gen α) : Gen (Array α) := do
 /-- Create a `List` of examples using `x`. The size is controlled
 by the size parameter of `Gen`. -/
 def listOf (x : Gen α) : Gen (List α) := do
-  let arr ← arrayOf x
-  return arr.toList
+  return (← arrayOf x).toList
 
 /-- Given a list of example generators, choose one to create an example. -/
 def oneOf (xs : Array (Gen α)) (pos : 0 < xs.size := by decide) : Gen α := do
@@ -147,42 +135,59 @@ def prodOf {α : Type u} {β : Type v} (x : Gen α) (y : Gen β) : Gen (α × β
 
 end Gen
 
-abbrev IOGen α := EIO GenError α
+private def errorOfGenError {α} (m : ExceptT GenError Id α) : IO α :=
+  match m with
+  | .ok a => pure a
+  | .error (.genError msg) => throw <| .userError ("Generation failure:" ++ msg)
 
 -- Instance that just sets the size to zero (it will be reset later)
-instance instMonadLiftStateIOGen : MonadLift (ReaderT (ULift Nat) (ExceptT GenError Id)) IOGen where
-  monadLift m :=
-    match ReaderT.run m ⟨0⟩ with
-    | .ok a => return a
-    | .error e => throw e
-
-instance instMonadLiftIOGenIO : MonadLift IOGen IO where
-  monadLift := EIO.toIO Gen.genFailure
-
-instance instMonadLiftStateIO : MonadLift (ReaderT (ULift Nat) (ExceptT GenError Id)) IO where
-  monadLift m := instMonadLiftStateIOGen.monadLift m
+instance instMonadLiftStateIOGen : MonadLift (ReaderT (ULift Nat) (ExceptT GenError Id)) IO where
+  monadLift m := errorOfGenError <| ReaderT.run m ⟨0⟩
 
 /-- Execute a `Gen` inside the `IO` monad using `size` as the example size -/
-def Gen.run {α : Type} (x : Gen α) (size : Nat) : IOGen α :=
-  let errOfOpt {α} : ExceptT GenError Id α → IOGen α := λ m ↦
-    match m with
-    | .ok a => pure a
-    | .error e => throw e
-  letI : MonadLift (ReaderT (ULift Nat) (ExceptT GenError Id)) (IOGen) := ⟨fun m => errOfOpt <| ReaderT.run m ⟨size⟩⟩
+def Gen.run {α : Type} (x : Gen α) (size : Nat) : IO α :=
+  letI : MonadLift (ReaderT (ULift Nat) (ExceptT GenError Id)) IO := ⟨fun m => errorOfGenError <| ReaderT.run m ⟨size⟩⟩
   runRand x
 
+/--
+Print (at most) 10 samples of a given type to stdout for debugging. Sadly specialized to `Type 0`
+-/
+def Gen.printSamples {t : Type} [Repr t] (g : Gen t) : IO PUnit := do
+  let xs : List t ← (List.range 10).mapM (Gen.run g)
+  let xs := xs.map repr
+  for x in xs do
+    IO.println s!"{x}"
+
 /-- Execute a `Gen` until it actually produces an output. May diverge for bad generators! -/
-partial def Gen.runUntil {α : Type} (attempts : Option Nat := .none) (x : Gen α) (size : Nat) : IOGen α :=
+partial def Gen.runUntil {α : Type} (attempts : Option Nat := .none) (x : Gen α) (size : Nat) : IO α :=
+  Gen.run (repeatGen attempts x) size
+  where
+  repeatGen (attempts : Option Nat) (x : Gen α) : Gen α :=
   match attempts with
-  | .some 0 => throw <| .genError "Gen.runUntil: Out of attempts"
+  | .some 0 => throw <| GenError.genError "Gen.runUtil: Out of attempts"
   | _ =>
-  try
-    Gen.run x size
-  catch
-    | .genError _ =>
-      Gen.runUntil (decr attempts) x size
-  where decr : Option Nat → Option Nat
+  try x catch
+  | GenError.genError _ => do
+    let _ ← Rand.next
+    repeatGen (decr attempts) x
+  decr : Option Nat → Option Nat
   | .some n => .some (n-1)
   | .none => .none
+
+
+def test : Gen Nat :=
+  do
+    let x : Nat ← Gen.choose Nat 0 (← Gen.getSize) (Nat.zero_le _)
+    if x % 10 == 0
+    then
+      return x
+    else
+      throw <| .genError "uh oh"
+
+-- This fails 9/10 times
+-- #eval Gen.run test 9
+
+-- This succeeds almost always.
+-- #eval Gen.runUntil (attempts := .some 1000) test 9
 
 end Plausible

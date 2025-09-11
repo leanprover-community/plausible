@@ -538,7 +538,7 @@ def Testable.runSuiteAux (p : Prop) [Testable p] (cfg : Configuration) :
 def Testable.runSuite (p : Prop) [Testable p] (cfg : Configuration := {}) : Gen (TestResult p) :=
   Testable.runSuiteAux p cfg (success <| PSum.inl ()) cfg.numInst
 
-/-- Run a test suite for `p` in `BaseIO` using the global RNG in `stdGenRef`. -/
+/-- Run a test suite for `p` in `IO` using the global RNG in `stdGenRef`. -/
 def Testable.checkIO (p : Prop) [Testable p] (cfg : Configuration := {}) : IO (TestResult p) :=
   match cfg.randomSeed with
   | none => Gen.run (Testable.runSuite p cfg) 0

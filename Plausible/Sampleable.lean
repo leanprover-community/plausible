@@ -327,16 +327,6 @@ instance sampleableExt [SampleableExt α] [Repr α] : SampleableExt (NoShrink α
 
 end NoShrink
 
-/--
-Print (at most) 10 samples of a given type to stdout for debugging. Sadly specialized to `Type 0`
--/
-def printSamples {t : Type} [Repr t] (g : Gen t) : IO PUnit := do
-  let runIO (x : IOGen t) : IO t := x
-  let xs : List t ← (List.range 10).mapM (runIO ∘ Gen.run g)
-  let xs := xs.map repr
-  for x in xs do
-    IO.println s!"{x}"
-
 open Lean Meta Elab
 
 /--
@@ -403,7 +393,7 @@ elab "#sample " e:term : command =>
   Command.runTermElabM fun _ => do
     let e ← Elab.Term.elabTermAndSynthesize e none
     let ⟨_, α, repr, gen⟩ ← mkGenerator e
-    let printSamples := mkApp3 (mkConst ``printSamples []) α repr gen
+    let printSamples := mkApp3 (mkConst ``Gen.printSamples []) α repr gen
     let code ← unsafe evalExpr (IO PUnit) (mkApp (mkConst ``IO) (mkConst ``PUnit [1])) printSamples
     _ ← code
 
