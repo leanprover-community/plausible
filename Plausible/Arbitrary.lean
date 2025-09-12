@@ -69,67 +69,70 @@ instance Sum.Arbitrary [Arbitrary α] [Arbitrary β] : Arbitrary (Sum α β) whe
 
 instance Unit.Arbitrary : Arbitrary Unit := ⟨return ()⟩
 
-instance [Arbitrary α] [Arbitrary β] : Arbitrary ((_ : α) × β) where
+instance Sigma.Arbitrary [Arbitrary α] [Arbitrary β] : Arbitrary ((_ : α) × β) where
   arbitrary := do
     let p ← prodOf arbitrary arbitrary
     return ⟨p.fst, p.snd⟩
 
-instance Nat.Arbitrary : Arbitrary Nat := ⟨do choose Nat 0 (← getSize) (Nat.zero_le _)⟩
+instance Nat.Arbitrary : Arbitrary Nat where
+  arbitrary := do
+    choose Nat 0 (← getSize) (Nat.zero_le _)
 
-instance Fin.Arbitrary {n : Nat} : Arbitrary (Fin (n.succ)) :=
-  ⟨do
+instance Fin.Arbitrary {n : Nat} : Arbitrary (Fin (n.succ)) where
+  arbitrary := do
     let m ← choose Nat 0 (min (← getSize) n) (Nat.zero_le _)
-    return (Fin.ofNat _ m)⟩
+    return (Fin.ofNat _ m)
 
-instance BitVec.Arbitrary {n : Nat} : Arbitrary (BitVec n) :=
-  ⟨do
+instance BitVec.Arbitrary {n : Nat} : Arbitrary (BitVec n) where
+  arbitrary := do
     let m ← choose Nat 0 (min (← getSize) (2^n)) (Nat.zero_le _)
-    return BitVec.ofNat _ m⟩
+    return BitVec.ofNat _ m
 
-instance UInt8.Arbitrary : Arbitrary UInt8 :=
-  ⟨do
+instance UInt8.Arbitrary : Arbitrary UInt8 where
+  arbitrary := do
     let n ← choose Nat 0 (min (← getSize) UInt8.size) (Nat.zero_le _)
-    return UInt8.ofNat n⟩
+    return UInt8.ofNat n
 
-instance UInt16.Arbitrary : Arbitrary UInt16 :=
-  ⟨do
+instance UInt16.Arbitrary : Arbitrary UInt16 where
+  arbitrary := do
     let n ← choose Nat 0 (min (← getSize) UInt16.size) (Nat.zero_le _)
-    return UInt16.ofNat n⟩
+    return UInt16.ofNat n
 
-instance UInt32.Arbitrary : Arbitrary UInt32 :=
-  ⟨do
+instance UInt32.Arbitrary : Arbitrary UInt32 where
+  arbitrary := do
     let n ← choose Nat 0 (min (← getSize) UInt32.size) (Nat.zero_le _)
-    return UInt32.ofNat n⟩
+    return UInt32.ofNat n
 
-instance UInt64.Arbitrary : Arbitrary UInt64 :=
-  ⟨do
+instance UInt64.Arbitrary : Arbitrary UInt64 where
+  arbitrary := do
     let n ← choose Nat 0 (min (← getSize) UInt64.size) (Nat.zero_le _)
-    return UInt64.ofNat n⟩
+    return UInt64.ofNat n
 
-instance USize.Arbitrary : Arbitrary USize :=
-  ⟨do
+instance USize.Arbitrary : Arbitrary USize where
+  arbitrary := do
     let n ← choose Nat 0 (min (← getSize) USize.size) (Nat.zero_le _)
-    return USize.ofNat n⟩
+    return USize.ofNat n
 
-instance Int.Arbitrary : Arbitrary Int :=
-  ⟨do
-    choose Int (-(← getSize)) (← getSize) (by omega)⟩
+instance Int.Arbitrary : Arbitrary Int where
+  arbitrary := do
+    choose Int (-(← getSize)) (← getSize) (by omega)
 
-instance Bool.Arbitrary : Arbitrary Bool :=
-  ⟨chooseAny Bool⟩
+instance Bool.Arbitrary : Arbitrary Bool where
+  arbitrary := chooseAny Bool
 
 /-- This can be specialized into customized `Arbitrary Char` instances.
 The resulting instance has `1 / p` chances of making an unrestricted choice of characters
 and it otherwise chooses a character from `chars` with uniform probability. -/
 def Char.arbitraryFromList (p : Nat) (chars : List Char) (pos : 0 < chars.length) :
-    Arbitrary Char :=
-  ⟨do
+    Arbitrary Char where
+  arbitrary := do
     let x ← choose Nat 0 p (Nat.zero_le _)
     if x.val == 0 then
       let n ← arbitrary
       pure <| Char.ofNat n
     else
-      elements chars pos⟩
+      elements chars pos
+
 /-- Pick a simple ASCII character 2/3s of the time, and otherwise pick any random `Char` encoded by
     the next `Nat` (or `\0` if there is no such character)
 -/
@@ -152,8 +155,8 @@ instance List.Arbitrary [Arbitrary α] : Arbitrary (List α) where
 instance ULift.Arbitrary [Arbitrary α] : Arbitrary (ULift α) where
   arbitrary := do let x : α ← arbitrary; return ⟨x⟩
 
-instance String.Arbitrary : Arbitrary String :=
-  ⟨return String.mk (← Gen.listOf Char.arbitraryDefaultInstance.arbitrary)⟩
+instance String.Arbitrary : Arbitrary String where
+  arbitrary := return String.mk (← Gen.listOf arbitrary)
 
 instance Array.Arbitrary [Arbitrary α] : Arbitrary (Array α) := ⟨Gen.arrayOf arbitrary⟩
 
