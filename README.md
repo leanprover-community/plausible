@@ -23,7 +23,7 @@ example (xs ys : Array Nat) : xs.size = ys.size → xs = ys := by
 ```
 
 If you are defining your own type it needs instances of `Repr`, `Plausible.Shrinkable` and
-`Plausible.SampleableExt`:
+`Plausible.SampleableExt` (or `Plausible.Arbitrary`):
 ```lean
 import Plausible
 
@@ -50,3 +50,14 @@ instance : SampleableExt MyType :=
 #eval Testable.check <| ∀ a b : MyType, a.y ≤ b.x → a.x ≤ b.y
 ```
 For more documentation refer to the module docs.
+
+**Deriving Instance for `Arbitrary`** (for algebraic data types)              
+Users can write `deriving Arbitrary` after an inductive type definition, i.e.
+```lean 
+inductive Foo where
+  ...
+  deriving Arbitrary
+```
+
+Alternatively, users can also write `deriving instance Arbitrary for T1, ..., Tn` as a top-level command to derive `Arbitrary` instances for types `T1, ..., Tn` simultaneously.
+
