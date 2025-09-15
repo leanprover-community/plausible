@@ -68,7 +68,7 @@ protected def RandT.up {α : Type u} {m : Type u → Type w} {m' : Type (max u v
     {g : Type} [RandomGen g] [Monad m] [Monad m']
     (m_up : ∀ {α}, m α → m' (ULift α)) (x : RandGT g m α) :
     RandGT g m' (ULift.{v} α) := do
-  let ⟨val, gen⟩ ←  m_up <| x.run ⟨(← get).down⟩
+  let ⟨val, gen⟩ ← m_up <| x.run ⟨(← get).down⟩
   set <| ULift.up gen.down
   return ⟨val⟩
 

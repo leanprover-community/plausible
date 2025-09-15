@@ -24,6 +24,10 @@ instance : SampleableExt MyType :=
     let xyDiff ← SampleableExt.interpSample Nat
     return ⟨x, x + xyDiff, by omega⟩
 
+<<<<<<< HEAD
+#eval Testable.check (cfg := { quiet := true }) <| ∀ a b : MyType, a.y ≤ b.x → a.x ≤ b.y
+=======
 -- TODO: this is a noisy test.
 -- We can't use `#guard_msgs` because the number of attempts to non-deterministic.
 #eval Testable.check <| ∀ a b : MyType, a.y ≤ b.x → a.x ≤ b.y
+>>>>>>> main

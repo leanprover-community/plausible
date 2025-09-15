@@ -2,9 +2,19 @@ name = "plausible"
 version = "0.1.0"
 defaultTargets = ["Plausible"]
 testRunner = "Test"
+lintDriver = "batteries/runLinter"
+
+[leanOptions]
+linter.missingDocs = false
 
 [[lean_lib]]
 name = "Test"
 
 [[lean_lib]]
 name = "Plausible"
+leanOptions = {linter.missingDocs = false}
+
+[[require]]
+name = "batteries"
+scope = "leanprover-community"
+rev = "main"

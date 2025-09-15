@@ -5,6 +5,7 @@ Authors: Henrik Böving, Simon Hudon
 -/
 import Lean.Elab.Tactic.Config
 import Plausible.Sampleable
+import Batteries
 
 
 /-!
@@ -589,7 +590,7 @@ open Decorations in
 def Testable.check (p : Prop) (cfg : Configuration := {})
     (p' : Decorations.DecorationsOf p := by mk_decorations) [Testable p'] : Lean.CoreM PUnit := do
   match ← Testable.checkIO p' cfg with
-  | TestResult.success _ => if !cfg.quiet then Lean.logInfo "Unable to find a counter-example"
+  | TestResult.success _ => if !cfg.quiet then Lean.logWarning "Unable to find a counter-example"
   | TestResult.gaveUp n =>
     if !cfg.quiet then
       let msg := s!"Gave up after failing to generate values that fulfill the preconditions {n} times."
@@ -608,6 +609,7 @@ def Testable.check (p : Prop) (cfg : Configuration := {})
 --   Configuration.verbose
 -- #eval Testable.check (∀ (x : Nat) (h : 10 < x), 5 < x) Configuration.verbose
 
+@[nolint docBlame]
 macro tk:"#test " e:term : command => `(command| #eval%$tk Testable.check $e)
 
 -- #test ∀ (x : Nat) (h : 5 < x), 10 < x
