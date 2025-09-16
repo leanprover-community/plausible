@@ -27,17 +27,17 @@ namespace Plausible
 open Random
 
 /-- Error thrown on generation failure, e.g. because you've run out of resources. -/
-inductive GenError : Type u where
+inductive GenError : Type where
 | genError : String → GenError
 deriving Inhabited
 
 /-- Monad to generate random examples to test properties with.
 It has a `Nat` parameter so that the caller can decide on the
 size of the examples. It allows failure to generate via the `ExceptT` transformer -/
-abbrev Gen (α : Type u) := RandT (ReaderT (ULift Nat) (ExceptT GenError Id)) α
+abbrev Gen (α : Type u) := RandT (ReaderT (ULift Nat) (Except GenError)) α
 
-instance instMonadLiftGen [MonadLift m (ReaderT (ULift Nat) (ExceptT GenError Id))] : MonadLift (RandGT StdGen m) Gen where
-  monadLift := λ m ↦ liftM ∘ (m.run)
+instance instMonadLiftGen [MonadLiftT m (ReaderT (ULift Nat) (Except GenError))] : MonadLiftT (RandGT StdGen m) Gen where
+  monadLift := fun m => liftM ∘ m.run
 
 instance instMonadErrorGen : MonadExcept GenError Gen := by infer_instance
 
@@ -141,12 +141,12 @@ private def errorOfGenError {α} (m : ExceptT GenError Id α) : IO α :=
   | .error (.genError msg) => throw <| .userError ("Generation failure:" ++ msg)
 
 -- Instance that just sets the size to zero (it will be reset later)
-instance instMonadLiftStateIOGen : MonadLift (ReaderT (ULift Nat) (ExceptT GenError Id)) IO where
+instance instMonadLiftStateIOGen : MonadLift (ReaderT (ULift Nat) (Except GenError)) IO where
   monadLift m := errorOfGenError <| ReaderT.run m ⟨0⟩
 
 /-- Execute a `Gen` inside the `IO` monad using `size` as the example size -/
 def Gen.run {α : Type} (x : Gen α) (size : Nat) : IO α :=
-  letI : MonadLift (ReaderT (ULift Nat) (ExceptT GenError Id)) IO := ⟨fun m => errorOfGenError <| ReaderT.run m ⟨size⟩⟩
+  letI : MonadLift (ReaderT (ULift Nat) (Except GenError)) IO := ⟨fun m => errorOfGenError <| ReaderT.run m ⟨size⟩⟩
   runRand x
 
 /--

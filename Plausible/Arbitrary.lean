@@ -20,7 +20,6 @@ whereas `Arbitrary` describes types which have a generator only.)
 ## Main definitions
 
 * `Arbitrary` typeclass
-* `ArbitraryFueled` typeclass
 
 ## References
 
@@ -134,8 +133,7 @@ def Char.arbitraryFromList (p : Nat) (chars : List Char) (pos : 0 < chars.length
       elements chars pos
 
 /-- Pick a simple ASCII character 2/3s of the time, and otherwise pick any random `Char` encoded by
-    the next `Nat` (or `\0` if there is no such character)
--/
+    the next `Nat` (or `\0` if there is no such character) -/
 instance Char.arbitraryDefaultInstance : Arbitrary Char :=
   Char.arbitraryFromList 3 " 0123abcABC:,;`\\/".toList (by decide)
 
