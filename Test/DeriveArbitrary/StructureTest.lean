@@ -42,11 +42,11 @@ structure Foo where
 -- Test that we can successfully synthesize instances of `Arbitrary` & `ArbitraryFueled`
 set_option trace.plausible.deriving.arbitrary true in
 /--
-trace: [plausible.deriving.arbitrary] ⏎
+trace: [plausible.deriving.arbitrary]
     [mutual
-       def arbitraryFoo✝ : Nat → Plausible.Gen (@Foo✝) :=
+       def instArbitraryFueledFoo.arbitrary : Nat → Plausible.Gen (@Foo✝) :=
          let rec aux_arb (fuel✝ : Nat) : Plausible.Gen (@Foo✝) :=
-           match fuel✝ with
+           (match fuel✝ with
            | Nat.zero =>
              Plausible.Gen.oneOfWithDefault
                (do
@@ -72,13 +72,13 @@ trace: [plausible.deriving.arbitrary] ⏎
                      let a✝¹ ← Plausible.Arbitrary.arbitrary
                      let a✝² ← Plausible.Arbitrary.arbitrary
                      return Foo.mk a✝ a✝¹ a✝²)),
-                 ]
+                 ])
          fun fuel✝ => aux_arb fuel✝
      end,
      instance : Plausible.ArbitraryFueled✝ (@Foo✝) :=
-       ⟨arbitraryFoo✝⟩]
+       ⟨instArbitraryFueledFoo.arbitrary⟩]
 -/
-#guard_msgs in
+#guard_msgs(whitespace:=lax) in
 deriving instance Arbitrary for Foo
 
 /-- info: instArbitraryFueledFoo -/

@@ -17,11 +17,11 @@ deriving BEq, Repr
 -- Invoke deriving instance handler for the `Arbitrary` typeclass on `type` and `term`
 set_option trace.plausible.deriving.arbitrary true in
 /--
-trace: [plausible.deriving.arbitrary] ⏎
+trace: [plausible.deriving.arbitrary]
     [mutual
-       def arbitraryTree✝ : Nat → Plausible.Gen (@Tree✝) :=
+       def instArbitraryFueledTree.arbitrary : Nat → Plausible.Gen (@Tree✝) :=
          let rec aux_arb (fuel✝ : Nat) : Plausible.Gen (@Tree✝) :=
-           match fuel✝ with
+           (match fuel✝ with
            | Nat.zero => Plausible.Gen.oneOfWithDefault (pure Tree.Leaf) [(pure Tree.Leaf)]
            | fuel'✝ + 1 =>
              Plausible.Gen.frequency (pure Tree.Leaf)
@@ -31,13 +31,13 @@ trace: [plausible.deriving.arbitrary] ⏎
                      let a✝ ← Plausible.Arbitrary.arbitrary
                      let a✝¹ ← aux_arb fuel'✝
                      let a✝² ← aux_arb fuel'✝
-                     return Tree.Node a✝ a✝¹ a✝²))]
+                     return Tree.Node a✝ a✝¹ a✝²))])
          fun fuel✝ => aux_arb fuel✝
      end,
      instance : Plausible.ArbitraryFueled✝ (@Tree✝) :=
-       ⟨arbitraryTree✝⟩]
+       ⟨instArbitraryFueledTree.arbitrary⟩]
 -/
-#guard_msgs in
+#guard_msgs(whitespace:=lax) in
 deriving instance Arbitrary for Tree
 
 -- Test that we can successfully synthesize instances of `Arbitrary` & `ArbitraryFueled`

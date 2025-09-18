@@ -26,21 +26,21 @@ instance : ArbitrarySizedSuchThat Nat (fun n => Odd n) where
 /--
 info: Try this generator: instance : ArbitrarySizedSuchThat Nat (fun n_1 => Even n_1) where
   arbitrarySizedST :=
-    let rec aux_arb (initSize : Nat) (size : Nat) : OptionT Plausible.Gen Nat :=
-      match size with
+    let rec aux_arb (initSize : Nat) (size : Nat) : Plausible.Gen Nat :=
+      (match size with
       | Nat.zero =>
-        OptionTGen.backtrack
+        GeneratorCombinators.backtrack
           [(1, return Nat.zero),
             (1, do
               let n ← ArbitrarySizedSuchThat.arbitrarySizedST (fun n => Odd n) initSize;
               return Nat.succ n)]
       | Nat.succ size' =>
-        OptionTGen.backtrack
+        GeneratorCombinators.backtrack
           [(1, return Nat.zero),
             (1, do
               let n ← ArbitrarySizedSuchThat.arbitrarySizedST (fun n => Odd n) initSize;
               return Nat.succ n),
-            ]
+            ])
     fun size => aux_arb size size
 -/
 #guard_msgs(info, drop warning) in
@@ -49,19 +49,19 @@ info: Try this generator: instance : ArbitrarySizedSuchThat Nat (fun n_1 => Even
 /--
 info: Try this generator: instance : ArbitrarySizedSuchThat Nat (fun n_1 => Odd n_1) where
   arbitrarySizedST :=
-    let rec aux_arb (initSize : Nat) (size : Nat) : OptionT Plausible.Gen Nat :=
-      match size with
+    let rec aux_arb (initSize : Nat) (size : Nat) : Plausible.Gen Nat :=
+      (match size with
       | Nat.zero =>
-        OptionTGen.backtrack
+        GeneratorCombinators.backtrack
           [(1, do
               let n ← ArbitrarySizedSuchThat.arbitrarySizedST (fun n => Even n) initSize;
               return Nat.succ n)]
       | Nat.succ size' =>
-        OptionTGen.backtrack
+        GeneratorCombinators.backtrack
           [(1, do
               let n ← ArbitrarySizedSuchThat.arbitrarySizedST (fun n => Even n) initSize;
               return Nat.succ n),
-            ]
+            ])
     fun size => aux_arb size size
 -/
 #guard_msgs(info, drop warning) in

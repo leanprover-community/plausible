@@ -1,13 +1,13 @@
 
 import Plausible.Gen
-import Plausible.Chamelean.OptionTGen
+import Plausible.Arbitrary
 import Plausible.Chamelean.DecOpt
 import Plausible.Chamelean.ArbitrarySizedSuchThat
 import Plausible.Chamelean.DeriveConstrainedProducer
 import Test.CommonDefinitions.BinaryTree
 
 open Plausible
-open ArbitrarySizedSuchThat OptionTGen
+open ArbitrarySizedSuchThat
 
 set_option guard_msgs.diff true
 
@@ -22,28 +22,28 @@ inductive balancedTree : Nat → BinaryTree → Prop where
 /--
 info: Try this generator: instance : ArbitrarySizedSuchThat BinaryTree (fun t_1 => balancedTree n_1 t_1) where
   arbitrarySizedST :=
-    let rec aux_arb (initSize : Nat) (size : Nat) (n_1 : Nat) : OptionT Plausible.Gen BinaryTree :=
-      match size with
+    let rec aux_arb (initSize : Nat) (size : Nat) (n_1 : Nat) : Plausible.Gen BinaryTree :=
+      (match size with
       | Nat.zero =>
-        OptionTGen.backtrack
+        GeneratorCombinators.backtrack
           [(1,
               match n_1 with
               | Nat.zero => return BinaryTree.Leaf
-              | _ => OptionT.fail),
+              | _ => MonadExcept.throw Plausible.Gen.genericFailure),
             (1,
               match n_1 with
               | Nat.succ (Nat.zero) => return BinaryTree.Leaf
-              | _ => OptionT.fail)]
+              | _ => MonadExcept.throw Plausible.Gen.genericFailure)]
       | Nat.succ size' =>
-        OptionTGen.backtrack
+        GeneratorCombinators.backtrack
           [(1,
               match n_1 with
               | Nat.zero => return BinaryTree.Leaf
-              | _ => OptionT.fail),
+              | _ => MonadExcept.throw Plausible.Gen.genericFailure),
             (1,
               match n_1 with
               | Nat.succ (Nat.zero) => return BinaryTree.Leaf
-              | _ => OptionT.fail),
+              | _ => MonadExcept.throw Plausible.Gen.genericFailure),
             (Nat.succ size',
               match n_1 with
               | Nat.succ n => do
@@ -53,7 +53,7 @@ info: Try this generator: instance : ArbitrarySizedSuchThat BinaryTree (fun t_1 
                   do
                     let x ← Plausible.Arbitrary.arbitrary;
                     return BinaryTree.Node x l r
-              | _ => OptionT.fail)]
+              | _ => MonadExcept.throw Plausible.Gen.genericFailure)])
     fun size => aux_arb size size n_1
 -/
 #guard_msgs(info, drop warning) in

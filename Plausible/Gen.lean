@@ -31,9 +31,11 @@ inductive GenError : Type where
 | genError : String → GenError
 deriving Inhabited
 
+def Gen.genericFailure : GenError := .genError "Generation failure."
+
 /-- Monad to generate random examples to test properties with.
 It has a `Nat` parameter so that the caller can decide on the
-size of the examples. It allows failure to generate via the `ExceptT` transformer -/
+size of the examples. It allows failure to generate via the `Except` monad -/
 abbrev Gen (α : Type u) := RandT (ReaderT (ULift Nat) (Except GenError)) α
 
 instance instMonadLiftGen [MonadLiftT m (ReaderT (ULift Nat) (Except GenError))] : MonadLiftT (RandGT StdGen m) Gen where
@@ -181,7 +183,7 @@ def prodOf {α : Type u} {β : Type v} (x : Gen α) (y : Gen β) : Gen (α × β
 
 end Gen
 
-private def errorOfGenError {α} (m : ExceptT GenError Id α) : IO α :=
+private def errorOfGenError {α} (m : Except GenError α) : IO α :=
   match m with
   | .ok a => pure a
   | .error (.genError msg) => throw <| .userError ("Generation failure:" ++ msg)

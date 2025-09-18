@@ -55,13 +55,13 @@ end
 
 set_option trace.plausible.deriving.arbitrary true in
 /--
-trace: [plausible.deriving.arbitrary] ⏎
+trace: [plausible.deriving.arbitrary]
     [mutual
-       partial def arbitraryNatTree✝ : Nat → Plausible.Gen (@NatTree✝) :=
-         let localinst✝ : Plausible.ArbitraryFueled✝ (@NatTree✝) := ⟨arbitraryNatTree✝⟩;
-         let localinst✝¹ : Plausible.ArbitraryFueled✝ (@Node✝) := ⟨arbitraryNode✝⟩;
+       partial def instArbitraryFueledNatTree.arbitrary_1 : Nat → Plausible.Gen (@NatTree✝) :=
+         let localinst✝ : Plausible.ArbitraryFueled✝ (@NatTree✝) := ⟨instArbitraryFueledNatTree.arbitrary_1⟩;
+         let localinst✝¹ : Plausible.ArbitraryFueled✝ (@Node✝) := ⟨instArbitraryFueledNatTree.arbitrary_2⟩;
          let rec aux_arb (fuel✝ : Nat) : Plausible.Gen (@NatTree✝) :=
-           match fuel✝ with
+           (match fuel✝ with
            | Nat.zero =>
              Plausible.Gen.oneOfWithDefault (pure NatTree.Empty)
                [(pure NatTree.Empty),
@@ -75,13 +75,13 @@ trace: [plausible.deriving.arbitrary] ⏎
                    (do
                      let a✝ ← Plausible.Arbitrary.arbitrary
                      return NatTree.Node a✝)),
-                 ]
+                 ])
          fun fuel✝ => aux_arb fuel✝
-       partial def arbitraryNode✝ : Nat → Plausible.Gen (@Node✝) :=
-         let localinst✝² : Plausible.ArbitraryFueled✝ (@NatTree✝) := ⟨arbitraryNatTree✝⟩;
-         let localinst✝³ : Plausible.ArbitraryFueled✝ (@Node✝) := ⟨arbitraryNode✝⟩;
+       partial def instArbitraryFueledNatTree.arbitrary_2 : Nat → Plausible.Gen (@Node✝) :=
+         let localinst✝² : Plausible.ArbitraryFueled✝ (@NatTree✝) := ⟨instArbitraryFueledNatTree.arbitrary_1⟩;
+         let localinst✝³ : Plausible.ArbitraryFueled✝ (@Node✝) := ⟨instArbitraryFueledNatTree.arbitrary_2⟩;
          let rec aux_arb (fuel✝¹ : Nat) : Plausible.Gen (@Node✝) :=
-           match fuel✝¹ with
+           (match fuel✝¹ with
            | Nat.zero =>
              Plausible.Gen.oneOfWithDefault
                (do
@@ -107,13 +107,13 @@ trace: [plausible.deriving.arbitrary] ⏎
                      let a✝² ← Plausible.Arbitrary.arbitrary
                      let a✝³ ← Plausible.Arbitrary.arbitrary
                      return Node.mk a✝¹ a✝² a✝³)),
-                 ]
+                 ])
          fun fuel✝¹ => aux_arb fuel✝¹
      end,
      instance : Plausible.ArbitraryFueled✝ (@NatTree✝) :=
-       ⟨arbitraryNatTree✝⟩]
+       ⟨instArbitraryFueledNatTree.arbitrary_1⟩]
 -/
-#guard_msgs in
+#guard_msgs(whitespace:=lax) in
 deriving instance Arbitrary for NatTree
 
 -- Test that we can successfully synthesize instances of `Arbitrary` & `ArbitraryFueled`

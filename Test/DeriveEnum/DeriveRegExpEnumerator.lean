@@ -22,10 +22,11 @@ deriving instance Enum for RegExp
 namespace CommandElaboratorTest
 
 /--
-info: Try this enumerator: instance : EnumSized RegExp where
+info: Try this enumerator:
+  instance : EnumSized RegExp where
   enumSized :=
     let rec aux_enum (size : Nat) : Enumerator RegExp :=
-      match size with
+      (match size with
       | Nat.zero =>
         EnumeratorCombinators.oneOfWithDefault (pure RegExp.EmptySet)
           [pure RegExp.EmptySet, pure RegExp.EmptyStr, do
@@ -43,10 +44,10 @@ info: Try this enumerator: instance : EnumSized RegExp where
             let a_1 ← aux_enum size'
             return RegExp.Union a_0 a_1, do
             let a_0 ← aux_enum size'
-            return RegExp.Star a_0]
+            return RegExp.Star a_0])
     fun size => aux_enum size
 -/
-#guard_msgs(info, drop warning) in
+#guard_msgs(info, drop warning, whitespace:=lax) in
 #derive_enum RegExp
 
 end CommandElaboratorTest

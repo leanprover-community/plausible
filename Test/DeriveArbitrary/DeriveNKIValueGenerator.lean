@@ -20,11 +20,11 @@ inductive NKIValue where
 
 set_option trace.plausible.deriving.arbitrary true in
 /--
-trace: [plausible.deriving.arbitrary] ⏎
+trace: [plausible.deriving.arbitrary]
     [mutual
-       def arbitraryNKIValue✝ : Nat → Plausible.Gen (@NKIValue✝) :=
+       def instArbitraryFueledNKIValue.arbitrary : Nat → Plausible.Gen (@NKIValue✝) :=
          let rec aux_arb (fuel✝ : Nat) : Plausible.Gen (@NKIValue✝) :=
-           match fuel✝ with
+           (match fuel✝ with
            | Nat.zero =>
              Plausible.Gen.oneOfWithDefault (pure NKIValue.none)
                [(pure NKIValue.none),
@@ -63,13 +63,13 @@ trace: [plausible.deriving.arbitrary] ⏎
                      let a✝³ ← Plausible.Arbitrary.arbitrary
                      let a✝⁴ ← Plausible.Arbitrary.arbitrary
                      return NKIValue.tensor a✝³ a✝⁴)),
-                 ]
+                 ])
          fun fuel✝ => aux_arb fuel✝
      end,
      instance : Plausible.ArbitraryFueled✝ (@NKIValue✝) :=
-       ⟨arbitraryNKIValue✝⟩]
+       ⟨instArbitraryFueledNKIValue.arbitrary⟩]
 -/
-#guard_msgs in
+#guard_msgs(whitespace:=lax) in
 deriving instance Arbitrary for NKIValue
 
 -- Test that we can successfully synthesize instances of `Arbitrary` & `ArbitraryFueled`

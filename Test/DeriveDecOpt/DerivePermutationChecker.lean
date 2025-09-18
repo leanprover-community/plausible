@@ -5,19 +5,20 @@ import Test.DeriveEnumSuchThat.DerivePermutationEnumerator
 
 
 /--
-info: Try this checker: instance : DecOpt (Permutation l_1 l'_1) where
+info: Try this checker:
+  instance : DecOpt (Permutation l_1 l'_1) where
   decOpt :=
-    let rec aux_dec (initSize : Nat) (size : Nat) (l_1 : List Nat) (l'_1 : List Nat) : Option Bool :=
-      match size with
+    let rec aux_dec (initSize : Nat) (size : Nat) (l_1 : List Nat) (l'_1 : List Nat) : Except Plausible.GenError Bool :=
+      (match size with
       | Nat.zero =>
         DecOpt.checkerBacktrack
           [fun _ =>
             match l'_1 with
             | List.nil =>
               match l_1 with
-              | List.nil => Option.some Bool.true
-              | _ => Option.some Bool.false
-            | _ => Option.some Bool.false,
+              | List.nil => Except.ok Bool.true
+              | _ => Except.ok Bool.false
+            | _ => Except.ok Bool.false,
             fun _ =>
             match l'_1 with
             | List.cons u_2 (List.cons u_3 u_4) =>
@@ -26,17 +27,17 @@ info: Try this checker: instance : DecOpt (Permutation l_1 l'_1) where
                 DecOpt.andOptList
                   [DecOpt.decOpt (BEq.beq u_2 x) initSize,
                     DecOpt.andOptList [DecOpt.decOpt (BEq.beq u_4 l) initSize, DecOpt.decOpt (BEq.beq u_3 y) initSize]]
-              | _ => Option.some Bool.false
-            | _ => Option.some Bool.false]
+              | _ => Except.ok Bool.false
+            | _ => Except.ok Bool.false]
       | Nat.succ size' =>
         DecOpt.checkerBacktrack
           [fun _ =>
             match l'_1 with
             | List.nil =>
               match l_1 with
-              | List.nil => Option.some Bool.true
-              | _ => Option.some Bool.false
-            | _ => Option.some Bool.false,
+              | List.nil => Except.ok Bool.true
+              | _ => Except.ok Bool.false
+            | _ => Except.ok Bool.false,
             fun _ =>
             match l'_1 with
             | List.cons u_2 (List.cons u_3 u_4) =>
@@ -45,21 +46,21 @@ info: Try this checker: instance : DecOpt (Permutation l_1 l'_1) where
                 DecOpt.andOptList
                   [DecOpt.decOpt (BEq.beq u_2 x) initSize,
                     DecOpt.andOptList [DecOpt.decOpt (BEq.beq u_4 l) initSize, DecOpt.decOpt (BEq.beq u_3 y) initSize]]
-              | _ => Option.some Bool.false
-            | _ => Option.some Bool.false,
+              | _ => Except.ok Bool.false
+            | _ => Except.ok Bool.false,
             fun _ =>
             match l'_1 with
             | List.cons u_2 l' =>
               match l_1 with
               | List.cons x l => DecOpt.andOptList [DecOpt.decOpt (BEq.beq u_2 x) initSize, aux_dec initSize size' l l']
-              | _ => Option.some Bool.false
-            | _ => Option.some Bool.false,
+              | _ => Except.ok Bool.false
+            | _ => Except.ok Bool.false,
             fun _ =>
             EnumeratorCombinators.enumeratingOpt (EnumSizedSuchThat.enumSizedST (fun l' => Permutation l_1 l') initSize)
-              (fun l' => aux_dec initSize size' l' l'_1) (min 2 initSize)]
+              (fun l' => aux_dec initSize size' l' l'_1) (min 2 initSize)])
     fun size => aux_dec size size l_1 l'_1
 -/
-#guard_msgs(info, drop warning) in
+#guard_msgs(info, drop warning, whitespace:=lax) in
 #derive_checker (Permutation l l')
 
 

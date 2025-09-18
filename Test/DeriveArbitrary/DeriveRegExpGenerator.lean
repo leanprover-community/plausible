@@ -25,9 +25,9 @@ set_option trace.plausible.deriving.arbitrary true in
 /--
 trace: [plausible.deriving.arbitrary] ⏎
     [mutual
-       def arbitraryRegExp✝ : Nat → Plausible.Gen (@RegExp✝) :=
+       def instArbitraryFueledRegExp.arbitrary : Nat → Plausible.Gen (@RegExp✝) :=
          let rec aux_arb (fuel✝ : Nat) : Plausible.Gen (@RegExp✝) :=
-           match fuel✝ with
+           (match fuel✝ with
            | Nat.zero =>
              Plausible.Gen.oneOfWithDefault (pure RegExp.EmptySet)
                [(pure RegExp.EmptySet), (pure RegExp.EmptyStr),
@@ -54,11 +54,11 @@ trace: [plausible.deriving.arbitrary] ⏎
                  (fuel'✝ + 1,
                    (do
                      let a✝⁵ ← aux_arb fuel'✝
-                     return RegExp.Star a✝⁵))]
+                     return RegExp.Star a✝⁵))])
          fun fuel✝ => aux_arb fuel✝
      end,
      instance : Plausible.ArbitraryFueled✝ (@RegExp✝) :=
-       ⟨arbitraryRegExp✝⟩]
+       ⟨instArbitraryFueledRegExp.arbitrary⟩]
 -/
 #guard_msgs in
 deriving instance Arbitrary for RegExp

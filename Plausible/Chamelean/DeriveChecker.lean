@@ -44,7 +44,7 @@ def mkDecOptInstance (baseCheckers : TSyntax `term) (inductiveCheckers : TSyntax
   let freshSizeIdent := mkFreshAccessibleIdent topLevelLocalCtx `size
   let freshSize' := mkFreshAccessibleIdent topLevelLocalCtx `size'
   let auxDecIdent := mkFreshAccessibleIdent topLevelLocalCtx `aux_dec
-  let checkerType ← `($optionTypeConstructor $boolIdent)
+  let checkerType ← `($exceptTypeConstructor $genErrorType $boolIdent)
 
   let inductiveName := inductiveStx.raw.getId
 

@@ -7,8 +7,6 @@ open Lean Meta Std
 namespace Idents
 
 -- Idents for commonly-called functions
-def OptionTThunkGenFn : Ident := mkIdent $ Name.mkStr2 "OptionTGen" "thunkGen"
-def OptionTBacktrackFn : Ident := mkIdent $ Name.mkStr2 "OptionTGen" "backtrack"
 def generatorCombinatorsThunkGenFn : Ident := mkIdent $ Name.mkStr2 "GeneratorCombinators" "thunkGen"
 def frequencyFn : Ident := mkIdent $ Name.mkStr2 "GeneratorCombinators" "frequency"
 def oneOfWithDefaultGenCombinatorFn : Ident := mkIdent $ Name.mkStr2 "GeneratorCombinators" "oneOfWithDefault"
@@ -27,6 +25,8 @@ def auxDecFn : Ident := mkIdent $ Name.mkStr1 "aux_dec"
 /-- Ident for the `DecOpt.andOptList` checker combinator (see `DecOpt.lean`) -/
 def andOptListFn : Ident := mkIdent $ Name.mkStr2 "DecOpt" "andOptList"
 
+def genBacktrackFn : Ident := mkIdent $ Name.mkStr2 "GeneratorCombinators" "backtrack"
+
 /-- Ident for the `DecOpt.checkerBacktrack` checker combinator (see `DecOpt.lean`) -/
 def checkerBacktrackFn : Ident := mkIdent $ Name.mkStr2 "DecOpt" "checkerBacktrack"
 
@@ -40,7 +40,6 @@ def enumeratingFn : Ident := mkIdent $ Name.mkStr2 "EnumeratorCombinators" "enum
 def enumeratingOptFn : Ident := mkIdent $ Name.mkStr2 "EnumeratorCombinators" "enumeratingOpt"
 
 def pureFn : Ident := mkIdent $ Name.mkStr1 "pure"
-def someFn : Ident := mkIdent ``some
 def trueIdent : Ident := mkIdent ``true
 def falseIdent : Ident := mkIdent ``false
 
@@ -48,8 +47,9 @@ def falseIdent : Ident := mkIdent ``false
 def initSizeIdent : Ident := mkIdent $ Name.mkStr1 "initSize"
 def sizeIdent : Ident := mkIdent $ Name.mkStr1 "size"
 
-/-- `Ident` representing `OptionT.fail`-/
-def failFn : Ident := mkIdent $ Name.mkStr2 "OptionT" "fail"
+/-- `Ident` representing `MonadExcept.throw`-/
+def failFn : Ident := mkIdent ``MonadExcept.throw
+def genericFailure : Ident := mkIdent ``Plausible.Gen.genericFailure
 
 -- Idents for typeclasses
 def arbitrarySizedSuchThatTypeclass : Ident := mkIdent $ Name.mkStr1 "ArbitrarySizedSuchThat"
@@ -77,8 +77,9 @@ def boolIdent : Ident := mkIdent ``Bool
 def natIdent : Ident := mkIdent ``Nat
 def zeroIdent : Ident := mkIdent ``Nat.zero
 def succIdent : Ident := mkIdent ``Nat.succ
-def optionTypeConstructor : Ident := mkIdent `Option
-def optionTTypeConstructor : Ident := mkIdent ``OptionT
+def exceptTTypeConstructor : Ident := mkIdent ``ExceptT
+def exceptTypeConstructor : Ident := mkIdent ``Except
+def genErrorType : Ident := mkIdent ``Plausible.GenError
 def genTypeConstructor : Ident := mkIdent ``Plausible.Gen
 def enumTypeConstructor : Ident := mkIdent $ Name.mkStr1 "Enumerator"
 

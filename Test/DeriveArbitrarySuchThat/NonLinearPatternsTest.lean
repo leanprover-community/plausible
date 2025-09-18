@@ -1,13 +1,12 @@
 
 import Plausible.Gen
-import Plausible.Chamelean.OptionTGen
 import Plausible.Chamelean.DecOpt
 import Plausible.Chamelean.ArbitrarySizedSuchThat
 import Plausible.Chamelean.DeriveConstrainedProducer
 import Test.CommonDefinitions.BinaryTree
 
 open Plausible
-open ArbitrarySizedSuchThat OptionTGen
+open ArbitrarySizedSuchThat
 
 set_option guard_msgs.diff true
 
@@ -18,21 +17,21 @@ inductive GoodTree : Nat → Nat → BinaryTree → Prop where
 /--
 info: Try this generator: instance : ArbitrarySizedSuchThat BinaryTree (fun t_1 => GoodTree in1_1 in2_1 t_1) where
   arbitrarySizedST :=
-    let rec aux_arb (initSize : Nat) (size : Nat) (in1_1 : Nat) (in2_1 : Nat) : OptionT Plausible.Gen BinaryTree :=
-      match size with
+    let rec aux_arb (initSize : Nat) (size : Nat) (in1_1 : Nat) (in2_1 : Nat) : Plausible.Gen BinaryTree :=
+      (match size with
       | Nat.zero =>
-        OptionTGen.backtrack
+        GeneratorCombinators.backtrack
           [(1,
               match DecOpt.decOpt (BEq.beq in1_1 in2_1) initSize with
-              | Option.some Bool.true => return BinaryTree.Leaf
-              | _ => OptionT.fail)]
+              | Except.ok Bool.true => return BinaryTree.Leaf
+              | _ => MonadExcept.throw Plausible.Gen.genericFailure)]
       | Nat.succ size' =>
-        OptionTGen.backtrack
+        GeneratorCombinators.backtrack
           [(1,
               match DecOpt.decOpt (BEq.beq in1_1 in2_1) initSize with
-              | Option.some Bool.true => return BinaryTree.Leaf
-              | _ => OptionT.fail),
-            ]
+              | Except.ok Bool.true => return BinaryTree.Leaf
+              | _ => MonadExcept.throw Plausible.Gen.genericFailure),
+            ])
     fun size => aux_arb size size in1_1 in2_1
 -/
 #guard_msgs(info, drop warning) in
@@ -48,25 +47,25 @@ inductive SameHead : List Nat → List Nat → Prop where
 /--
 info: Try this generator: instance : ArbitrarySizedSuchThat (List Nat) (fun xs_1 => SameHead xs_1 ys_1) where
   arbitrarySizedST :=
-    let rec aux_arb (initSize : Nat) (size : Nat) (ys_1 : List Nat) : OptionT Plausible.Gen (List Nat) :=
-      match size with
+    let rec aux_arb (initSize : Nat) (size : Nat) (ys_1 : List Nat) : Plausible.Gen (List Nat) :=
+      (match size with
       | Nat.zero =>
-        OptionTGen.backtrack
+        GeneratorCombinators.backtrack
           [(1,
               match ys_1 with
               | List.cons x ys => do
                 let xs ← Plausible.Arbitrary.arbitrary;
                 return List.cons x xs
-              | _ => OptionT.fail)]
+              | _ => MonadExcept.throw Plausible.Gen.genericFailure)]
       | Nat.succ size' =>
-        OptionTGen.backtrack
+        GeneratorCombinators.backtrack
           [(1,
               match ys_1 with
               | List.cons x ys => do
                 let xs ← Plausible.Arbitrary.arbitrary;
                 return List.cons x xs
-              | _ => OptionT.fail),
-            ]
+              | _ => MonadExcept.throw Plausible.Gen.genericFailure),
+            ])
     fun size => aux_arb size size ys_1
 -/
 #guard_msgs(info, drop warning) in

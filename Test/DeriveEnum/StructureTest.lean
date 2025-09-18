@@ -22,10 +22,11 @@ deriving instance Enum for Foo
 namespace CommandElaboratorTest
 
 /--
-info: Try this enumerator: instance : EnumSized Foo where
+info: Try this enumerator:
+  instance : EnumSized Foo where
   enumSized :=
     let rec aux_enum (size : Nat) : Enumerator Foo :=
-      match size with
+      (match size with
       | Nat.zero =>
         EnumeratorCombinators.oneOfWithDefault
           (do
@@ -49,10 +50,10 @@ info: Try this enumerator: instance : EnumSized Foo where
             let stringField_0 ← Enum.enum
             let boolField_0 ← Enum.enum
             let natField_0 ← Enum.enum
-            return Foo.mk stringField_0 boolField_0 natField_0, ]
+            return Foo.mk stringField_0 boolField_0 natField_0, ])
     fun size => aux_enum size
 -/
-#guard_msgs(info, drop warning) in
+#guard_msgs(info, drop warning, whitespace:=lax) in
 #derive_enum Foo
 
 end CommandElaboratorTest

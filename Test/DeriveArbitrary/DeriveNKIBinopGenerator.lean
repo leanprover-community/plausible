@@ -22,11 +22,11 @@ inductive BinOp where
 
 set_option trace.plausible.deriving.arbitrary true in
 /--
-trace: [plausible.deriving.arbitrary] ⏎
+trace: [plausible.deriving.arbitrary]
     [mutual
-       def arbitraryBinOp✝ : Nat → Plausible.Gen (@BinOp✝) :=
+       def instArbitraryFueledBinOp.arbitrary : Nat → Plausible.Gen (@BinOp✝) :=
          let rec aux_arb (fuel✝ : Nat) : Plausible.Gen (@BinOp✝) :=
-           match fuel✝ with
+           (match fuel✝ with
            | Nat.zero =>
              Plausible.Gen.oneOfWithDefault (pure BinOp.land)
                [(pure BinOp.land), (pure BinOp.lor), (pure BinOp.eq), (pure BinOp.ne), (pure BinOp.lt), (pure BinOp.le),
@@ -39,13 +39,13 @@ trace: [plausible.deriving.arbitrary] ⏎
                  (1, (pure BinOp.lt)), (1, (pure BinOp.le)), (1, (pure BinOp.gt)), (1, (pure BinOp.ge)),
                  (1, (pure BinOp.add)), (1, (pure BinOp.sub)), (1, (pure BinOp.mul)), (1, (pure BinOp.div)),
                  (1, (pure BinOp.mod)), (1, (pure BinOp.pow)), (1, (pure BinOp.floor)), (1, (pure BinOp.lshift)),
-                 (1, (pure BinOp.rshift)), (1, (pure BinOp.or)), (1, (pure BinOp.xor)), (1, (pure BinOp.and)), ]
+                 (1, (pure BinOp.rshift)), (1, (pure BinOp.or)), (1, (pure BinOp.xor)), (1, (pure BinOp.and)), ])
          fun fuel✝ => aux_arb fuel✝
      end,
      instance : Plausible.ArbitraryFueled✝ (@BinOp✝) :=
-       ⟨arbitraryBinOp✝⟩]
+       ⟨instArbitraryFueledBinOp.arbitrary⟩]
 -/
-#guard_msgs in
+#guard_msgs(whitespace:=lax) in
 deriving instance Arbitrary for BinOp
 
 -- Test that we can successfully synthesize instances of `Arbitrary` & `ArbitraryFueled`

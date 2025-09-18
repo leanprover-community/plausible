@@ -11,11 +11,11 @@ set_option guard_msgs.diff true
 -- Invoke deriving instance handler for the `Arbitrary` typeclass on `type` and `term`
 set_option trace.plausible.deriving.arbitrary true in
 /--
-trace: [plausible.deriving.arbitrary] ⏎
+trace: [plausible.deriving.arbitrary]
     [mutual
-       def arbitrarytype✝ : Nat → Plausible.Gen (@type✝) :=
+       def instArbitraryFueledType.arbitrary : Nat → Plausible.Gen (@type✝) :=
          let rec aux_arb (fuel✝ : Nat) : Plausible.Gen (@type✝) :=
-           match fuel✝ with
+           (match fuel✝ with
            | Nat.zero => Plausible.Gen.oneOfWithDefault (pure type.Nat) [(pure type.Nat)]
            | fuel'✝ + 1 =>
              Plausible.Gen.frequency (pure type.Nat)
@@ -24,17 +24,17 @@ trace: [plausible.deriving.arbitrary] ⏎
                    (do
                      let a✝ ← aux_arb fuel'✝
                      let a✝¹ ← aux_arb fuel'✝
-                     return type.Fun a✝ a✝¹))]
+                     return type.Fun a✝ a✝¹))])
          fun fuel✝ => aux_arb fuel✝
      end,
      instance : Plausible.ArbitraryFueled✝ (@type✝) :=
-       ⟨arbitrarytype✝⟩]
+       ⟨instArbitraryFueledType.arbitrary⟩]
 ---
-trace: [plausible.deriving.arbitrary] ⏎
+trace: [plausible.deriving.arbitrary]
     [mutual
-       def arbitraryterm✝ : Nat → Plausible.Gen (@term✝) :=
+       def instArbitraryFueledTerm.arbitrary : Nat → Plausible.Gen (@term✝) :=
          let rec aux_arb (fuel✝ : Nat) : Plausible.Gen (@term✝) :=
-           match fuel✝ with
+           (match fuel✝ with
            | Nat.zero =>
              Plausible.Gen.oneOfWithDefault
                (do
@@ -73,13 +73,13 @@ trace: [plausible.deriving.arbitrary] ⏎
                    (do
                      let a✝⁶ ← Plausible.Arbitrary.arbitrary
                      let a✝⁷ ← aux_arb fuel'✝
-                     return term.Abs a✝⁶ a✝⁷))]
+                     return term.Abs a✝⁶ a✝⁷))])
          fun fuel✝ => aux_arb fuel✝
      end,
      instance : Plausible.ArbitraryFueled✝ (@term✝) :=
-       ⟨arbitraryterm✝⟩]
+       ⟨instArbitraryFueledTerm.arbitrary⟩]
 -/
-#guard_msgs in
+#guard_msgs(whitespace:=lax) in
 deriving instance Arbitrary for type, term
 
 -- Test that we can successfully synthesize instances of `Arbitrary` & `ArbitraryFueled`

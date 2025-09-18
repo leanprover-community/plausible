@@ -1,21 +1,17 @@
 import Plausible.Gen
-import Plausible.Chamelean.OptionTGen
 open Plausible
 
-/-- Sized generators of type `α` such that `P : α -> Prop` holds for all generated values.
-    Note that these generators may fail, which is why they have type `OptionT Gen α`. -/
+/-- Sized generators of type `α` such that `P : α -> Prop` holds for all generated values. -/
 class ArbitrarySizedSuchThat (α : Type) (P : α → Prop) where
-  arbitrarySizedST : Nat → OptionT Gen α
+  arbitrarySizedST : Nat → Gen α
 
-/-- Generators of type `α` such that `P : α -> Prop` holds for all generated values.
-    Note that these generators may fail, which is why they have type `OptionT Gen α`. -/
+/-- Generators of type `α` such that `P : α -> Prop` holds for all generated values. -/
 class ArbitrarySuchThat (α : Type) (P : α → Prop) where
-  arbitraryST : OptionT Gen α
+  arbitraryST : Gen α
 
-/-- Every `ArbitrarySizedSuchThat` instance can be automatically given a `ArbitrarySuchThat` instance
-    using the `OptionTGen.sized` combinator -/
+/-- Every `ArbitrarySizedSuchThat` instance can be automatically given a `ArbitrarySuchThat` instance -/
 instance [ArbitrarySizedSuchThat α P] : ArbitrarySuchThat α P where
-  arbitraryST := OptionTGen.sized (ArbitrarySizedSuchThat.arbitrarySizedST P)
+  arbitraryST := Gen.sized (ArbitrarySizedSuchThat.arbitrarySizedST P)
 
 /-- `ArbitrarySizedSuchThat` instance for equality propositions
      where a variable `x` is left-equal to some value `val`.

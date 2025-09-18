@@ -1,8 +1,8 @@
 import Lean
 import Std
 import Plausible.Gen
+import Plausible.Chamelean.GeneratorCombinators
 import Plausible.Chamelean.TSyntaxCombinators
-import Plausible.Chamelean.OptionTGen
 import Plausible.Chamelean.Idents
 import Plausible.Chamelean.Utils
 import Plausible.Chamelean.Schedules
@@ -91,10 +91,10 @@ def mkConstrainedProducerTypeClassInstance
     let inductiveName := inductiveStx.raw.getId
 
     -- The (backtracking) combinator to be invoked
-    -- (`OptionTGen.backtrack` for generators, `EnumeratorCombinators.enumerate` for enumerators)
+    -- (`GeneratorCombinators.backtrack` for generators, `EnumeratorCombinators.enumerate` for enumerators)
     let combinatorFn :=
       match producerSort with
-      | .Generator => OptionTBacktrackFn
+      | .Generator => genBacktrackFn
       | .Enumerator => enumerateFn
 
     -- Create the cases for the pattern-match on the size argument
@@ -153,16 +153,13 @@ def mkConstrainedProducerTypeClassInstance
       | .Generator => mkFreshAccessibleIdent topLevelLocalCtx `aux_arb
       | .Enumerator => mkFreshAccessibleIdent topLevelLocalCtx `aux_enum
 
-    -- Determine the appropriate type constructor to use as the producer's type
-    -- (either `Gen` or `Enumerator`)
-    let producerTypeConstructor :=
-      match producerSort with
-      | .Generator => genTypeConstructor
-      | .Enumerator => enumTypeConstructor
 
     -- Determine the appropriate type of the final producer
-    -- (either `OptionT Plausible.Gen α` or `OptionT Enum α`)
-    let optionTProducerType ← `($optionTTypeConstructor $producerTypeConstructor $targetTypeSyntax)
+    -- (either `Plausible.Gen α` or `ExceptT GenError Enum α`)
+    let optionTProducerType ←
+      match producerSort with
+      | .Generator => `($genTypeConstructor $targetTypeSyntax)
+      | .Enumerator => `($exceptTTypeConstructor $genErrorType $enumTypeConstructor $targetTypeSyntax)
 
     -- Produce an instance of the appropriate typeclass containing the definition for the derived producer
     `(instance : $producerTypeClass $targetTypeSyntax (fun $(mkIdent targetVar) => $inductiveStx $args*) where

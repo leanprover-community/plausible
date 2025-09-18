@@ -15,11 +15,11 @@ inductive DummyInductive where
 
 set_option trace.plausible.deriving.arbitrary true in
 /--
-trace: [plausible.deriving.arbitrary] ⏎
+trace: [plausible.deriving.arbitrary]
     [mutual
-       def arbitraryDummyInductive✝ : Nat → Plausible.Gen (@DummyInductive✝) :=
+       def instArbitraryFueledDummyInductive.arbitrary : Nat → Plausible.Gen (@DummyInductive✝) :=
          let rec aux_arb (fuel✝ : Nat) : Plausible.Gen (@DummyInductive✝) :=
-           match fuel✝ with
+           (match fuel✝ with
            | Nat.zero =>
              Plausible.Gen.oneOfWithDefault
                (do
@@ -45,13 +45,13 @@ trace: [plausible.deriving.arbitrary] ⏎
                      let a✝¹ ← Plausible.Arbitrary.arbitrary
                      let a✝² ← Plausible.Arbitrary.arbitrary
                      return DummyInductive.FromBitVec a✝ a✝¹ a✝²)),
-                 ]
+                 ])
          fun fuel✝ => aux_arb fuel✝
      end,
      instance : Plausible.ArbitraryFueled✝ (@DummyInductive✝) :=
-       ⟨arbitraryDummyInductive✝⟩]
+       ⟨instArbitraryFueledDummyInductive.arbitrary⟩]
 -/
-#guard_msgs in
+#guard_msgs(whitespace:=lax) in
 deriving instance Arbitrary for DummyInductive
 
 -- Test that we can successfully synthesize instances of `Arbitrary` & `ArbitraryFueled`

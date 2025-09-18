@@ -15,7 +15,6 @@ import Plausible.Tactic
 -- (extension to Plausible for deriving generators, enumerators & checkers)
 import Plausible.Chamelean.DeriveChecker
 import Plausible.Chamelean.MakeConstrainedProducerInstance
-import Plausible.Chamelean.OptionTGen
 import Plausible.Chamelean.Idents
 import Plausible.Chamelean.TSyntaxCombinators
 import Plausible.Chamelean.DecOpt

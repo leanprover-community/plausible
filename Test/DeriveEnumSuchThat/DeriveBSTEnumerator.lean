@@ -9,29 +9,30 @@ set_option guard_msgs.diff true
 /--
 info: Try this enumerator: instance : EnumSizedSuchThat Nat (fun x_1 => Between lo_1 x_1 hi_1) where
   enumSizedST :=
-    let rec aux_enum (initSize : Nat) (size : Nat) (lo_1 : Nat) (hi_1 : Nat) : OptionT Enumerator Nat :=
-      match size with
+    let rec aux_enum (initSize : Nat) (size : Nat) (lo_1 : Nat) (hi_1 : Nat) :
+      ExceptT Plausible.GenError Enumerator Nat :=
+      (match size with
       | Nat.zero =>
         EnumeratorCombinators.enumerate
           [match hi_1 with
             | Nat.succ (Nat.succ m) =>
               match DecOpt.decOpt (LE.le lo_1 m) initSize with
-              | Option.some Bool.true => return Nat.succ lo_1
-              | _ => OptionT.fail
-            | _ => OptionT.fail]
+              | Except.ok Bool.true => return Nat.succ lo_1
+              | _ => MonadExcept.throw Plausible.Gen.genericFailure
+            | _ => MonadExcept.throw Plausible.Gen.genericFailure]
       | Nat.succ size' =>
         EnumeratorCombinators.enumerate
           [match hi_1 with
             | Nat.succ (Nat.succ m) =>
               match DecOpt.decOpt (LE.le lo_1 m) initSize with
-              | Option.some Bool.true => return Nat.succ lo_1
-              | _ => OptionT.fail
-            | _ => OptionT.fail,
+              | Except.ok Bool.true => return Nat.succ lo_1
+              | _ => MonadExcept.throw Plausible.Gen.genericFailure
+            | _ => MonadExcept.throw Plausible.Gen.genericFailure,
             match hi_1 with
             | Nat.succ o => do
               let m ← aux_enum initSize size' lo_1 o;
               return Nat.succ m
-            | _ => OptionT.fail]
+            | _ => MonadExcept.throw Plausible.Gen.genericFailure])
     fun size => aux_enum size size lo_1 hi_1
 -/
 #guard_msgs(info, drop warning) in
@@ -40,8 +41,9 @@ info: Try this enumerator: instance : EnumSizedSuchThat Nat (fun x_1 => Between 
 /--
 info: Try this enumerator: instance : EnumSizedSuchThat BinaryTree (fun t_1 => BST lo_1 hi_1 t_1) where
   enumSizedST :=
-    let rec aux_enum (initSize : Nat) (size : Nat) (lo_1 : Nat) (hi_1 : Nat) : OptionT Enumerator BinaryTree :=
-      match size with
+    let rec aux_enum (initSize : Nat) (size : Nat) (lo_1 : Nat) (hi_1 : Nat) :
+      ExceptT Plausible.GenError Enumerator BinaryTree :=
+      (match size with
       | Nat.zero => EnumeratorCombinators.enumerate [return BinaryTree.Leaf]
       | Nat.succ size' =>
         EnumeratorCombinators.enumerate
@@ -51,7 +53,7 @@ info: Try this enumerator: instance : EnumSizedSuchThat BinaryTree (fun t_1 => B
               let l ← aux_enum initSize size' lo_1 x;
               do
                 let r ← aux_enum initSize size' x hi_1;
-                return BinaryTree.Node x l r]
+                return BinaryTree.Node x l r])
     fun size => aux_enum size size lo_1 hi_1
 -/
 #guard_msgs(info, drop warning) in

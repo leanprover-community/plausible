@@ -22,10 +22,11 @@ deriving instance Enum for DummyInductive
 namespace CommandElaboratorTest
 
 /--
-info: Try this enumerator: instance : EnumSized DummyInductive where
+info: Try this enumerator:
+  instance : EnumSized DummyInductive where
   enumSized :=
     let rec aux_enum (size : Nat) : Enumerator DummyInductive :=
-      match size with
+      (match size with
       | Nat.zero =>
         EnumeratorCombinators.oneOfWithDefault
           (do
@@ -49,10 +50,10 @@ info: Try this enumerator: instance : EnumSized DummyInductive where
             let n_0 ← Enum.enum
             let a_0 ← Enum.enum
             let a_1 ← Enum.enum
-            return DummyInductive.FromBitVec n_0 a_0 a_1, ]
+            return DummyInductive.FromBitVec n_0 a_0 a_1, ])
     fun size => aux_enum size
 -/
-#guard_msgs(info, drop warning) in
+#guard_msgs(info, drop warning, whitespace:=lax) in
 #derive_enum DummyInductive
 
 end CommandElaboratorTest

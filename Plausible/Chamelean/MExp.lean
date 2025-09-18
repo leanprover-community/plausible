@@ -15,12 +15,11 @@ open Lean Parser Elab Term Command
 -- https://github.com/QuickChick/QuickChick/blob/internal-rewrite/plugin/newGenericLib.ml
 
 /-- The sort of monad we are compiling to, i.e. one of the following:
-    - An unconstrained / constrained generator (`Gen` / `OptionT Gen`)
-    - An unconstrained / constrained enumerator (`Enumerator` / `OptionT Enumerator`)
-    - A Checker (`Option Bool` monad) -/
+    - An unconstrained / constrained generator (`Gen`)
+    - An unconstrained / constrained enumerator (`Enumerator` / `Except GenError Enumerator`)
+    - A Checker (`Except GenError Bool` monad) -/
 inductive MonadSort
   | Gen
-  | OptionTGen
   | Enumerator
   | OptionTEnumerator
   | Checker
@@ -95,7 +94,7 @@ def prodSortToMonadSort (prodSort : ProducerSort) : MonadSort :=
 def prodSortToOptionTMonadSort (prodSort : ProducerSort) : MonadSort :=
   match prodSort with
   | .Enumerator => MonadSort.OptionTEnumerator
-  | .Generator => MonadSort.OptionTGen
+  | .Generator => MonadSort.Gen
 
 /-- `MExp` representation of `EnumSizedSuchThat.enumSizedST`,
     where `prop` is the `Prop` constraining the value being enumerated
@@ -109,21 +108,19 @@ def enumSizedST (prop : MExp) (fuel : MExp) : MExp :=
 def arbitrarySizedST (prop : MExp) (fuel : MExp) : MExp :=
   .MApp (.MConst ``ArbitrarySizedSuchThat.arbitrarySizedST) [prop, fuel]
 
-/-- `mexpSome x` is an `MExp` representing `Option.some x`.
-    We call this function `mexpSome` to avoid name clashes with the existing `some` constructor
-    for `Option` types. -/
-def mexpSome (x : MExp) : MExp :=
-  .MApp (.MConst ``Option.some) [x]
+/-- `ok x` is an `MExp` representing `Except.ok x`. -/
+def ok (x : MExp) : MExp :=
+  .MApp (.MConst ``Except.ok) [x]
 
-/-- `someTrue` is an `MExp` representing `some true`
+/-- `okTrue` is an `MExp` representing `ok true`
     - This expression is often used when deriving checkers, so we define it here as an abbreviation. -/
-def someTrue : MExp :=
-  mexpSome (.MConst ``true)
+def okTrue : MExp :=
+  ok (.MConst ``true)
 
-/-- `someFalse` is an `MExp` representing `some false`
+/-- `okFalse` is an `MExp` representing `ok false`
     - This expression is often used when deriving checkers, so we define it here as an abbreviation. -/
-def someFalse : MExp :=
-  mexpSome (.MConst ``false)
+def okFalse : MExp :=
+  ok (.MConst ``false)
 
 
 /-- Converts a `List α` to a "tuple", where the function `pair`
@@ -149,8 +146,6 @@ partial def compilePattern (p : Pattern) : MetaM (TSyntax `term) :=
   | .CtorPattern ctorName args => do
     let compiledArgs ← args.toArray.mapM compilePattern
     `($(mkIdent ctorName):ident $compiledArgs*)
-
-
 
 /-- `MExp` representation of a `DecOpt` instance (a checker).
     Specifically, `decOptChecker prop fuel` represents the term
@@ -181,21 +176,21 @@ def hypothesisExprToMExp (hypExpr : HypothesisExpr) : MExp :=
 def wildCardPattern : Pattern :=
   .UnknownPattern `_
 
-/-- `MExp` representing a pattern-match on a `scrutinee` of type `Option Bool`.
+/-- `MExp` representing a pattern-match on a `scrutinee` of type `Except _ Bool`.
      Specifically, `matchOptionBool scrutinee trueBranch falseBranch` represents
      ```lean
      match scrutinee with
-     | some true => $trueBranch
-     | some false => $falseBranch
-     | none => $MExp.MOutOfFuel
+     | .ok true => $trueBranch
+     | .ok false => $falseBranch
+     | .error _ => $MExp.MOutOfFuel
      ```
 -/
-def matchOptionBool (scrutinee : MExp) (trueBranch : MExp) (falseBranch : MExp) : MExp :=
+def matchExceptBool (scrutinee : MExp) (trueBranch : MExp) (falseBranch : MExp) : MExp :=
   .MMatch scrutinee
     [
-      (.CtorPattern ``some [.UnknownPattern ``true], trueBranch),
-      (.CtorPattern ``some [.UnknownPattern ``false], falseBranch),
-      (.UnknownPattern ``none, .MOutOfFuel)
+      (.CtorPattern ``Except.ok [.UnknownPattern ``true], trueBranch),
+      (.CtorPattern ``Except.ok [.UnknownPattern ``false], falseBranch),
+      (.CtorPattern ``Except.error [wildCardPattern], .MOutOfFuel)
     ]
 
 /-- `CompileScheduleM` is a monad for compiling `Schedule`s to `TSyntax term`s.
@@ -250,8 +245,8 @@ mutual
       -- Note: right now we compile `MFail` and `MOutOfFuel` to the same Lean terms
       -- for simplicity, but in the future we may want to distinguish them
       match deriveSort with
-      | .Generator | .Enumerator => `($failFn)
-      | .Checker => `($(mkIdent ``some) $(mkIdent ``false))
+      | .Generator | .Enumerator => `($failFn $genericFailure)
+      | .Checker => `($(mkIdent ``Except.ok) $(mkIdent ``false))
       | .Theorem => throwError "compiling MExps for Theorem DeriveSorts not implemented"
     | .MRet e => do
       let e' ← mexpToTSyntax e deriveSort
@@ -263,7 +258,6 @@ mutual
 
       match deriveSort, monadSort with
       | .Generator, .Gen
-      | .Generator, .OptionTGen
       | .Enumerator, .Enumerator
       | .Enumerator, .OptionTEnumerator =>
         -- If there are multiple variables that are bound to the result
@@ -281,15 +275,15 @@ mutual
         -- If a producer invokes a checker, we have to invoke the checker
         -- provided by the `DecOpt` instance for the proposition, then pattern
         -- match on its result
-        let trueCase ← `(Term.matchAltExpr| | $(mkIdent ``some) $(mkIdent ``true) => $k1)
-        let wildCardCase ← `(Term.matchAltExpr| | _ => $failFn)
+        let trueCase ← `(Term.matchAltExpr| | $(mkIdent ``Except.ok) $(mkIdent ``true) => $k1)
+        let wildCardCase ← `(Term.matchAltExpr| | _ => $failFn $genericFailure)
         let cases := #[trueCase, wildCardCase]
         `(match $m1:term with $cases:matchAlt*)
       | .Checker, .Checker =>
         -- If the continuation of the bind is just returning `some True`,
         -- we can just inline the checker call `m1` to avoid the extra indirection
         -- of calling checker combinator functions
-        if k == someTrue then
+        if k == okTrue then
           `($m1:term)
         else
           -- For checkers, we can just invoke `DecOpt.andOptList`
@@ -428,15 +422,15 @@ def scheduleToMExp (schedule : Schedule) (mfuel : MExp) (defFuel : MExp) : Compi
       | [] => panic! "No outputs being returned in producer schedule"
       | [output] => MExp.MRet output
       | outputs => tupleOfList (fun e1 e2 => .MApp (.MConst ``Prod.mk) [e1, e2]) outputs outputs[0]?
-    | .CheckerSchedule => someTrue
+    | .CheckerSchedule => okTrue
     | .TheoremSchedule conclusion typeClassUsed =>
       -- Create a pattern-match on the result of hte checker
-      -- on the conclusion, returning `some true` or `some false` accordingly
+      -- on the conclusion, returning `.ok true` or `.ok false` accordingly
       let conclusionMExp := hypothesisExprToMExp conclusion
       let scrutinee :=
         if typeClassUsed then decOptChecker conclusionMExp mfuel
         else conclusionMExp
-      matchOptionBool scrutinee someTrue someFalse
+      matchExceptBool scrutinee okTrue okFalse
   -- Fold over the `scheduleSteps` and convert each of them to a functional `MExp`
   -- Note that the fold composes the `MExp`, and we use `foldr` since
   -- we want the `epilogue` to be the base-case of the fold

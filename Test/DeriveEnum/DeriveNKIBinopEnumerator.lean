@@ -22,10 +22,11 @@ deriving instance Enum for BinOp
 namespace CommandElaboratorTest
 
 /--
-info: Try this enumerator: instance : EnumSized BinOp where
+info: Try this enumerator:
+  instance : EnumSized BinOp where
   enumSized :=
     let rec aux_enum (size : Nat) : Enumerator BinOp :=
-      match size with
+      (match size with
       | Nat.zero =>
         EnumeratorCombinators.oneOfWithDefault (pure BinOp.land)
           [pure BinOp.land, pure BinOp.lor, pure BinOp.eq, pure BinOp.ne, pure BinOp.lt, pure BinOp.le, pure BinOp.gt,
@@ -37,10 +38,10 @@ info: Try this enumerator: instance : EnumSized BinOp where
           [pure BinOp.land, pure BinOp.lor, pure BinOp.eq, pure BinOp.ne, pure BinOp.lt, pure BinOp.le, pure BinOp.gt,
             pure BinOp.ge, pure BinOp.add, pure BinOp.sub, pure BinOp.mul, pure BinOp.div, pure BinOp.mod,
             pure BinOp.pow, pure BinOp.floor, pure BinOp.lshift, pure BinOp.rshift, pure BinOp.or, pure BinOp.xor,
-            pure BinOp.and, ]
+            pure BinOp.and, ])
     fun size => aux_enum size
 -/
-#guard_msgs(info, drop warning) in
+#guard_msgs(info, drop warning, whitespace:=lax) in
 #derive_enum BinOp
 
 end CommandElaboratorTest

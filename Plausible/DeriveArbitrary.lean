@@ -7,7 +7,7 @@ import Lean.Elab
 import Lean.Elab.Deriving.Basic
 import Lean.Elab.Deriving.Util
 
-import Plausible.Arbitrary
+import Plausible.Arbitrary import Plausible.Chamelean.ArbitraryFueled
 
 open Lean Elab Meta Parser Term
 open Elab.Deriving
@@ -240,6 +240,7 @@ def mkBody (header : Header) (inductiveVal : InductiveVal) (generatorType : TSyn
   let mut caseExprs := #[]
   let zeroCase ← `(Term.matchAltExpr| | $(mkIdent ``Nat.zero) => $(mkIdent ``Gen.oneOfWithDefault) $defaultGenerator [$nonRecursiveGeneratorsNoWeights,*])
   caseExprs := caseExprs.push zeroCase
+
 
   -- If `fuel = fuel' + 1`, pick a generator (it can be non-recursive or recursive)
   let mut allWeightedGenerators ← `([$weightedNonRecursiveGenerators,*, $weightedRecursiveGenerators,*])

@@ -1,5 +1,3 @@
-
-import Plausible.Chamelean.OptionTGen
 import Plausible.Chamelean.DecOpt
 import Plausible.Chamelean.Enumerators
 import Plausible.Chamelean.DeriveConstrainedProducer
@@ -11,24 +9,24 @@ set_option guard_msgs.diff true
 /--
 info: Try this enumerator: instance : EnumSizedSuchThat BinaryTree (fun t_1 => balancedTree n_1 t_1) where
   enumSizedST :=
-    let rec aux_enum (initSize : Nat) (size : Nat) (n_1 : Nat) : OptionT Enumerator BinaryTree :=
-      match size with
+    let rec aux_enum (initSize : Nat) (size : Nat) (n_1 : Nat) : ExceptT Plausible.GenError Enumerator BinaryTree :=
+      (match size with
       | Nat.zero =>
         EnumeratorCombinators.enumerate
           [match n_1 with
             | Nat.zero => return BinaryTree.Leaf
-            | _ => OptionT.fail,
+            | _ => MonadExcept.throw Plausible.Gen.genericFailure,
             match n_1 with
             | Nat.succ (Nat.zero) => return BinaryTree.Leaf
-            | _ => OptionT.fail]
+            | _ => MonadExcept.throw Plausible.Gen.genericFailure]
       | Nat.succ size' =>
         EnumeratorCombinators.enumerate
           [match n_1 with
             | Nat.zero => return BinaryTree.Leaf
-            | _ => OptionT.fail,
+            | _ => MonadExcept.throw Plausible.Gen.genericFailure,
             match n_1 with
             | Nat.succ (Nat.zero) => return BinaryTree.Leaf
-            | _ => OptionT.fail,
+            | _ => MonadExcept.throw Plausible.Gen.genericFailure,
             match n_1 with
             | Nat.succ n => do
               let l ← aux_enum initSize size' n;
@@ -37,7 +35,7 @@ info: Try this enumerator: instance : EnumSizedSuchThat BinaryTree (fun t_1 => b
                 do
                   let x ← Enum.enum;
                   return BinaryTree.Node x l r
-            | _ => OptionT.fail]
+            | _ => MonadExcept.throw Plausible.Gen.genericFailure])
     fun size => aux_enum size size n_1
 -/
 #guard_msgs(info, drop warning) in

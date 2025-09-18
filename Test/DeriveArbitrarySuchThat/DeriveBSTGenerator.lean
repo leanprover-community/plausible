@@ -1,6 +1,5 @@
 
 import Plausible.Gen
-import Plausible.Chamelean.OptionTGen
 import Plausible.Chamelean.DecOpt
 import Plausible.Chamelean.ArbitrarySizedSuchThat
 import Plausible.Chamelean.DeriveConstrainedProducer
@@ -9,53 +8,53 @@ import Test.DeriveDecOpt.DeriveBSTChecker
 import Plausible.Testable
 
 open Plausible
-open ArbitrarySizedSuchThat OptionTGen
+open ArbitrarySizedSuchThat
 
 set_option guard_msgs.diff true
 
 /--
 info: Try this generator: instance : ArbitrarySizedSuchThat Nat (fun x_1 => Between lo_1 x_1 hi_1) where
   arbitrarySizedST :=
-    let rec aux_arb (initSize : Nat) (size : Nat) (lo_1 : Nat) (hi_1 : Nat) : OptionT Plausible.Gen Nat :=
-      match size with
+    let rec aux_arb (initSize : Nat) (size : Nat) (lo_1 : Nat) (hi_1 : Nat) : Plausible.Gen Nat :=
+      (match size with
       | Nat.zero =>
-        OptionTGen.backtrack
+        GeneratorCombinators.backtrack
           [(1,
               match hi_1 with
               | Nat.succ (Nat.succ m) =>
                 match DecOpt.decOpt (LE.le lo_1 m) initSize with
-                | Option.some Bool.true => return Nat.succ lo_1
-                | _ => OptionT.fail
-              | _ => OptionT.fail)]
+                | Except.ok Bool.true => return Nat.succ lo_1
+                | _ => MonadExcept.throw Plausible.Gen.genericFailure
+              | _ => MonadExcept.throw Plausible.Gen.genericFailure)]
       | Nat.succ size' =>
-        OptionTGen.backtrack
+        GeneratorCombinators.backtrack
           [(1,
               match hi_1 with
               | Nat.succ (Nat.succ m) =>
                 match DecOpt.decOpt (LE.le lo_1 m) initSize with
-                | Option.some Bool.true => return Nat.succ lo_1
-                | _ => OptionT.fail
-              | _ => OptionT.fail),
+                | Except.ok Bool.true => return Nat.succ lo_1
+                | _ => MonadExcept.throw Plausible.Gen.genericFailure
+              | _ => MonadExcept.throw Plausible.Gen.genericFailure),
             (Nat.succ size',
               match hi_1 with
               | Nat.succ o => do
                 let m ← aux_arb initSize size' lo_1 o;
                 return Nat.succ m
-              | _ => OptionT.fail)]
+              | _ => MonadExcept.throw Plausible.Gen.genericFailure)])
     fun size => aux_arb size size lo_1 hi_1
 -/
-#guard_msgs(info, drop warning) in
+#guard_msgs(info, drop warning, whitespace:=lax) in
 #derive_generator (fun (x : Nat) => Between lo x hi)
 
 
 /--
 info: Try this generator: instance : ArbitrarySizedSuchThat BinaryTree (fun t_1 => BST lo_1 hi_1 t_1) where
   arbitrarySizedST :=
-    let rec aux_arb (initSize : Nat) (size : Nat) (lo_1 : Nat) (hi_1 : Nat) : OptionT Plausible.Gen BinaryTree :=
-      match size with
-      | Nat.zero => OptionTGen.backtrack [(1, return BinaryTree.Leaf)]
+    let rec aux_arb (initSize : Nat) (size : Nat) (lo_1 : Nat) (hi_1 : Nat) : Plausible.Gen BinaryTree :=
+      (match size with
+      | Nat.zero => GeneratorCombinators.backtrack [(1, return BinaryTree.Leaf)]
       | Nat.succ size' =>
-        OptionTGen.backtrack
+        GeneratorCombinators.backtrack
           [(1, return BinaryTree.Leaf),
             (Nat.succ size', do
               let x ← ArbitrarySizedSuchThat.arbitrarySizedST (fun x => Between lo_1 x hi_1) initSize;
@@ -63,7 +62,7 @@ info: Try this generator: instance : ArbitrarySizedSuchThat BinaryTree (fun t_1 
                 let l ← aux_arb initSize size' lo_1 x;
                 do
                   let r ← aux_arb initSize size' x hi_1;
-                  return BinaryTree.Node x l r)]
+                  return BinaryTree.Node x l r)])
     fun size => aux_arb size size lo_1 hi_1
 -/
 #guard_msgs(info, drop warning) in
@@ -95,21 +94,18 @@ def runTests (numTrials : Nat) (useBuggyVersion : Bool := false) : IO Unit := do
   let mut numSucceeded := 0
   for _ in [:numTrials] do
     let x ← Gen.run (Subtype.val <$> Gen.chooseNatLt 1 10 (by decide)) size
-    let maybeTree ← Gen.run (ArbitrarySizedSuchThat.arbitrarySizedST (fun t => BST 0 10 t) size) size
-    match maybeTree with
-    | some t =>
-      let insertFn := if useBuggyVersion then buggyInsert else insert
-      let t' := insertFn x t
-      let b := DecOpt.decOpt (BST 0 10 t') size
-      match b with
-      | some bool =>
-        if bool then
-          numSucceeded := numSucceeded + 1
-        else
-          IO.println s!"Property falsified!\nt = {repr t}\nx = {x}\nt' = {repr t'}"
-          return
-      | none => IO.println s!"unable to decide BST validity for {repr t'}"
-    | none => IO.println "unable to generate valid BST"
+    let t ← Gen.run (ArbitrarySizedSuchThat.arbitrarySizedST (fun t => BST 0 10 t) size) size
+    let insertFn := if useBuggyVersion then buggyInsert else insert
+    let t' := insertFn x t
+    let b := DecOpt.decOpt (BST 0 10 t') size
+    match b with
+    | .ok bool =>
+      if bool then
+        numSucceeded := numSucceeded + 1
+      else
+        IO.println s!"Property falsified!\nt = {repr t}\nx = {x}\nt' = {repr t'}"
+        return
+    | .error (.genError e) => IO.println s!"unable to generate valid BST: {e}"
   IO.println s!"Chamelean: finished {numTrials} tests, {numSucceeded} passed"
 
 -- Uncomment this to run the aforementioned test harness

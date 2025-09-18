@@ -1,7 +1,8 @@
 import Plausible.Chamelean.LazyList
 import Plausible.Chamelean.Utils
+import Plausible.Gen
 
-open LazyList
+open LazyList Plausible
 
 /-- An enumerator is a function from `Nat` to `LazyList α`, where the `Nat`
     serves an upper bound for the enumeration process, i.e. the LazyList returned
@@ -18,14 +19,14 @@ class EnumSized (α : Type) where
   enumSized : Nat → Enumerator α
 
 /-- Sized enumerators of type `α` such that `P : α -> Prop` holds for all enumerated values.
-    Note that these enumerators may fail, which is why they have type `OptionT Enumerator α`. -/
+    Note that these enumerators may fail, which is why they have type `ExceptT GenError Enumerator α`. -/
 class EnumSizedSuchThat (α : Type) (P : α → Prop) where
-  enumSizedST : Nat → OptionT Enumerator α
+  enumSizedST : Nat → ExceptT GenError Enumerator α
 
 /-- Enumerators of type `α` such that `P : α -> Prop` holds for all generated values.
-    Note that these enumerators may fail, which is why they have type `OptionT Enumerator α`. -/
+    Note that these enumerators may fail, which is why they have type `ExceptT GenError Enumerator α`. -/
 class EnumSuchThat (α : Type) (P : α → Prop) where
-  enumST : OptionT Enumerator α
+  enumST : ExceptT GenError Enumerator α
 
 /-- `pure x` constructs a trivial enumerator which produces a singleton `LazyList` containing `x` -/
 def pureEnum (x : α) : Enumerator α :=
@@ -119,6 +120,9 @@ namespace EnumeratorCombinators
       let idx ← enumNatRange 0 (es.length - 1)
       List.getD es idx default
 
+  def oneOf [Inhabited α] (es : List (Enumerator α)) : Enumerator α :=
+    oneOfWithDefault (pure default) es
+
 end EnumeratorCombinators
 
 -- Some simple `Enum` instances
@@ -129,9 +133,18 @@ instance : Enum Bool where
 
 /-- `Enum` instance for `Option`s -/
 instance [Enum α] : Enum (Option α) where
-  enum := EnumeratorCombinators.oneOfWithDefault (pure none) [
+  enum := EnumeratorCombinators.oneOf [
     pure none,
     some <$> Enum.enum
+  ]
+
+/-- `Enum` instance for `Except`s, though we do not enumerate the possible exceptions thrown: typically we
+  want to enumerate the "positive instances", so we simply throw `.error default` once.
+-/
+instance [Inhabited ε] [Enum α] : Enum (Except ε α) where
+  enum := EnumeratorCombinators.oneOf [
+    pure (.error default),
+    .ok <$> Enum.enum
   ]
 
 /-- `Enum` instances for pairs -/
@@ -198,7 +211,7 @@ instance : Enum (BitVec w) where
 def runEnum [Enum α] (size : Nat) (limit : Nat := 10) : IO (List α) :=
   return (LazyList.toList $ LazyList.take limit $ Enum.enum size)
 
-/-- Samples from an `OptionT Enumerator` enumerator that is parameterized by its `size`,
-    returning the enumerated list of `Option α` values (containing up to `limit` elements) in the `IO` monad -/
-def runSizedEnum (sizedEnum : Nat → OptionT Enumerator α) (size : Nat) (limit : Nat := 10) : IO (List (Option α)) :=
+/-- Samples from an `ExceptT GenError Enumerator` enumerator that is parameterized by its `size`,
+    returning the enumerated list of `Except GenError α` values (containing up to `limit` elements) in the `IO` monad -/
+def runSizedEnum (sizedEnum : Nat → ExceptT GenError Enumerator α) (size : Nat) (limit : Nat := 10) : IO (List (Except GenError α)) :=
   return (LazyList.toList $ LazyList.take limit $ (sizedEnum size) size)

@@ -1,12 +1,11 @@
 import Plausible.Gen
-import Plausible.Chamelean.OptionTGen
 import Plausible.Chamelean.DecOpt
 import Plausible.Chamelean.ArbitrarySizedSuchThat
 import Plausible.Chamelean.DeriveConstrainedProducer
 import Test.DeriveArbitrary.DeriveRegExpGenerator
 
 open Plausible
-open ArbitrarySizedSuchThat OptionTGen
+open ArbitrarySizedSuchThat
 
 set_option guard_msgs.diff true
 
@@ -63,36 +62,36 @@ def r0 : RegExp :=
 /--
 info: Try this generator: instance : ArbitrarySizedSuchThat (List Nat) (fun s_1 => ExpMatch s_1 re_1) where
   arbitrarySizedST :=
-    let rec aux_arb (initSize : Nat) (size : Nat) (re_1 : RegExp) : OptionT Plausible.Gen (List Nat) :=
-      match size with
+    let rec aux_arb (initSize : Nat) (size : Nat) (re_1 : RegExp) : Plausible.Gen (List Nat) :=
+      (match size with
       | Nat.zero =>
-        OptionTGen.backtrack
+        GeneratorCombinators.backtrack
           [(1,
               match re_1 with
               | RegExp.EmptyStr => return List.nil
-              | _ => OptionT.fail),
+              | _ => MonadExcept.throw Plausible.Gen.genericFailure),
             (1,
               match re_1 with
               | RegExp.Char x => return List.cons x (List.nil)
-              | _ => OptionT.fail),
+              | _ => MonadExcept.throw Plausible.Gen.genericFailure),
             (1,
               match re_1 with
               | RegExp.Star re => return List.nil
-              | _ => OptionT.fail)]
+              | _ => MonadExcept.throw Plausible.Gen.genericFailure)]
       | Nat.succ size' =>
-        OptionTGen.backtrack
+        GeneratorCombinators.backtrack
           [(1,
               match re_1 with
               | RegExp.EmptyStr => return List.nil
-              | _ => OptionT.fail),
+              | _ => MonadExcept.throw Plausible.Gen.genericFailure),
             (1,
               match re_1 with
               | RegExp.Char x => return List.cons x (List.nil)
-              | _ => OptionT.fail),
+              | _ => MonadExcept.throw Plausible.Gen.genericFailure),
             (1,
               match re_1 with
               | RegExp.Star re => return List.nil
-              | _ => OptionT.fail),
+              | _ => MonadExcept.throw Plausible.Gen.genericFailure),
             (Nat.succ size',
               match re_1 with
               | RegExp.App re1 re2 => do
@@ -100,19 +99,19 @@ info: Try this generator: instance : ArbitrarySizedSuchThat (List Nat) (fun s_1 
                 do
                   let s2 ← aux_arb initSize size' re2;
                   return HAppend.hAppend s1 s2
-              | _ => OptionT.fail),
+              | _ => MonadExcept.throw Plausible.Gen.genericFailure),
             (Nat.succ size',
               match re_1 with
               | RegExp.Union re1 re2 => do
                 let s_1 ← aux_arb initSize size' re1;
                 return s_1
-              | _ => OptionT.fail),
+              | _ => MonadExcept.throw Plausible.Gen.genericFailure),
             (Nat.succ size',
               match re_1 with
               | RegExp.Union re1 re2 => do
                 let s_1 ← aux_arb initSize size' re2;
                 return s_1
-              | _ => OptionT.fail),
+              | _ => MonadExcept.throw Plausible.Gen.genericFailure),
             (Nat.succ size',
               match re_1 with
               | RegExp.Star re => do
@@ -120,7 +119,7 @@ info: Try this generator: instance : ArbitrarySizedSuchThat (List Nat) (fun s_1 
                 do
                   let s2 ← aux_arb initSize size' (RegExp.Star re);
                   return HAppend.hAppend s1 s2
-              | _ => OptionT.fail)]
+              | _ => MonadExcept.throw Plausible.Gen.genericFailure)])
     fun size => aux_arb size size re_1
 -/
 #guard_msgs(info, drop warning) in
