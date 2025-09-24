@@ -356,18 +356,25 @@ info: Try this generator: instance : ArbitrarySizedSuchThat (List (String × Str
 #guard_msgs(info, drop warning) in
 #derive_generator (fun (s1 : List (String × String)) => KeyValueStore.LookupKV s1 kv)
 
+#guard_msgs(drop info, drop warning) in
 #derive_checker (KeyValueStore.AddKV k2 v s_1 s2)
 
+#guard_msgs(drop info, drop warning) in
 #derive_generator (fun (s : List (String × String)) => KeyValueStore.EvalStateApiCall s x)
 
+#guard_msgs(drop info, drop warning) in
 #derive_generator (fun (kv : StateResult × String × Nat × String) => KeyValueStore.LookupKV s kv)
 
+#guard_msgs(drop info, drop warning) in
 #derive_generator (fun (nb : Nat × List (String × String)) => KeyValueStore.GetBucket s nb)
 
+#guard_msgs(drop info, drop warning) in
 #derive_generator (fun (foo : StateAPICall × StateResult × List (String × String)) => KeyValueStore.EvalStateApiCall x foo)
 
+#guard_msgs(drop info, drop warning) in
 #derive_generator (fun (crns : APICall × Result × (Nat × List (Nat × List (String × String)))) => KeyValueStore.EvalApiCall s crns)
 
+#guard_msgs(drop info, drop warning) in
 #derive_generator (fun (o : List (APICall × Result) × (Nat × List (Nat × List (String × String)))) => KeyValueStore.EvalApiCalls s o)
 
 
