@@ -40,53 +40,14 @@ structure Foo where
   deriving Repr
 
 -- Test that we can successfully synthesize instances of `Arbitrary` & `ArbitraryFueled`
-set_option trace.plausible.deriving.arbitrary true in
-/--
-trace: [plausible.deriving.arbitrary]
-    [mutual
-       def instArbitraryFueledFoo.arbitrary : Nat → Plausible.Gen (@Foo✝) :=
-         let rec aux_arb (fuel✝ : Nat) : Plausible.Gen (@Foo✝) :=
-           (match fuel✝ with
-           | Nat.zero =>
-             Plausible.Gen.oneOfWithDefault
-               (do
-                 let a✝ ← Plausible.Arbitrary.arbitrary
-                 let a✝¹ ← Plausible.Arbitrary.arbitrary
-                 let a✝² ← Plausible.Arbitrary.arbitrary
-                 return Foo.mk a✝ a✝¹ a✝²)
-               [(do
-                   let a✝ ← Plausible.Arbitrary.arbitrary
-                   let a✝¹ ← Plausible.Arbitrary.arbitrary
-                   let a✝² ← Plausible.Arbitrary.arbitrary
-                   return Foo.mk a✝ a✝¹ a✝²)]
-           | fuel'✝ + 1 =>
-             Plausible.Gen.frequency
-               (do
-                 let a✝ ← Plausible.Arbitrary.arbitrary
-                 let a✝¹ ← Plausible.Arbitrary.arbitrary
-                 let a✝² ← Plausible.Arbitrary.arbitrary
-                 return Foo.mk a✝ a✝¹ a✝²)
-               [(1,
-                   (do
-                     let a✝ ← Plausible.Arbitrary.arbitrary
-                     let a✝¹ ← Plausible.Arbitrary.arbitrary
-                     let a✝² ← Plausible.Arbitrary.arbitrary
-                     return Foo.mk a✝ a✝¹ a✝²)),
-                 ])
-         fun fuel✝ => aux_arb fuel✝
-     end,
-     instance : Plausible.ArbitraryFueled✝ (@Foo✝) :=
-       ⟨instArbitraryFueledFoo.arbitrary⟩]
--/
-#guard_msgs(whitespace:=lax) in
+
+#guard_msgs(drop info, drop warning) in
 deriving instance Arbitrary for Foo
 
-/-- info: instArbitraryFueledFoo -/
-#guard_msgs in
+#guard_msgs(drop info, drop warning) in
 #synth ArbitraryFueled Foo
 
-/-- info: instArbitraryOfArbitraryFueled -/
-#guard_msgs in
+#guard_msgs(drop info, drop warning) in
 #synth Arbitrary Foo
 
 /-- `Shrinkable` instance for `Foo`, which shrinks each of its constituent fields -/

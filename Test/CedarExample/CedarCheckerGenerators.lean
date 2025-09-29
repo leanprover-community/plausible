@@ -37,6 +37,7 @@ deriving instance Arbitrary for
 -- Checker & Generator for `RecordExpr` relation
 --------------------------------------------------
 
+#guard_msgs(drop info, drop warning) in
 #derive_checker (RecordExpr ce)
 
 #guard_msgs(drop info, drop warning) in

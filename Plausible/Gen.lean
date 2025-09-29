@@ -29,7 +29,7 @@ open Random
 /-- Error thrown on generation failure, e.g. because you've run out of resources. -/
 inductive GenError : Type where
 | genError : String → GenError
-deriving Inhabited
+deriving Inhabited, Repr, BEq
 
 def Gen.genericFailure : GenError := .genError "Generation failure."
 

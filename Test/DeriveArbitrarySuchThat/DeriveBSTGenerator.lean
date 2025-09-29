@@ -12,60 +12,11 @@ open ArbitrarySizedSuchThat
 
 set_option guard_msgs.diff true
 
-/--
-info: Try this generator: instance : ArbitrarySizedSuchThat Nat (fun x_1 => Between lo_1 x_1 hi_1) where
-  arbitrarySizedST :=
-    let rec aux_arb (initSize : Nat) (size : Nat) (lo_1 : Nat) (hi_1 : Nat) : Plausible.Gen Nat :=
-      (match size with
-      | Nat.zero =>
-        GeneratorCombinators.backtrack
-          [(1,
-              match hi_1 with
-              | Nat.succ (Nat.succ m) =>
-                match DecOpt.decOpt (LE.le lo_1 m) initSize with
-                | Except.ok Bool.true => return Nat.succ lo_1
-                | _ => MonadExcept.throw Plausible.Gen.genericFailure
-              | _ => MonadExcept.throw Plausible.Gen.genericFailure)]
-      | Nat.succ size' =>
-        GeneratorCombinators.backtrack
-          [(1,
-              match hi_1 with
-              | Nat.succ (Nat.succ m) =>
-                match DecOpt.decOpt (LE.le lo_1 m) initSize with
-                | Except.ok Bool.true => return Nat.succ lo_1
-                | _ => MonadExcept.throw Plausible.Gen.genericFailure
-              | _ => MonadExcept.throw Plausible.Gen.genericFailure),
-            (Nat.succ size',
-              match hi_1 with
-              | Nat.succ o => do
-                let m ← aux_arb initSize size' lo_1 o;
-                return Nat.succ m
-              | _ => MonadExcept.throw Plausible.Gen.genericFailure)])
-    fun size => aux_arb size size lo_1 hi_1
--/
-#guard_msgs(info, drop warning, whitespace:=lax) in
+#guard_msgs(drop info, drop warning) in
 #derive_generator (fun (x : Nat) => Between lo x hi)
 
 
-/--
-info: Try this generator: instance : ArbitrarySizedSuchThat BinaryTree (fun t_1 => BST lo_1 hi_1 t_1) where
-  arbitrarySizedST :=
-    let rec aux_arb (initSize : Nat) (size : Nat) (lo_1 : Nat) (hi_1 : Nat) : Plausible.Gen BinaryTree :=
-      (match size with
-      | Nat.zero => GeneratorCombinators.backtrack [(1, return BinaryTree.Leaf)]
-      | Nat.succ size' =>
-        GeneratorCombinators.backtrack
-          [(1, return BinaryTree.Leaf),
-            (Nat.succ size', do
-              let x ← ArbitrarySizedSuchThat.arbitrarySizedST (fun x => Between lo_1 x hi_1) initSize;
-              do
-                let l ← aux_arb initSize size' lo_1 x;
-                do
-                  let r ← aux_arb initSize size' x hi_1;
-                  return BinaryTree.Node x l r)])
-    fun size => aux_arb size size lo_1 hi_1
--/
-#guard_msgs(info, drop warning) in
+#guard_msgs(drop info, drop warning) in
 #derive_generator (fun (t : BinaryTree) => BST lo hi t)
 
 

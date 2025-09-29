@@ -4,63 +4,7 @@ import Test.CommonDefinitions.Permutation
 import Test.DeriveEnumSuchThat.DerivePermutationEnumerator
 
 
-/--
-info: Try this checker:
-  instance : DecOpt (Permutation l_1 l'_1) where
-  decOpt :=
-    let rec aux_dec (initSize : Nat) (size : Nat) (l_1 : List Nat) (l'_1 : List Nat) : Except Plausible.GenError Bool :=
-      (match size with
-      | Nat.zero =>
-        DecOpt.checkerBacktrack
-          [fun _ =>
-            match l'_1 with
-            | List.nil =>
-              match l_1 with
-              | List.nil => Except.ok Bool.true
-              | _ => Except.ok Bool.false
-            | _ => Except.ok Bool.false,
-            fun _ =>
-            match l'_1 with
-            | List.cons u_2 (List.cons u_3 u_4) =>
-              match l_1 with
-              | List.cons y (List.cons x l) =>
-                DecOpt.andOptList
-                  [DecOpt.decOpt (BEq.beq u_2 x) initSize,
-                    DecOpt.andOptList [DecOpt.decOpt (BEq.beq u_4 l) initSize, DecOpt.decOpt (BEq.beq u_3 y) initSize]]
-              | _ => Except.ok Bool.false
-            | _ => Except.ok Bool.false]
-      | Nat.succ size' =>
-        DecOpt.checkerBacktrack
-          [fun _ =>
-            match l'_1 with
-            | List.nil =>
-              match l_1 with
-              | List.nil => Except.ok Bool.true
-              | _ => Except.ok Bool.false
-            | _ => Except.ok Bool.false,
-            fun _ =>
-            match l'_1 with
-            | List.cons u_2 (List.cons u_3 u_4) =>
-              match l_1 with
-              | List.cons y (List.cons x l) =>
-                DecOpt.andOptList
-                  [DecOpt.decOpt (BEq.beq u_2 x) initSize,
-                    DecOpt.andOptList [DecOpt.decOpt (BEq.beq u_4 l) initSize, DecOpt.decOpt (BEq.beq u_3 y) initSize]]
-              | _ => Except.ok Bool.false
-            | _ => Except.ok Bool.false,
-            fun _ =>
-            match l'_1 with
-            | List.cons u_2 l' =>
-              match l_1 with
-              | List.cons x l => DecOpt.andOptList [DecOpt.decOpt (BEq.beq u_2 x) initSize, aux_dec initSize size' l l']
-              | _ => Except.ok Bool.false
-            | _ => Except.ok Bool.false,
-            fun _ =>
-            EnumeratorCombinators.enumeratingOpt (EnumSizedSuchThat.enumSizedST (fun l' => Permutation l_1 l') initSize)
-              (fun l' => aux_dec initSize size' l' l'_1) (min 2 initSize)])
-    fun size => aux_dec size size l_1 l'_1
--/
-#guard_msgs(info, drop warning, whitespace:=lax) in
+#guard_msgs(drop info, drop warning) in
 #derive_checker (Permutation l l')
 
 

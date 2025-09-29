@@ -16,6 +16,7 @@ inductive TreeNoLeaf where
   | Node : Nat → TreeNoLeaf → TreeNoLeaf → TreeNoLeaf
 
 set_option trace.plausible.deriving.arbitrary true in
+
 /-- error: derive Arbitrary failed, TreeNoLeaf has no non-recursive constructors -/
 #guard_msgs in
 deriving instance Arbitrary for TreeNoLeaf

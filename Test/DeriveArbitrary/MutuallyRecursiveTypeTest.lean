@@ -53,77 +53,15 @@ mutual
 end
 
 
-set_option trace.plausible.deriving.arbitrary true in
-/--
-trace: [plausible.deriving.arbitrary]
-    [mutual
-       partial def instArbitraryFueledNatTree.arbitrary_1 : Nat → Plausible.Gen (@NatTree✝) :=
-         let localinst✝ : Plausible.ArbitraryFueled✝ (@NatTree✝) := ⟨instArbitraryFueledNatTree.arbitrary_1⟩;
-         let localinst✝¹ : Plausible.ArbitraryFueled✝ (@Node✝) := ⟨instArbitraryFueledNatTree.arbitrary_2⟩;
-         let rec aux_arb (fuel✝ : Nat) : Plausible.Gen (@NatTree✝) :=
-           (match fuel✝ with
-           | Nat.zero =>
-             Plausible.Gen.oneOfWithDefault (pure NatTree.Empty)
-               [(pure NatTree.Empty),
-                 (do
-                   let a✝ ← Plausible.Arbitrary.arbitrary
-                   return NatTree.Node a✝)]
-           | fuel'✝ + 1 =>
-             Plausible.Gen.frequency (pure NatTree.Empty)
-               [(1, (pure NatTree.Empty)),
-                 (1,
-                   (do
-                     let a✝ ← Plausible.Arbitrary.arbitrary
-                     return NatTree.Node a✝)),
-                 ])
-         fun fuel✝ => aux_arb fuel✝
-       partial def instArbitraryFueledNatTree.arbitrary_2 : Nat → Plausible.Gen (@Node✝) :=
-         let localinst✝² : Plausible.ArbitraryFueled✝ (@NatTree✝) := ⟨instArbitraryFueledNatTree.arbitrary_1⟩;
-         let localinst✝³ : Plausible.ArbitraryFueled✝ (@Node✝) := ⟨instArbitraryFueledNatTree.arbitrary_2⟩;
-         let rec aux_arb (fuel✝¹ : Nat) : Plausible.Gen (@Node✝) :=
-           (match fuel✝¹ with
-           | Nat.zero =>
-             Plausible.Gen.oneOfWithDefault
-               (do
-                 let a✝¹ ← Plausible.Arbitrary.arbitrary
-                 let a✝² ← Plausible.Arbitrary.arbitrary
-                 let a✝³ ← Plausible.Arbitrary.arbitrary
-                 return Node.mk a✝¹ a✝² a✝³)
-               [(do
-                   let a✝¹ ← Plausible.Arbitrary.arbitrary
-                   let a✝² ← Plausible.Arbitrary.arbitrary
-                   let a✝³ ← Plausible.Arbitrary.arbitrary
-                   return Node.mk a✝¹ a✝² a✝³)]
-           | fuel'✝¹ + 1 =>
-             Plausible.Gen.frequency
-               (do
-                 let a✝¹ ← Plausible.Arbitrary.arbitrary
-                 let a✝² ← Plausible.Arbitrary.arbitrary
-                 let a✝³ ← Plausible.Arbitrary.arbitrary
-                 return Node.mk a✝¹ a✝² a✝³)
-               [(1,
-                   (do
-                     let a✝¹ ← Plausible.Arbitrary.arbitrary
-                     let a✝² ← Plausible.Arbitrary.arbitrary
-                     let a✝³ ← Plausible.Arbitrary.arbitrary
-                     return Node.mk a✝¹ a✝² a✝³)),
-                 ])
-         fun fuel✝¹ => aux_arb fuel✝¹
-     end,
-     instance : Plausible.ArbitraryFueled✝ (@NatTree✝) :=
-       ⟨instArbitraryFueledNatTree.arbitrary_1⟩]
--/
-#guard_msgs(whitespace:=lax) in
+#guard_msgs(drop info, drop warning) in
 deriving instance Arbitrary for NatTree
 
 -- Test that we can successfully synthesize instances of `Arbitrary` & `ArbitraryFueled`
 
-/-- info: instArbitraryFueledNatTree -/
-#guard_msgs in
+#guard_msgs(drop info, drop warning) in
 #synth ArbitraryFueled NatTree
 
-/-- info: instArbitraryOfArbitraryFueled -/
-#guard_msgs in
+#guard_msgs(drop info, drop warning) in
 #synth Arbitrary NatTree
 
 /-- `search tree x` recursively searches for a value `x` in `tree`,

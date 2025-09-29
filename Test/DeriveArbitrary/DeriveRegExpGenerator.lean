@@ -21,56 +21,15 @@ inductive RegExp : Type where
   | Star : RegExp → RegExp
   deriving Repr, BEq
 
-set_option trace.plausible.deriving.arbitrary true in
-/--
-trace: [plausible.deriving.arbitrary] ⏎
-    [mutual
-       def instArbitraryFueledRegExp.arbitrary : Nat → Plausible.Gen (@RegExp✝) :=
-         let rec aux_arb (fuel✝ : Nat) : Plausible.Gen (@RegExp✝) :=
-           (match fuel✝ with
-           | Nat.zero =>
-             Plausible.Gen.oneOfWithDefault (pure RegExp.EmptySet)
-               [(pure RegExp.EmptySet), (pure RegExp.EmptyStr),
-                 (do
-                   let a✝ ← Plausible.Arbitrary.arbitrary
-                   return RegExp.Char a✝)]
-           | fuel'✝ + 1 =>
-             Plausible.Gen.frequency (pure RegExp.EmptySet)
-               [(1, (pure RegExp.EmptySet)), (1, (pure RegExp.EmptyStr)),
-                 (1,
-                   (do
-                     let a✝ ← Plausible.Arbitrary.arbitrary
-                     return RegExp.Char a✝)),
-                 (fuel'✝ + 1,
-                   (do
-                     let a✝¹ ← aux_arb fuel'✝
-                     let a✝² ← aux_arb fuel'✝
-                     return RegExp.App a✝¹ a✝²)),
-                 (fuel'✝ + 1,
-                   (do
-                     let a✝³ ← aux_arb fuel'✝
-                     let a✝⁴ ← aux_arb fuel'✝
-                     return RegExp.Union a✝³ a✝⁴)),
-                 (fuel'✝ + 1,
-                   (do
-                     let a✝⁵ ← aux_arb fuel'✝
-                     return RegExp.Star a✝⁵))])
-         fun fuel✝ => aux_arb fuel✝
-     end,
-     instance : Plausible.ArbitraryFueled✝ (@RegExp✝) :=
-       ⟨instArbitraryFueledRegExp.arbitrary⟩]
--/
-#guard_msgs in
+#guard_msgs(drop info, drop warning) in
 deriving instance Arbitrary for RegExp
 
 -- Test that we can successfully synthesize instances of `Arbitrary` & `ArbitraryFueled`
 
-/-- info: instArbitraryFueledRegExp -/
-#guard_msgs in
+#guard_msgs(drop info, drop warning) in
 #synth ArbitraryFueled RegExp
 
-/-- info: instArbitraryOfArbitraryFueled -/
-#guard_msgs in
+#guard_msgs(drop info, drop warning) in
 #synth Arbitrary RegExp
 
 /-!

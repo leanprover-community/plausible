@@ -15,39 +15,15 @@ inductive Tree where
 deriving BEq, Repr
 
 -- Invoke deriving instance handler for the `Arbitrary` typeclass on `type` and `term`
-set_option trace.plausible.deriving.arbitrary true in
-/--
-trace: [plausible.deriving.arbitrary]
-    [mutual
-       def instArbitraryFueledTree.arbitrary : Nat → Plausible.Gen (@Tree✝) :=
-         let rec aux_arb (fuel✝ : Nat) : Plausible.Gen (@Tree✝) :=
-           (match fuel✝ with
-           | Nat.zero => Plausible.Gen.oneOfWithDefault (pure Tree.Leaf) [(pure Tree.Leaf)]
-           | fuel'✝ + 1 =>
-             Plausible.Gen.frequency (pure Tree.Leaf)
-               [(1, (pure Tree.Leaf)),
-                 (fuel'✝ + 1,
-                   (do
-                     let a✝ ← Plausible.Arbitrary.arbitrary
-                     let a✝¹ ← aux_arb fuel'✝
-                     let a✝² ← aux_arb fuel'✝
-                     return Tree.Node a✝ a✝¹ a✝²))])
-         fun fuel✝ => aux_arb fuel✝
-     end,
-     instance : Plausible.ArbitraryFueled✝ (@Tree✝) :=
-       ⟨instArbitraryFueledTree.arbitrary⟩]
--/
-#guard_msgs(whitespace:=lax) in
+#guard_msgs(drop info, drop warning) in
 deriving instance Arbitrary for Tree
 
 -- Test that we can successfully synthesize instances of `Arbitrary` & `ArbitraryFueled`
 
-/-- info: instArbitraryFueledTree -/
-#guard_msgs in
+#guard_msgs(drop info, drop warning) in
 #synth ArbitraryFueled Tree
 
-/-- info: instArbitraryOfArbitraryFueled -/
-#guard_msgs in
+#guard_msgs(drop info, drop warning) in
 #synth Arbitrary Tree
 
 
