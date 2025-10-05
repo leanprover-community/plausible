@@ -308,7 +308,7 @@ instance Array.sampleableExt [SampleableExt α] : SampleableExt (Array α) where
 end Samplers
 
 /-- An annotation for values that should never get shrunk. -/
-def NoShrink (α : Type u) := α
+@[expose] def NoShrink (α : Type u) := α
 
 namespace NoShrink
 

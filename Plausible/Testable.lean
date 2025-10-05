@@ -170,7 +170,7 @@ instance (priority := low) : PrintableProp p where
 class Testable (p : Prop) where
   run (cfg : Configuration) (minimize : Bool) : Gen (TestResult p)
 
-def NamedBinder (_n : String) (p : Prop) : Prop := p
+@[expose] def NamedBinder (_n : String) (p : Prop) : Prop := p
 
 namespace TestResult
 

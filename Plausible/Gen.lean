@@ -146,7 +146,7 @@ private def errorOfGenError {α} (m : ExceptT GenError Id α) : IO α :=
 
 -- Instance that just sets the size to zero (it will be reset later)
 instance instMonadLiftStateIOGen : MonadLift (ReaderT (ULift Nat) (Except GenError)) IO where
-  monadLift m := errorOfGenError <| ReaderT.run m ⟨0⟩
+  monadLift m := private errorOfGenError <| ReaderT.run m ⟨0⟩
 
 /-- Execute a `Gen` inside the `IO` monad using `size` as the example size -/
 def Gen.run {α : Type} (x : Gen α) (size : Nat) : IO α :=
