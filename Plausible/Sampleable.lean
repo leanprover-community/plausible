@@ -3,10 +3,14 @@ Copyright (c) 2022 Henrik Böving. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Henrik Böving, Simon Hudon
 -/
-import Lean.Elab.Command
-import Lean.Meta.Eval
-import Plausible.Gen
-import Plausible.Arbitrary
+module
+
+public meta import Lean.Elab.Command
+public meta import Lean.Meta.Eval
+public meta import Plausible.Gen
+public meta import Plausible.Arbitrary
+
+public meta section
 
 /-!
 # `SampleableExt` Class
@@ -304,7 +308,7 @@ instance Array.sampleableExt [SampleableExt α] : SampleableExt (Array α) where
 end Samplers
 
 /-- An annotation for values that should never get shrunk. -/
-def NoShrink (α : Type u) := α
+@[expose] def NoShrink (α : Type u) := α
 
 namespace NoShrink
 

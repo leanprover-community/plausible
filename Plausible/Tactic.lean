@@ -3,9 +3,12 @@ Copyright (c) 2020 Simon Hudon. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Simon Hudon, Kim Morrison
 -/
+module
 
-import Plausible.Testable
-import Plausible.Attr
+public meta import Plausible.Testable
+public meta import Plausible.Attr
+
+public meta section
 
 /-!
 ## Finding counterexamples automatically using `plausible`

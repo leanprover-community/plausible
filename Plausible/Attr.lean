@@ -3,7 +3,11 @@ Copyright (c) 2020 Simon Hudon. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Simon Hudon, Kim Morrison
 -/
-import Lean.Util.Trace
+module
+
+public meta import Lean.Util.Trace
+
+public meta section
 
 open Lean
 

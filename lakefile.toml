@@ -2,6 +2,7 @@ name = "plausible"
 version = "0.1.0"
 defaultTargets = ["Plausible"]
 testRunner = "Test"
+leanOptions = { experimental.module = true }
 
 [[lean_lib]]
 name = "Test"
