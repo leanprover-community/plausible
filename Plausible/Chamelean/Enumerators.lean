@@ -7,15 +7,15 @@ open LazyList Plausible
 /-- An enumerator is a function from `Nat` to `LazyList α`, where the `Nat`
     serves an upper bound for the enumeration process, i.e. the LazyList returned
     contains all inhabitants of `α` up to the given size. -/
-abbrev Enumerator (α : Type) := Nat → LazyList α
+abbrev Enumerator (α : Type u) := Nat → LazyList α
 
 /-- The `Enum` typeclass describes types that have an associated `Enumerator` -/
-class Enum (α : Type) where
+class Enum (α : Type u) where
   enum : Enumerator α
 
 /-- The `EnumSized` typeclass describes enumerators that have an
     additional `Nat` parameter to bound their recursion depth. -/
-class EnumSized (α : Type) where
+class EnumSized (α : Type u) where
   enumSized : Nat → Enumerator α
 
 /-- Sized enumerators of type `α` such that `P : α -> Prop` holds for all enumerated values.
@@ -209,9 +209,9 @@ instance : Enum (BitVec w) where
     To invoke this function, you will need to specify what type `α` is,
     for example by doing `runEnum (α := Nat) 10`. -/
 def runEnum [Enum α] (size : Nat) (limit : Nat := 10) : IO (List α) :=
-  return (LazyList.toList $ LazyList.take limit $ Enum.enum size)
+  return (LazyList.take limit $ Enum.enum size)
 
 /-- Samples from an `ExceptT GenError Enumerator` enumerator that is parameterized by its `size`,
     returning the enumerated list of `Except GenError α` values (containing up to `limit` elements) in the `IO` monad -/
 def runSizedEnum (sizedEnum : Nat → ExceptT GenError Enumerator α) (size : Nat) (limit : Nat := 10) : IO (List (Except GenError α)) :=
-  return (LazyList.toList $ LazyList.take limit $ (sizedEnum size) size)
+  return (LazyList.take limit $ (sizedEnum size) size)

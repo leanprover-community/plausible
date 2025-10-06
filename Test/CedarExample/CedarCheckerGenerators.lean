@@ -2,9 +2,11 @@ import Test.CedarExample.Cedar
 import Plausible.Arbitrary
 import Plausible.DeriveArbitrary
 import Plausible.Chamelean.GeneratorCombinators
+import Plausible.Chamelean.EnumeratorCombinators
 import Plausible.Chamelean.ArbitrarySizedSuchThat
 import Plausible.Chamelean.DeriveChecker
 import Plausible.Chamelean.DeriveConstrainedProducer
+import Plausible.Chamelean.DeriveEnum
 
 open Plausible
 
@@ -22,10 +24,14 @@ set_option linter.unusedVariables false
 -- Suppress warnings for redundant pattern-match cases in derived generators/checkers
 set_option match.ignoreUnusedAlts true
 
-/-- We override the default `Arbitrary` instance for `String`s with our custom generator -/
-instance : Arbitrary String where
-  arbitrary := GeneratorCombinators.elementsWithDefault
+/- We override the default `Arbitrary` instance for `String`s with our custom generator -/
+instance : ArbitraryFueled String where
+  arbitraryFueled _ := GeneratorCombinators.elementsWithDefault
     "Aaron" ["Aaron", "John", "Mike", "Kesha", "Hicks", "A", "B", "C", "D"]
+
+instance : Enum String where
+  enum := EnumeratorCombinators.oneOfWithDefault
+    (pure "Aaron") (pure <$> ["Aaron", "John", "Mike", "Kesha", "Hicks", "A", "B", "C", "D"])
 
 -- Derive `Arbitrary` instances for Cedar data/types/expressions/schemas
 deriving instance Arbitrary for
@@ -33,6 +39,42 @@ deriving instance Arbitrary for
   Request, BoolType, CedarType, EntitySchemaEntry, ActionSchemaEntry, Schema,
   RequestType, Environment, PathSet
 
+instance {α} [Arbitrary α] : ArbitraryFueled α where
+  arbitraryFueled _ := Arbitrary.arbitrary
+
+deriving instance Enum for
+  EntityName, EntityUID, Prim, Var, PatElem, UnaryOp, BinaryOp, CedarExpr,
+  Request, BoolType, CedarType, EntitySchemaEntry, ActionSchemaEntry, Schema,
+  RequestType, Environment, PathSet
+
+deriving instance BEq for
+  EntityName
+
+instance {α : Type} {a : α} [Repr α] [ArbitraryFueled α] [DecidableEq α] : ArbitrarySizedSuchThat α (fun b => a ≠ b) where
+  arbitrarySizedST s := do
+    let b ← ArbitraryFueled.arbitraryFueled s
+    if a = b then
+      let b' ← ArbitraryFueled.arbitraryFueled s
+      if a = b' then
+        throw $ (.genError s!"Failed to generate term not equal to {repr a}")
+      else
+        return b'
+    else
+      return b
+
+instance {α : Type} {a : α} [Repr α] [ArbitraryFueled α] [DecidableEq α] : ArbitrarySizedSuchThat α (fun b => b ≠ a) where
+  arbitrarySizedST s := do
+    let b ← ArbitraryFueled.arbitraryFueled s
+    if a = b then
+      let b' ← ArbitraryFueled.arbitraryFueled s
+      if a = b' then
+        throw $ (.genError s!"Failed to generate term not equal to {repr a}")
+      else
+        return b'
+    else
+      return b
+
+deriving instance DecidableEq for PathSet
 --------------------------------------------------
 -- Checker & Generator for `RecordExpr` relation
 --------------------------------------------------
@@ -43,9 +85,32 @@ deriving instance Arbitrary for
 #guard_msgs(drop info, drop warning) in
 #derive_generator (fun (ce : CedarExpr) => RecordExpr ce)
 
------------------------------------------------
--- Checker & Generator for `SetExpr` relation
------------------------------------------------
+#guard_msgs(drop info, drop warning) in
+#derive_checker (DefinedName · ·)
+
+#guard_msgs(drop info, drop warning) in
+#derive_checker (WfCedarType n r)
+
+#guard_msgs(drop info, drop warning) in
+#derive_generator (fun (ns_1_1 : List EntityName) => DefinedName ns_1_1 n)
+
+#guard_msgs(drop info, drop warning) in
+#derive_generator (fun (ns_1 : _) => WfCedarType ns_1 r)
+
+#guard_msgs(drop info, drop warning) in
+#derive_generator (fun (ns_1 : List EntityName) => WfRecordType ns_1 r)
+
+#guard_msgs(drop info, drop warning) in
+#derive_checker (WfRecordType n r)
+
+#guard_msgs(drop info, drop warning) in
+#derive_generator (fun (ns : _) => BindAttrType ns TE t_1)
+
+#guard_msgs(drop info, drop warning) in
+#derive_generator (fun (E : _) => LookupEntityAttr E (fn, b) t_1_1)
+
+#guard_msgs(drop info, drop warning) in
+#derive_generator (fun (ets : _) => GetEntityAttr ets n t_1)
 
 #guard_msgs(drop info, drop warning) in
 #derive_checker (SetExpr ce)
@@ -53,9 +118,7 @@ deriving instance Arbitrary for
 #guard_msgs(drop info, drop warning) in
 #derive_generator (fun (ce : CedarExpr) => SetExpr ce)
 
---------------------------------------------------
--- Checker & Generator for `SetEntityValues` relation
---------------------------------------------------
+set_option maxHeartbeats 2000000
 
 #guard_msgs(drop info, drop warning) in
 #derive_checker (SetEntityValues ce)
@@ -63,9 +126,8 @@ deriving instance Arbitrary for
 #guard_msgs(drop info, drop warning) in
 #derive_generator (fun (ce : CedarExpr) => SetEntityValues ce)
 
---------------------------------------------------
--- Checker & Generator for `DefinedName` relation
---------------------------------------------------
+#guard_msgs(drop info, drop warning) in
+#derive_generator (fun (rs_1_1 : _) => ActionToRequestTypes uid_1 p rs c l_1_1 rs_1_1)
 
 #guard_msgs(drop info, drop warning) in
 #derive_checker (DefinedName ns n)
@@ -242,4 +304,10 @@ deriving instance Arbitrary for
 ------------------------------------------------------------
 
 #guard_msgs(drop info, drop warning) in
-#derive_generator (fun (ex : (CedarExpr × PathSet)) => HasType a v ex t)
+#derive_checker (HasTypePrim a b t)
+
+-- #guard_msgs(drop info, drop warning) in
+-- #derive_generator (fun (t : _) => HasType a v ex t)
+
+-- #guard_msgs(drop info, drop warning) in
+-- #derive_generator (fun (ex : (CedarExpr × PathSet)) => HasType a v ex t)

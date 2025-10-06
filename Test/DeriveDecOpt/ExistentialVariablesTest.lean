@@ -30,7 +30,7 @@ inductive NatChain (a b : Nat) : Prop where
     NatChain a b
 
 #guard_msgs(drop info, drop warning) in
-#derive_enumerator (fun (x : Nat) => LessThanEq a x)
+#derive_enumerator (fun (a : Nat) => LessThanEq a x)
 
 #guard_msgs(drop info, drop warning) in
 #derive_enumerator (fun (y : Nat) => LessThanEq x y)

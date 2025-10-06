@@ -5,7 +5,7 @@ import Lean.Exception
 import Plausible.Chamelean.Idents
 
 
-open Lean Idents
+open Lean Idents Elab
 
 
 -- Adapted from "Generating Good Generators for Inductive Relations", POPL '18
@@ -55,6 +55,7 @@ inductive Pattern
 inductive ConstructorExpr
   | Unknown : Name -> ConstructorExpr
   | Ctor : Name -> List ConstructorExpr -> ConstructorExpr
+  | FuncApp : Name -> List ConstructorExpr -> ConstructorExpr
   deriving Repr, BEq, Inhabited, Ord
 
 /-- Converts a `ConstructorExpr` to a Lean `Expr` -/
@@ -63,6 +64,8 @@ partial def constructorExprToExpr (ctorExpr : ConstructorExpr) : Expr :=
   | .Unknown name => mkConst name
   | .Ctor ctorName ctorArgs =>
     mkAppN (mkConst ctorName) (constructorExprToExpr <$> ctorArgs.toArray)
+  | .FuncApp funcName ctorArgs =>
+    mkAppN (mkConst funcName) (constructorExprToExpr <$> ctorArgs.toArray)
 
 /-- `ToExpr` instance for `ConstructorExpr` -/
 instance : ToExpr ConstructorExpr where
@@ -73,7 +76,8 @@ instance : ToExpr ConstructorExpr where
 partial def constructorExprToTSyntaxTerm (ctorExpr : ConstructorExpr) : MetaM (TSyntax `term) :=
   match ctorExpr with
   | .Unknown name => `($(mkIdent name))
-  | .Ctor ctorName ctorArgs => do
+  | .Ctor ctorName ctorArgs
+  | .FuncApp ctorName ctorArgs => do
     let argTerms ← ctorArgs.toArray.mapM constructorExprToTSyntaxTerm
     `($(mkIdent ctorName) $argTerms:term*)
 
@@ -85,10 +89,11 @@ partial def constructorExprOfPattern (pattern : Pattern) : ConstructorExpr :=
   | .CtorPattern ctorName args => .Ctor ctorName (constructorExprOfPattern <$> args)
 
 /-- Converts a `ConstructorExpr` to an equivalent `Pattern` -/
-partial def patternOfConstructorExpr (ctorExpr : ConstructorExpr) : Pattern :=
+partial def patternOfConstructorExpr (ctorExpr : ConstructorExpr) : Option Pattern :=
   match ctorExpr with
-  | .Unknown u => .UnknownPattern u
-  | .Ctor ctorName args => .CtorPattern ctorName (patternOfConstructorExpr <$> args)
+  | .Unknown u => some $ .UnknownPattern u
+  | .Ctor ctorName args => .CtorPattern ctorName <$> (List.mapM patternOfConstructorExpr args)
+  | .FuncApp _ _ => none
 
 
 /-- An `UnknownMap` maps `Unknown`s to `Range`s -/
@@ -174,6 +179,9 @@ partial def toMessageDataConstructorExpr (ctorExpr : ConstructorExpr) : MessageD
   | .Ctor c args =>
     let renderedArgs := toMessageDataConstructorExpr <$> args
     m!"Ctor ({c} {renderedArgs})"
+  | .FuncApp f args =>
+    let renderedArgs := toMessageDataConstructorExpr <$> args
+    m!"FuncApp ({f} {renderedArgs})"
 
 instance : ToMessageData ConstructorExpr where
   toMessageData := toMessageDataConstructorExpr
@@ -281,6 +289,9 @@ namespace UnifyM
   def runInMetaM (action : UnifyM α) (st : UnifyState) : MetaM (Option α) := do
     OptionT.run (StateT.run' action st)
 
+  def runUnifyM (action : UnifyM α) (st : UnifyState) : MetaM (Option (α × UnifyState)) := do
+    OptionT.run (StateT.run action st)
+
   /-- Finds the `Range` corresponding to an `Unknown` `u` in the
       `UnknownMap` `k`, returning an informative error message if `u ∉ k.keys` -/
   def findCorrespondingRange (k : UnknownMap) (u : Unknown) : UnifyM Range :=
@@ -382,7 +393,8 @@ namespace UnifyM
         return (.Unknown canonicalUnknown)
       else
         return (.Unknown arg)
-    | .Ctor ctorName args =>
+    | .Ctor ctorName args
+    | .FuncApp ctorName args =>
       let updatedArgs ← args.mapM (updateConstructorArg k)
       return (.Ctor ctorName updatedArgs)
 
@@ -417,17 +429,18 @@ namespace UnifyM
     ctorExprs.mapM (fun ctorExpr => do
       match ctorExpr with
       | .Unknown u => `($(Lean.mkIdent u))
-      | .Ctor c args =>
+      | .Ctor c args
+      | .FuncApp c args =>
         let argTerms ← convertConstructorExprsToTSyntaxTerms args.toArray
         `($(mkIdent c) $argTerms*))
 
   /-- Accumulates all the `Unknown`s in a `ConstructorExpr` -/
-  partial def collectUnknownsInConstructorExpr (ctorExpr : ConstructorExpr) : UnifyM (List Unknown) := do
+  def collectUnknownsInConstructorExpr (ctorExpr : ConstructorExpr) : List Unknown :=
     match ctorExpr with
-    | .Unknown u => return [u]
-    | .Ctor c args =>
-      let unknowns ← List.flatMapM collectUnknownsInConstructorExpr args
-      return c :: unknowns
+    | .Unknown u => [u]
+    | .Ctor c args
+    | .FuncApp c args =>
+      c :: List.flatMap collectUnknownsInConstructorExpr args
 
   mutual
     /-- Evaluates a `Range`, returning a `ConstructorExpr`. Note that if the

@@ -15,6 +15,7 @@ set_option guard_msgs.diff true
 #guard_msgs(drop info, drop warning) in
 #derive_generator (fun (x : Nat) => Between lo x hi)
 
+deriving instance Arbitrary for BinaryTree
 
 #guard_msgs(drop info, drop warning) in
 #derive_generator (fun (t : BinaryTree) => BST lo hi t)

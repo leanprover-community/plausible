@@ -299,6 +299,8 @@ def rewriteFunctionCallsInConclusion (hypotheses : Array Expr) (conclusion : Exp
       -- Insert the fresh variable into the bound-variable context
       return (updatedHypotheses, rewrittenConclusion, freshUnknownsAndTypes.toList, ← getLCtx))
 
+
+
 /-- Unifies each argument in the conclusion of an inductive relation with the top-level arguments to the relation
     (using the unification algorithm from Generating Good Generations),
     and subsequently computes a *naive* schedule for a generator/enumerator/checker (indicated by the `deriveSort`).
@@ -319,6 +321,8 @@ def rewriteFunctionCallsInConclusion (hypotheses : Array Expr) (conclusion : Exp
         `unknowns == inputNames ∪ { outputName }`, i.e. `unknowns` contains all args to the inductive relation
         listed in order, which coincides with `inputNames ∪ { outputName }` -/
 def getScheduleForInductiveRelationConstructor (inductiveName : Name) (ctorName : Name) (inputNames : List Name) (deriveSort : DeriveSort) (outputNameTypeOption : Option (Name × Expr)) (unknownsArray : Array Unknown) : UnifyM Schedule := do
+  logWarning m!"CALL MADE: {inductiveName} {ctorName} {inputNames} {unknownsArray}"
+
   let ctorInfo ← getConstInfoCtor ctorName
   let ctorType := ctorInfo.type
 
@@ -380,6 +384,11 @@ def getScheduleForInductiveRelationConstructor (inductiveName : Name) (ctorName 
         -- Convert each hypothesis' range to a `HypothesisExpr`, which is just a constructor application
         -- (constructor name applied to some list of arguments, which are themselves `ConstructorExpr`s)
         hypothesisExprs := hypothesisExprs.push (← convertRangeToCtorAppForm hypRange)
+
+      -- let hypothesisExprs' ← monadLift (updatedHypotheses.toList.mapM exprToHypothesisExpr)
+      -- let hypothesisExprs'' ←
+      --   try pure (hypothesisExprs'.map (Option.get!))
+      --   catch _ => throwError m!"Could not convert {updatedHypotheses} to HypothesisExprs"
 
       -- Creates the initial `UnifyState` needed for the unification algorithm
       let initialUnifyState ←
@@ -450,21 +459,40 @@ def getScheduleForInductiveRelationConstructor (inductiveName : Name) (ctorName 
 
       -- Include any fresh variables produced (when rewriting function calls in conclusions)
       -- in the list of universally-quantified variables
-      let updatedForAllVars := forAllVars ++ freshNamesAndTypes
+      let updatedForAllVars := List.map (fun (n,ty) => ⟨n,ty⟩) (forAllVars ++ freshNamesAndTypes)
       -- Compute all possible checker schedules for this constructor
-      let possibleSchedules ← possibleSchedules
+      let possibleSchedules := possibleSchedules
         (vars := updatedForAllVars)
         (hypotheses := hypothesisExprs.toList)
         deriveSort
         recCall
         fixedVars
 
+      match possibleSchedules with
+      | .lnil => throwError m!"Unable to compute any possible schedules"
+      | .lcons fstSchdM rest =>
+
+      let fstSchd ← fstSchdM
+
+      let countChecks (schd : List ScheduleStep) : Nat :=
+        schd.foldl (fun acc step => match step with | .Check _ _ => acc + 1 | _ => acc) 0
+
+      let smallestOfFirst100 ← List.foldlM (fun (shortest,minChecks,minLen) schdM => do
+        let schd ← schdM
+        let checkCount := countChecks schd
+        let len := schd.length
+        if checkCount < minChecks || (checkCount == minChecks && len < minLen) then
+          pure (schd, checkCount, len)
+        else pure (shortest, minChecks, minLen)) (fstSchd, countChecks fstSchd, fstSchd.length)
+                    $ LazyList.take 100 rest.get
+
+      logInfo m!"Chosen Schedule: {scheduleStepsToString smallestOfFirst100.1} \n Checks: {smallestOfFirst100.2}"
+
       -- A *naive* schedule is the first schedule contained in `possibleSchedules`
-      let originalNaiveSchedule ← Option.getDM (possibleSchedules.head?) (throwError m!"Unable to compute any possible schedules")
-
+      let originalNaiveScheduleM := smallestOfFirst100.1
       -- Update the naive schedule with the result of unification
-      let updatedNaiveSchedule ← updateScheduleSteps originalNaiveSchedule
-
+      let updatedNaiveScheduleUnify ← updateScheduleSteps originalNaiveScheduleM
+      let updatedNaiveSchedule := updatedNaiveScheduleUnify
       let finalState ← get
 
       -- Takes the `patterns` and `equalities` fields from `UnifyState` (created after
@@ -573,7 +601,7 @@ def deriveConstrainedProducer (outputVar : Ident) (outputTypeSyntax : TSyntax `t
           -- This is all done in a state monad: when we detect that a new instance is required, we append it to an array of `TSyntax term`s
           -- (where each term represents a typeclass instance)
           let (subProducer, instances) ← StateT.run (s := #[]) (do
-            let mexp ← scheduleToMExp schedule (.MId `size) (.MId `initSize)
+            let mexp ← scheduleToMExp schedule (.MId `size) (.MId `initSize) outputType
             mexpToTSyntax mexp deriveSort)
 
           requiredInstances := requiredInstances ++ instances

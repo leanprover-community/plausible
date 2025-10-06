@@ -31,7 +31,6 @@ instance instKeyValueStoreArbitraryString : Arbitrary String where
 #guard_msgs(drop info, drop warning) in
 #derive_generator (fun (s2 : List (String × String)) => KeyValueStore.RemoveKV k s1 s2)
 
-
 #guard_msgs(drop info, drop warning) in
 #derive_generator (fun (s1 : List (String × String)) => KeyValueStore.AddKV k v s1 s2)
 
@@ -50,14 +49,17 @@ instance instKeyValueStoreArbitraryString : Arbitrary String where
 #guard_msgs(drop info, drop warning) in
 #derive_checker (KeyValueStore.AddKV k2 v s_1 s2)
 
-#guard_msgs(drop info, drop warning) in
-#derive_generator (fun (s : List (String × String)) => KeyValueStore.EvalStateApiCall s x)
+-- #guard_msgs(drop info, drop warning) in
+-- #derive_generator (fun (s : List (String × String)) => KeyValueStore.EvalStateApiCall s x)
 
 #guard_msgs(drop info, drop warning) in
 #derive_generator (fun (kv : StateResult × String × Nat × String) => KeyValueStore.LookupKV s kv)
 
 #guard_msgs(drop info, drop warning) in
 #derive_generator (fun (nb : Nat × List (String × String)) => KeyValueStore.GetBucket s nb)
+
+#guard_msgs(drop info, drop warning) in
+#derive_generator (fun (k : _) => KeyValueStore.AddKV k v x_1 s2)
 
 #guard_msgs(drop info, drop warning) in
 #derive_generator (fun (foo : StateAPICall × StateResult × List (String × String)) => KeyValueStore.EvalStateApiCall x foo)
@@ -72,26 +74,31 @@ instance instKeyValueStoreArbitraryString : Arbitrary String where
 /- Uncommenting the following line results in random sequences of API Calls, such as:
 
 ```lean
- ([(APICall.CreateBucket, Result.Created 0),
-  (APICall.OpBucket 0 (StateAPICall.Delete "B"),
-   Result.OpResult (StateResult.NoSuchKeyFailure)),
-  (APICall.CreateBucket, Result.Created 1),
-  (APICall.DeleteBucket 0, Result.Removed),
-  (APICall.CreateBucket, Result.Created 2),
-  (APICall.CreateBucket, Result.Created 3),
-  (APICall.DeleteBucket 1, Result.Removed),
-  (APICall.CreateBucket, Result.Created 4),
-  (APICall.DeleteBucket 2, Result.Removed),
-  (APICall.OpBucket 3 (StateAPICall.Get "E" none),
-   Result.OpResult (StateResult.NoSuchKeyFailure)),
-  (APICall.CreateBucket, Result.Created 5),
-  (APICall.OpBucket 3 (StateAPICall.Append "B" "D"),
-   Result.OpResult (StateResult.NoSuchKeyFailure)),
-  (APICall.DeleteBucket 3, Result.Removed),
-  (APICall.CreateBucket, Result.Created 6)],
- 7,
- [(6, []), (5, []), (4, [])])
+([(KeyValueStore.APICall.CreateBucket, KeyValueStore.Result.Created 0),
+  (KeyValueStore.APICall.CreateBucket, KeyValueStore.Result.Created 1),
+  (KeyValueStore.APICall.DeleteBucket 0, KeyValueStore.Result.Removed),
+  (KeyValueStore.APICall.DeleteBucket 1, KeyValueStore.Result.Removed),
+  (KeyValueStore.APICall.CreateBucket, KeyValueStore.Result.Created 2),
+  (KeyValueStore.APICall.DeleteBucket 2, KeyValueStore.Result.Removed),
+  (KeyValueStore.APICall.CreateBucket, KeyValueStore.Result.Created 3),
+  (KeyValueStore.APICall.DeleteBucket 3, KeyValueStore.Result.Removed),
+  (KeyValueStore.APICall.CreateBucket, KeyValueStore.Result.Created 4),
+  (KeyValueStore.APICall.CreateBucket, KeyValueStore.Result.Created 5),
+  (KeyValueStore.APICall.DeleteBucket 4, KeyValueStore.Result.Removed),
+  (KeyValueStore.APICall.CreateBucket, KeyValueStore.Result.Created 6),
+  (KeyValueStore.APICall.DeleteBucket 5, KeyValueStore.Result.Removed),
+  (KeyValueStore.APICall.CreateBucket, KeyValueStore.Result.Created 7),
+  (KeyValueStore.APICall.DeleteBucket 6, KeyValueStore.Result.Removed),
+  (KeyValueStore.APICall.OpBucket 7 (KeyValueStore.StateAPICall.Get "B" none),
+   KeyValueStore.Result.OpResult (KeyValueStore.StateResult.NoSuchKeyFailure)),
+  (KeyValueStore.APICall.DeleteBucket 7, KeyValueStore.Result.Removed),
+  (KeyValueStore.APICall.CreateBucket, KeyValueStore.Result.Created 8),
+  (KeyValueStore.APICall.OpBucket 8 (KeyValueStore.StateAPICall.KeyExists "E"),
+   KeyValueStore.Result.OpResult (KeyValueStore.StateResult.NoSuchKeyResult))],
+ 9,
+ [(8, [])])
 ```
 
 -/
--- #eval Gen.run (ArbitrarySizedSuchThat.arbitrarySizedST (fun crs => KeyValueStore.EvalApiCalls (0, []) crs) 20) 20
+#guard_msgs(drop info) in
+#eval Gen.run (ArbitrarySizedSuchThat.arbitrarySizedST (fun crs => KeyValueStore.EvalApiCalls (0, []) crs) 20) 20

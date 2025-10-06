@@ -1,4 +1,3 @@
-
 import Plausible.Gen
 import Plausible.Chamelean.DecOpt
 import Plausible.Chamelean.ArbitrarySizedSuchThat

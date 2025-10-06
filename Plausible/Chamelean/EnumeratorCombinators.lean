@@ -38,7 +38,7 @@ def enumerateFuel (fuel : Nat) (total : Nat) (es : List (ExceptT GenError Enumer
 /-- Tries all enumerators from a list until one returns a `pure` value or all the enumerators have
     failed once. -/
 def enumerate (es : List (ExceptT GenError Enumerator α)) : ExceptT GenError Enumerator α :=
-  enumerateFuel (fuel := min es.length 10) (total := es.length) es
+  enumerateFuel (fuel := es.length) (total := es.length) es
 
 /-- Applies the checker `f` to a `LazyList l` of values, returning the resultant `Except ε Bool`
     (the parameter `anyNone` is used to indicate whether any of the elements examined previously have been `none`) -/

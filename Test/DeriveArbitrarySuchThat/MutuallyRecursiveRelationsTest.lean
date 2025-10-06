@@ -2,6 +2,7 @@
 import Plausible.Arbitrary
 import Plausible.Chamelean.ArbitrarySizedSuchThat
 import Plausible.Chamelean.DeriveConstrainedProducer
+import Plausible.Gen
 
 set_option guard_msgs.diff true
 
@@ -19,7 +20,10 @@ end
     mutually recursively typeclass instances currently.
 
     Note that the instance of `ArbitrarySizedSuchThat` for `Odd` below (produced by `#derive_generator`)
-    will shadow this one -- it takes precedence over this dummy instance. -/
+    will shadow this one -- it takes precedence over this dummy instance.
+
+
+    Note from Segev: This does not work, it remembers the old instance from when it was defined. -/
 instance : ArbitrarySizedSuchThat Nat (fun n => Odd n) where
   arbitrarySizedST (_ : Nat) := return 1
 

@@ -5,6 +5,12 @@ import Batteries.Data.List.Basic
 
 open Lean Meta LocalContext Std
 
+structure TypedVar where
+  var : Name
+  type : Expr
+  deriving Repr, BEq
+
+def exprHole : MetaM Expr := mkFreshExprMVar none
 
 /-- `containsNonTrivialFuncApp e inductiveRelationName` determines whether `e` contains a non-trivial function application
     (i.e. a function application where the function name is *not* the same as `inductiveRelationName`,

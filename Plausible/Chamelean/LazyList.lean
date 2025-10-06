@@ -10,6 +10,15 @@ deriving Inhabited
 
 namespace LazyList
 
+inductive InLazyList {α : Type u} (a : α) : LazyList α -> Prop where
+| InLHead l : InLazyList a (lcons a l)
+| InLNext b l : a ≠ b -> InLazyList a l.get -> InLazyList a (lcons b l)
+
+abbrev InLazyList' {α} l (a : α) := InLazyList a l
+
+instance {α} : Membership α (LazyList α) :=
+ Membership.mk InLazyList'
+
 /-- Tail-recursive helper for converting `LazyList` to `List`, where `acc` is the list accumulated so far
     - The accumulation prevents stack overflow when converting large `LazyList`s to regular lists -/
 def toListAux (acc : List α) : LazyList α → List α
@@ -26,26 +35,26 @@ instance [Repr α] : Repr (LazyList α) where
   reprPrec l _ := repr l.toList
 
 /-- Retrieves a prefix of the `LazyList` (only the thunks in the prefix are evaluated) -/
-def take (n : Nat) (l : LazyList α) : LazyList α :=
+def take (n : Nat) (l : LazyList α) : List α := go n l []
+  where
+  go n l acc :=
   match n with
-  | .zero => lnil
+  | .zero => acc
   | .succ n' =>
     match l with
-    | .lnil => lnil
-    | .lcons x xs => .lcons x (take n' xs.get)
+    | .lnil => acc
+    | .lcons x xs => go n' xs.get (x :: acc)
 
-/-- Stack-safe append, written using continuation-passing style -/
-def appendCPS (xs : LazyList α) (ys : LazyList α) : LazyList α :=
-  let rec go (current : LazyList α) (cont : LazyList α → LazyList α) : LazyList α :=
-    match current with
-    | .lnil => cont ys
-    | .lcons x xs' =>
-      .lcons x (Thunk.mk $ fun _ => go xs'.get cont)
-  go xs id
+def head (l : LazyList α) : Option α :=
+  match l with
+  | lnil => none
+  | lcons x _ => some x
 
 /-- Appends two `LazyLists` together -/
 def append (xs : LazyList α) (ys : LazyList α) : LazyList α :=
-  appendCPS xs ys
+  match xs with
+  | lnil => ys
+  | lcons x xs => lcons x ⟨fun _ => append xs.get ys⟩
 
 /-- `observe tag i` uses `dbg_trace` to emit a trace of the variable
     associated with `tag` -/
@@ -57,11 +66,20 @@ def observe (tag : String) (i : Fin n) : Nat :=
 def mapLazyList (f : α → β) (l : LazyList α) : LazyList β :=
   match l with
   | .lnil => .lnil
-  | .lcons x xs => .lcons (f x) (Thunk.mk $ fun _ => mapLazyList f xs.get)
+  | .lcons x xs => .lcons (f x) ⟨fun _ => mapLazyList f xs.get⟩
 
 /-- `Functor` instance for `LazyList` -/
 instance : Functor LazyList where
   map := mapLazyList
+
+def filter {α} (p : α -> Bool) (l : LazyList α) : LazyList α :=
+  match l with
+  | lnil => lnil
+  | lcons a as =>
+    if p a then
+      lcons a ⟨fun _ => filter p as.get⟩
+    else
+      filter p as.get
 
 /-- Creates a singleton LazyList -/
 def pureLazyList (x : α) : LazyList α :=
@@ -89,11 +107,28 @@ def concatCPS (l : LazyList (LazyList α)) : LazyList α :=
 
 /-- Flattens a `LazyList (LazyList α)` into a `LazyList α`  -/
 def concat (l : LazyList (LazyList α)) : LazyList α :=
-  concatCPS l
+  match l with
+  | lnil => lnil
+  | lcons lnil l' => concat l'.get
+  | lcons (lcons a as) l' => lcons a ⟨ fun _ => (concat (lcons as.get l'))⟩
+
+/-- Round-robin concatenation of lazy enumerations: lazily takes one element from the back of each lazy enumeration in turn
+    until there are no more to go, then starts at the head of the enumeration of enumerations. -/
+partial def roundRobinConcat (l : LazyList (LazyList α)) : LazyList α :=
+  let rec go (current : LazyList (LazyList α)) (queue : List (LazyList α)) : LazyList α :=
+    match current with
+    | lnil =>
+      match queue with
+      | [] => lnil
+      | q :: qs => go (lcons q ⟨fun _ => lnil⟩) qs
+    | lcons lnil rest => go rest.get queue
+    | lcons (lcons a as) rest =>
+      lcons a ⟨fun _ => go rest.get (queue ++ [as.get])⟩
+  go l []
 
 /-- Bind for `LazyList`s is just `concatMap` (same as the list monad) -/
-def bindLazyList (l : LazyList α) (f : α → LazyList β) : LazyList β :=
-  concat (f <$> l)
+partial def bindLazyList (l : LazyList α) (f : α → LazyList β) : LazyList β :=
+  roundRobinConcat (f <$> l)
 
 /-- `Monad` instance for `LazyList` -/
 instance : Monad LazyList where

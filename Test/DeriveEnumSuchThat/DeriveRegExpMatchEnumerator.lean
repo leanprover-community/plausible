@@ -10,4 +10,5 @@ set_option guard_msgs.diff true
 #derive_enumerator (fun (s : List Nat) => ExpMatch s r0)
 
 -- To sample from this enumerator, we can run the following:
--- #eval runSizedEnum (EnumSizedSuchThat.enumSizedST (fun s => ExpMatch s r)) 1
+#guard_msgs(drop info) in
+#eval runSizedEnum (EnumSizedSuchThat.enumSizedST (fun s => ExpMatch s r)) 10

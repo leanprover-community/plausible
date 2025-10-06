@@ -3,13 +3,15 @@ import Plausible.Chamelean.ArbitrarySizedSuchThat
 import Plausible.Chamelean.Enumerators
 import Plausible.Chamelean.DecOpt
 import Plausible.Chamelean.TSyntaxCombinators
+import Batteries.Lean.Expr
 import Plausible.Chamelean.Schedules
 import Plausible.Chamelean.UnificationMonad
 import Plausible.Chamelean.Idents
+import Plausible.Chamelean.Utils
 
 open Plausible
 open Idents
-open Lean Parser Elab Term Command
+open Lean Parser Elab Term Command ToExpr TSyntax
 
 -- Adapted from QuickChick source code
 -- https://github.com/QuickChick/QuickChick/blob/internal-rewrite/plugin/newGenericLib.ml
@@ -44,7 +46,7 @@ inductive MExp : Type where
 
   /-- `MBind monadSort m1 vars m2` represents `m1 >>= fun vars => m2` in a particular monad,
        as determined by `monadSort` -/
-  | MBind (monadSort : MonadSort) (m1 : MExp) (vars : List Unknown) (m2 : MExp)
+  | MBind (monadSort : MonadSort) (m1 : MExp) (vars : List (Name × Option Expr)) (m2 : MExp)
 
   /-- N-ary function application -/
   | MApp (f : MExp) (args : List MExp)
@@ -70,7 +72,7 @@ inductive MExp : Type where
 
   /-- A function abstraction, where `args` is a list of variable names,
       and `body` is an `MExp` representing the function body -/
-  | MFun (args : List Name) (body : MExp)
+  | MFun (args : List (Name × Option Expr)) (body : MExp)
 
   /-- Signifies failure (corresponds to the term `OptionT.fail`) -/
   | MFail
@@ -158,6 +160,7 @@ partial def constructorExprToMExp (expr : ConstructorExpr) : MExp :=
   match expr with
   | .Unknown u => .MId u
   | .Ctor c args => .MCtr c (constructorExprToMExp <$> args)
+  | .FuncApp f args => .MApp (.MId f) (constructorExprToMExp <$> args)
 
 
 /-- `MExp` representation of a recursive function call,
@@ -233,12 +236,13 @@ mutual
       `($(mkIdent ctorName) $compiledArgs*)
     | .MFun vars body => do
       let compiledBody ← mexpToTSyntax body deriveSort
+
+
       match vars with
       | [] => throwError "empty list of function arguments supplied to MFun"
-      | [x] => `((fun $(mkIdent x) => $compiledBody))
-      | _ =>
         -- When we have multiple args, create a tuple containing all of them
         -- in the argument of the lambda
+      | _ =>  do
         let args ← mkTuple vars
         `((fun $args:term => $compiledBody))
     | .MFail | .MOutOfFuel =>
@@ -267,7 +271,6 @@ mutual
             throwError m!"empty list of vars supplied to MBind, deriveSort = {repr deriveSort}, monadSort = {repr monadSort}, m1 = {m1}, k1 = {k1}"
           else
             mkTuple vars
-
         -- If we have a producer, we can just produce a monadic bind
         `(do let $compiledArgs:term ← $m1:term ; $k1:term)
       | .Generator, .Checker
@@ -299,7 +302,7 @@ mutual
               mkTuple vars
           -- We pass in `(min 2 initSize)` as the amount of fuel for the enumerator to avoid stack-overflow
           -- See https://github.com/ngernest/chamelean/issues/40 for details
-          let fuelForEnumerator ← `($(mkIdent `min) 2 $initSizeIdent)
+          let fuelForEnumerator ← `($(mkIdent ``min) 2 $initSizeIdent)
           match monadSort with
           | .Enumerator =>
             -- If a checker invokes an unconstrained enumerator,
@@ -327,7 +330,7 @@ mutual
 
       - Note: this function corresponds to `such_that_producer`
         in the QuickChick code -/
-  partial def constrainedProducer (prodSort : ProducerSort) (varsTys : List (Name × ConstructorExpr)) (prop : MExp) (fuel : MExp) : CompileScheduleM MExp :=
+  partial def constrainedProducer (prodSort : ProducerSort) (varsTys : List (Name × Option ConstructorExpr)) (prop : MExp) (fuel : MExp) : CompileScheduleM MExp :=
     if varsTys.isEmpty then
       panic! "Received empty list of variables for constrainedProducer"
     else do
@@ -335,19 +338,20 @@ mutual
       -- i.e. check if an instance for `ArbitrarySizedSuchThat` / `EnumSizedSuchThat` with the
       -- specified `argTys` and `prop` already exists
       let (args, argTys) := List.unzip varsTys
-      let argsTuple ← mkTuple args
-      let argTyTerms ← monadLift $ argTys.toArray.mapM constructorExprToTSyntaxTerm
+      let argTyExprs := argTys.map (Option.map ToExpr.toExpr)
+      let typedArgs := List.zip args argTyExprs
+      let argsTuple ← mkTuple typedArgs
       let propBody ← mexpToTSyntax prop .Generator
       let typeClassName :=
         match prodSort with
         | .Enumerator => ``EnumSizedSuchThat
         | .Generator => ``ArbitrarySizedSuchThat
-      let typeClassInstance ← `($(mkIdent typeClassName) $argTyTerms* (fun $argsTuple:term => $propBody))
+      let typeClassInstance ← `($(mkIdent typeClassName) `_ (fun $argsTuple:term => $propBody))
 
       -- Add the `typeClassInstance` for the constrained producer to the state,
       -- then obtain the `MExp` representing the constrained producer
       StateT.modifyGet $ fun instances =>
-        let producerWithArgs := MExp.MFun args prop
+        let producerWithArgs := MExp.MFun typedArgs prop
         let producerMExp :=
           match prodSort with
           | .Enumerator => enumSizedST producerWithArgs fuel
@@ -355,6 +359,9 @@ mutual
         (producerMExp, instances.push typeClassInstance)
 
 end
+
+def nameAndConstructorExprToTypedVar (v : Name × Option ConstructorExpr) : Name × Option Expr :=
+  Prod.map id (ToExpr.toExpr <$> ·) v
 
 /-- Compiles a `ScheduleStep` to an `MExp`.
      Note that `MExp` that is returned by this function is represented
@@ -368,24 +375,29 @@ end
     - `mfuel` and `defFuel` are `MExp`s representing the current size and the initial size
       supplied to the generator/enumerator/checker we're deriving
 -/
-def scheduleStepToMExp (step : ScheduleStep) (defFuel : MExp) (k : MExp) : CompileScheduleM MExp :=
+
+def scheduleStepToMExp (step : ScheduleStep) (defFuel : MExp) (k : MExp) (outputType : Expr) : CompileScheduleM MExp :=
   match step with
   | .Unconstrained v src prodSort => do
-    let producer ←
-      match src with
-      | Source.NonRec hyp =>
-        let ty ← hypothesisExprToTSyntaxTerm hyp
-        unconstrainedProducer prodSort ty
-      | Source.Rec f args => pure $ recCall f args
-    pure $ .MBind (prodSortToMonadSort prodSort) producer [v] k
+    let monadSort := prodSortToMonadSort prodSort
+    match src with
+    | Source.NonRec hyp => do
+      let ty ← hypothesisExprToTSyntaxTerm hyp
+      let tyExpr := ToExpr.toExpr hyp
+      let producer ← unconstrainedProducer prodSort ty
+      pure $ .MBind monadSort producer [⟨v,tyExpr⟩] k
+    | Source.Rec f args =>
+      pure $ .MBind monadSort (recCall f args) [⟨v, outputType⟩] k
+
   | .SuchThat varsTys prod ps => do
-    let producer ←
-      match prod with
-      | Source.NonRec hypExpr =>
-        constrainedProducer ps varsTys (hypothesisExprToMExp hypExpr) defFuel
-      | Source.Rec f args => pure (recCall f args)
-    let vars := Prod.fst <$> varsTys
-    pure $ .MBind (prodSortToOptionTMonadSort ps) producer vars k
+    let monadSort := prodSortToOptionTMonadSort ps
+    let typedVars := List.map (nameAndConstructorExprToTypedVar) varsTys
+    match prod with
+    | Source.NonRec hypExpr => do
+      let producer ← constrainedProducer ps varsTys (hypothesisExprToMExp hypExpr) defFuel
+      pure $ .MBind monadSort producer typedVars k
+    | Source.Rec f args =>
+      pure $ .MBind monadSort (recCall f args) typedVars k
   | .Check src _ =>
 
     -- TODO: double check if we need to pattern-match on `scheduleSort` here
@@ -408,7 +420,7 @@ def scheduleStepToMExp (step : ScheduleStep) (defFuel : MExp) (k : MExp) : Compi
     - `mfuel` and `defFuel` are auxiliary `MExp`s representing the fuel
       for the function we are deriving (these correspond to `size` and `initSize`
       in the QuickChick code for the derived functions) -/
-def scheduleToMExp (schedule : Schedule) (mfuel : MExp) (defFuel : MExp) : CompileScheduleM MExp :=
+def scheduleToMExp (schedule : Schedule) (mfuel : MExp) (defFuel : MExp) (recType : Expr) : CompileScheduleM MExp :=
   let (scheduleSteps, scheduleSort) := schedule
   -- Determine the *epilogue* of the schedule (i.e. what happens after we
   -- have finished executing all the `scheduleStep`s)
@@ -434,5 +446,5 @@ def scheduleToMExp (schedule : Schedule) (mfuel : MExp) (defFuel : MExp) : Compi
   -- Fold over the `scheduleSteps` and convert each of them to a functional `MExp`
   -- Note that the fold composes the `MExp`, and we use `foldr` since
   -- we want the `epilogue` to be the base-case of the fold
-  List.foldrM (fun step acc => scheduleStepToMExp step defFuel acc)
+  List.foldrM (fun step acc => scheduleStepToMExp step defFuel acc recType)
     epilogue scheduleSteps

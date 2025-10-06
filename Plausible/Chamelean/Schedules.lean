@@ -75,7 +75,7 @@ inductive ScheduleStep
   | Unconstrained : Name → Source → ProducerSort → ScheduleStep
 
   /-- Generate a value such that a predicate is satisfied -/
-  | SuchThat : List (Name × ConstructorExpr) → Source → ProducerSort → ScheduleStep
+  | SuchThat : List (Name × Option ConstructorExpr) → Source → ProducerSort → ScheduleStep
 
   /-- Check whether some proposition holds
      (the bool is the desired truth value of the proposition we're checking) -/
@@ -87,10 +87,22 @@ inductive ScheduleStep
 
   deriving Repr, BEq, Ord
 
+def sourceToString source := match source with
+  | Source.Rec name ctrArgs => s!"{ToExpr.toExpr (name,ctrArgs)}"
+  | Source.NonRec hyp => s!"{ToExpr.toExpr hyp}"
+
+def stepToString step := match step with
+    | ScheduleStep.Unconstrained name src _ => s!"{name} ← {sourceToString src}"
+    | .SuchThat vars src _ => s!"{vars.map (fun ((name : Name), (_ : Option ConstructorExpr)) => name)} ← {sourceToString src}"
+    | .Check src true => s!"check {sourceToString src}"
+    | .Check src false => s!"check ¬{sourceToString src}"
+    | .Match name pattern => s!"match {name} with {repr pattern}"
+
+def scheduleStepsToString (steps : List ScheduleStep) := "do\n  " ++ String.intercalate "\n  " (stepToString <$> steps)
+
 /-- A schedule is a pair consisting of an ordered list of `ScheduleStep`s,
     and the sort of schedule we're dealing with (the latter is the "conclusion" of the schedule) -/
 abbrev Schedule := List ScheduleStep × ScheduleSort
-
 
 /-- Each `ScheduleStep` is associated with a `Density`, which represents a failure mode of a generator -/
 inductive Density
@@ -126,19 +138,20 @@ partial def exprToConstructorExpr (e : Expr) : MetaM ConstructorExpr := do
     if env.isConstructor name then
       return ConstructorExpr.Ctor name []
     else
-      return ConstructorExpr.Unknown name
+      return ConstructorExpr.FuncApp name []
   | .app f arg => do
     let fExpr ← exprToConstructorExpr f
     let argExpr ← exprToConstructorExpr arg
     match fExpr with
     | ConstructorExpr.Ctor name args =>
       return ConstructorExpr.Ctor name (args ++ [argExpr])
+    | ConstructorExpr.FuncApp name args =>
+      return ConstructorExpr.FuncApp name (args ++ [argExpr])
     | ConstructorExpr.Unknown name =>
-      -- Treat as constructor application if we encounter an application
-      return ConstructorExpr.Ctor name [argExpr]
+      throwError m!"exprToConstructorExpr: We do not support higher order application of {name} in Expr {e}"
   | _ =>
     -- For other expression types (literals, lambdas, etc.), generate a placeholder name
-    return ConstructorExpr.Unknown `unknown
+    throwError m!"exprToConstructorExpr can only handle free variables, constants, and applications. Attempted to convert: {e}"
 
 /-- Converts an `Expr` to an `Option HypothesisExpr` -/
 def exprToHypothesisExpr (e : Expr) : MetaM (Option HypothesisExpr) := do

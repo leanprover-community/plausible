@@ -1,4 +1,6 @@
 import Lean
+import Plausible.Chamelean.Utils
+import Batteries.Lean.Expr
 open Lean Elab Command Meta Term Parser
 
 /-- `mkLetBind lhs rhsTerms` constructs a monadic let-bind expression of the form
@@ -15,13 +17,26 @@ def mkLetBind (lhs : Ident) (rhsTerms : TSyntaxArray `term) : MetaM (TSyntax `do
 /-- `mkTuple components` creates an n-ary tuple from the `Name`s in the list `components`
     - If `components` is Empty, we produce the unit value `()`
     - If `components` has length 1, we just produce one single `Ident` -/
-def mkTuple (components : List Name) : MetaM (TSyntax `term) :=
+def mkTuple (components : List (Name × Option Expr)) : MetaM (TSyntax `term) := do
+  let lctx ← getLCtx
+  aux lctx components
+  where
+  aux (lctx : LocalContext) components : MetaM (TSyntax `term) :=
   match components with
   | [] => `(())
-  | [x] => `($(mkIdent x))
-  | x :: xs => do
-    let tail ← mkTuple xs
-    `( ( $(mkIdent x):term, $tail:term ) )
+  | [(var, some ty)] => do
+    let tSyn ← (withOptions setDelaboratorOptions (delabExprInLocalContext lctx ty))
+    `(($(mkIdent var) : $tSyn))
+  | [(var, none)] => do
+    `($(mkIdent var))
+  | (var, oty) :: xs => do
+    let tail ← aux lctx xs
+    match oty with
+    | some type =>
+      let tSyn ← withOptions setDelaboratorOptions (delabExprInLocalContext lctx type)
+      `( (($(mkIdent var):term : $tSyn), $tail:term ) )
+    | none =>
+      `( ($(mkIdent var):term, $tail:term))
 
 /-- Constructs a Lean monadic `do` block out of an array of `doSeq`s
     (expressions that appear in the `do` block) -/
