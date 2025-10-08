@@ -300,9 +300,7 @@ mutual
               throwError m!"empty list of vars supplied to MBind, deriveSort = {repr deriveSort}, monadSort = {repr monadSort}, m1 = {m1}, k1 = {k1}"
             else
               mkTuple vars
-          -- We pass in `(min 2 initSize)` as the amount of fuel for the enumerator to avoid stack-overflow
-          -- See https://github.com/ngernest/chamelean/issues/40 for details
-          let fuelForEnumerator ← `($(mkIdent ``min) 2 $initSizeIdent)
+          let fuelForEnumerator ← `($initSizeIdent:term)
           match monadSort with
           | .Enumerator =>
             -- If a checker invokes an unconstrained enumerator,
