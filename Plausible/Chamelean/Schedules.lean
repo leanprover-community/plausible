@@ -154,17 +154,17 @@ partial def exprToConstructorExpr (e : Expr) : MetaM ConstructorExpr := do
     throwError m!"exprToConstructorExpr can only handle free variables, constants, and applications. Attempted to convert: {e}"
 
 /-- Converts an `Expr` to an `Option HypothesisExpr` -/
-def exprToHypothesisExpr (e : Expr) : MetaM (Option HypothesisExpr) := do
+def exprToHypothesisExpr (e : Expr) : MetaM HypothesisExpr := do
+  let e ← Meta.whnf e
   let (ctorName, args) := e.getAppFnArgs
-
   let env ← getEnv
-
   -- Only proceed if `ctorName` refers to a constructor or the name of an `inductive`
   if env.isConstructor ctorName || (← isInductive ctorName) then
     let constructorArgs ← args.mapM exprToConstructorExpr
-    return some (ctorName, constructorArgs.toList)
+    return (ctorName, constructorArgs.toList)
   else
-    return none
+    throwError m!"exprToHypothesisExpr: unable to convert {e} to a HypothesisExpr, \
+                  must be a constructor or an inductive applied to arguments."
 
 /-- Helper function called by `updateSource`, which updates variables in a hypothesis `hyp`
     with the result of unification (provided via the `UnifyM` monad) -/

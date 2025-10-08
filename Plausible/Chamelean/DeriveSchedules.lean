@@ -195,7 +195,6 @@ def handleConstrainedOutputs (hyp : HypothesisExpr) (outputVars : List TypedVar)
       match List.mapM (outputNamesTypes.lookup .) vars with
       | none => pure (none, arg, none)
 
-      -- throwError m!"Variable in {vars} not found in type environment {outputNamesTypes}"
       | some _typedOutputs =>
 
       if !vars.isEmpty then do
@@ -517,9 +516,7 @@ def preScheduleStepToScheduleStep (preStep : PreScheduleStep HypothesisExpr Type
         then Source.Rec (recursiveFunctionName env.deriveSort) <$> ctorArgs.toList.mapM (fun foo => exprToConstructorExpr foo)
       else
         let hypothesisExpr ← exprToHypothesisExpr ty
-        match hypothesisExpr with
-        | none => throwError m!"DFS: unable to convert Expr {ty} to a HypothesisExpr"
-        | some hypExpr => pure (Source.NonRec hypExpr)
+        pure (Source.NonRec hypothesisExpr)
     return ScheduleStep.Unconstrained v src env.prodSort
     )
 

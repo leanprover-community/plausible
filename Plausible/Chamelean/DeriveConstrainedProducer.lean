@@ -320,7 +320,9 @@ def rewriteFunctionCallsInConclusion (hypotheses : Array Expr) (conclusion : Exp
       + Note: when `deriveSort == .Generator / .Enumerator`, it is the caller's responsibility to ensure that
         `unknowns == inputNames ∪ { outputName }`, i.e. `unknowns` contains all args to the inductive relation
         listed in order, which coincides with `inputNames ∪ { outputName }` -/
-def getScheduleForInductiveRelationConstructor (inductiveName : Name) (ctorName : Name) (inputNames : List Name) (deriveSort : DeriveSort) (outputNameTypeOption : Option (Name × Expr)) (unknownsArray : Array Unknown) : UnifyM Schedule := do
+def getScheduleForInductiveRelationConstructor
+  (inductiveName : Name) (ctorName : Name) (inputNames : List Name)
+  (deriveSort : DeriveSort) (outputNameTypeOption : Option (Name × Expr)) (unknownsArray : Array Unknown) : UnifyM Schedule := do
   logWarning m!"CALL MADE: {inductiveName} {ctorName} {inputNames} {unknownsArray}"
 
   let ctorInfo ← getConstInfoCtor ctorName
@@ -423,8 +425,7 @@ def getScheduleForInductiveRelationConstructor (inductiveName : Name) (ctorName 
         unify r1 r2
 
       -- Convert the conclusion from an `Expr` to a `HypothesisExpr`
-      let conclusionExpr ← Option.getDM (← exprToHypothesisExpr conclusion)
-        (throwError m!"Unable to convert conclusion {conclusion} to a HypothesisExpr")
+      let conclusionExpr ← exprToHypothesisExpr conclusion
 
       let ctorNameOpt :=
         match deriveSort with

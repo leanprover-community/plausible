@@ -21,6 +21,7 @@ import Test.DeriveArbitrarySuchThat.SimultaneousMatchingTests
 import Test.DeriveArbitrarySuchThat.FunctionCallsTest
 import Test.DeriveArbitrarySuchThat.DerivePermutationGenerator
 import Test.DeriveArbitrarySuchThat.MutuallyRecursiveRelationsTest
+import Test.DeriveArbitrarySuchThat.WithUnfolds
 
 -- Tests for `deriving Arbitrary`
 import Test.DeriveArbitrary.DeriveTreeGenerator
