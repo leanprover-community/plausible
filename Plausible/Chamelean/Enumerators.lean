@@ -103,25 +103,26 @@ instance : EnumSized Nat where
 
 namespace EnumeratorCombinators
 
-  /-- `vectorOf k e` creates an enumerator of lists of length `k`,
-      where each element in the list comes from the enumerator `e` -/
-  def vectorOf (k : Nat) (e : Enumerator α) : Enumerator (List α) :=
-    List.foldr (fun m m' => do
-      let x ← m
-      let xs ← m'
-      return x::xs) (init := pure []) (List.replicate k e)
+/-- `vectorOf k e` creates an enumerator of lists of length `k`,
+    where each element in the list comes from the enumerator `e` -/
+def vectorOf (k : Nat) (e : Enumerator α) : Enumerator (List α) :=
+  List.foldr (fun m m' => do
+    let x ← m
+    let xs ← m'
+    return x::xs) (init := pure []) (List.replicate k e)
 
-  /-- Picks one of the enumerators in `es`, returning the `default` enumerator
-      if `es` is empty. -/
-  def oneOfWithDefault (default : Enumerator α) (es : List (Enumerator α)) : Enumerator α :=
-    match es with
-    | [] => default
-    | _ => do
-      let idx ← enumNatRange 0 (es.length - 1)
-      List.getD es idx default
+/-- Picks one of the enumerators in `es`, returning the `default` enumerator
+    if `es` is empty. -/
+def oneOfWithDefault (default : Enumerator α) (es : List (Enumerator α)) : Enumerator α :=
+  match es with
+  | [] => default
+  | _ => do
+    let idx ← enumNatRange 0 (es.length - 1)
+    List.getD es idx default
 
-  def oneOf [Inhabited α] (es : List (Enumerator α)) : Enumerator α :=
-    oneOfWithDefault (pure default) es
+/-- Picks one of the enumerators in `es`, or the `default` value if `es = []`. -/
+def oneOf [Inhabited α] (es : List (Enumerator α)) : Enumerator α :=
+  oneOfWithDefault (pure default) es
 
 end EnumeratorCombinators
 

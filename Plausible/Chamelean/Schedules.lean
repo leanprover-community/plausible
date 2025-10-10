@@ -87,10 +87,12 @@ inductive ScheduleStep
 
   deriving Repr, BEq, Ord
 
+/-- Stringifier for `Source` -/
 def sourceToString source := match source with
   | Source.Rec name ctrArgs => s!"{ToExpr.toExpr (name,ctrArgs)}"
   | Source.NonRec hyp => s!"{ToExpr.toExpr hyp}"
 
+/-- Stringifier for `step` -/
 def stepToString step := match step with
     | ScheduleStep.Unconstrained name src _ => s!"{name} ← {sourceToString src}"
     | .SuchThat vars src _ => s!"{vars.map (fun ((name : Name), (_ : Option ConstructorExpr)) => name)} ← {sourceToString src}"
@@ -98,6 +100,7 @@ def stepToString step := match step with
     | .Check src false => s!"check ¬{sourceToString src}"
     | .Match name pattern => s!"match {name} with {repr pattern}"
 
+/-- Stringifier for lists of steps. -/
 def scheduleStepsToString (steps : List ScheduleStep) := "do\n  " ++ String.intercalate "\n  " (stepToString <$> steps)
 
 /-- A schedule is a pair consisting of an ordered list of `ScheduleStep`s,

@@ -26,4 +26,5 @@ class ArbitraryFueled (α : Type) where
 instance [ArbitraryFueled α] : Arbitrary α where
   arbitrary := Gen.sized ArbitraryFueled.arbitraryFueled
 
+/-- This error is thrown if the generator runs out of fuel; can be caught with `try ... catch | .genError "GenError: Out of fuel." => ...` -/
 def Gen.outOfFuel : GenError := .genError "GenError: Out of fuel."

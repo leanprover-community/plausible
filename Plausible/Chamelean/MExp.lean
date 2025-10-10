@@ -358,7 +358,7 @@ mutual
 
 end
 
-def nameAndConstructorExprToTypedVar (v : Name × Option ConstructorExpr) : Name × Option Expr :=
+private def nameAndConstructorExprToTypedVar (v : Name × Option ConstructorExpr) : Name × Option Expr :=
   Prod.map id (ToExpr.toExpr <$> ·) v
 
 /-- Compiles a `ScheduleStep` to an `MExp`.

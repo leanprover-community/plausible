@@ -5,12 +5,14 @@ import Batteries.Data.List.Basic
 
 open Lean Meta LocalContext Std
 
+/-- A variable along with its fully elaborated type.
+Will likely be replaced by variables directly living in `Expr` at some point. -/
 structure TypedVar where
+  /-- The variable name -/
   var : Name
+  /-- The variable's fully elaborated type. -/
   type : Expr
   deriving Repr, BEq
-
-def exprHole : MetaM Expr := mkFreshExprMVar none
 
 /-- `containsNonTrivialFuncApp e inductiveRelationName` determines whether `e` contains a non-trivial function application
     (i.e. a function application where the function name is *not* the same as `inductiveRelationName`,

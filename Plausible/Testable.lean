@@ -258,6 +258,7 @@ open TestResult
 
 def runProp (p : Prop) [Testable p] : Configuration → Bool → Gen (TestResult p) := Testable.run
 
+/-- Run the test for `p`, returning any thrown `Gen.GenError` as a `TestResult.gaveUp`. -/
 def runPropE (p : Prop) [Testable p] (cfg : Configuration) (min : Bool) : Gen (TestResult p) :=
   do
     try runProp p cfg min

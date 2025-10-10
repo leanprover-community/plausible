@@ -10,10 +10,12 @@ deriving Inhabited
 
 namespace LazyList
 
+/-- Membership in a `LazyList`. -/
 inductive InLazyList {α : Type u} (a : α) : LazyList α -> Prop where
 | InLHead l : InLazyList a (lcons a l)
 | InLNext b l : a ≠ b -> InLazyList a l.get -> InLazyList a (lcons b l)
 
+/-- Convenience definition for inverted membership. -/
 abbrev InLazyList' {α} l (a : α) := InLazyList a l
 
 instance {α} : Membership α (LazyList α) :=
@@ -45,7 +47,8 @@ def take (n : Nat) (l : LazyList α) : List α := go n l []
     | .lnil => acc
     | .lcons x xs => go n' xs.get (x :: acc)
 
-def head (l : LazyList α) : Option α :=
+/-- Get the first element of the list, if there is one. otherwise return `.none`. -/
+def head? (l : LazyList α) : Option α :=
   match l with
   | lnil => none
   | lcons x _ => some x
@@ -72,6 +75,7 @@ def mapLazyList (f : α → β) (l : LazyList α) : LazyList β :=
 instance : Functor LazyList where
   map := mapLazyList
 
+/-- Return the lazylist that contains the elements `x` of `l` such that `p x = .true`. -/
 def filter {α} (p : α -> Bool) (l : LazyList α) : LazyList α :=
   match l with
   | lnil => lnil

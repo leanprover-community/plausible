@@ -25,6 +25,7 @@ def auxDecFn : Ident := mkIdent $ Name.mkStr1 "aux_dec"
 /-- Ident for the `DecOpt.andOptList` checker combinator (see `DecOpt.lean`) -/
 def andOptListFn : Ident := mkIdent $ Name.mkStr2 "DecOpt" "andOptList"
 
+/-- Ident for `GeneratorCombinators.backtrack`. -/
 def genBacktrackFn : Ident := mkIdent $ Name.mkStr2 "GeneratorCombinators" "backtrack"
 
 /-- Ident for the `DecOpt.checkerBacktrack` checker combinator (see `DecOpt.lean`) -/
@@ -39,7 +40,10 @@ def enumeratingFn : Ident := mkIdent $ Name.mkStr2 "EnumeratorCombinators" "enum
 /-- Ident for the `EnumeratorCombinators.enumeratingOpt` combinator (see `EnumeratorCombinators.lean`) -/
 def enumeratingOptFn : Ident := mkIdent $ Name.mkStr2 "EnumeratorCombinators" "enumeratingOpt"
 
+/-- Ident for `pure`. -/
 def pureFn : Ident := mkIdent $ Name.mkStr1 "pure"
+
+/-- Idents for boolean literals. -/
 def trueIdent : Ident := mkIdent ``true
 def falseIdent : Ident := mkIdent ``false
 

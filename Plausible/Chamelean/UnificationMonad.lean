@@ -202,7 +202,7 @@ instance : ToMessageData UnifyState where
 
     let hyps := unifyState.hypotheses.map $ fun hyp => m!"{hyp}"
 
-    m!"⟨\n  constraints := \n{formattedConstraints},\n  equalities := {equalities},\n  patterns := {patterns},\n  unknowns := {unknowns}\n, hypotheses := {hyps}\n⟩"
+  m!"⟨\n  constraints := \n{formattedConstraints},\n  equalities := {equalities},\n  patterns := {patterns},\n  unknowns := {unknowns}\n, hypotheses := {hyps}\n⟩"
 
 
 
@@ -211,283 +211,285 @@ instance : ToMessageData UnifyState where
 ---------------------------------------------------------------
 
 /-- `UnifyM` is a monad for unification + code generation.
-     Note that the definition of `UnifyM` (after unfolding) is:
-     ```
-     UnifyM α := UnifyState → MetaM (Option (α × UnifyState))
-     ``` -/
+    Note that the definition of `UnifyM` (after unfolding) is:
+    ```
+    UnifyM α := UnifyState → MetaM (Option (α × UnifyState))
+    ```
+-/
 abbrev UnifyM (α : Type) := StateT UnifyState (OptionT MetaM) α
 
 namespace UnifyM
 
-  /-- `update u r` sets the range of the unknown `u` to be `r` -/
-  def update (u : Unknown) (r : Range) : UnifyM Unit := do
-    modify $ fun s =>
-      let k := s.constraints
-      { s with constraints := k.insert u r }
-
-  /-- Applies a function `f` to the `constraints` map stored in `UnifyState`
-      - This function allows us to fetch the `constraints` map without needing
-        a seperate `get` call inside the State monad -/
-  def withConstraints (f : UnknownMap → UnifyM α) : UnifyM α := do
-    let unifyState ← get
-    f unifyState.constraints
-
-  /-- Applies a function `f` to the list of `hypotheses` stored in `UnifyState`
-      - This function allows us to fetch the `hypotheses` field without needing
-        a seperate `get` call inside the State monad -/
-  def withHypotheses (f : List (Name × List ConstructorExpr) → UnifyM α) : UnifyM α := do
-    let unifyState ← get
-    f unifyState.hypotheses
-
-  /-- Applies a function `f` to the set of `unknowns` stored in `UnifyState`
-      - This function allows us to fetch the `hypotheses` field without needing
-        a seperate `get` call inside the State monad -/
-  def withUnknowns (f : Std.HashSet Unknown → UnifyM α) : UnifyM α := do
-    let unifyState ← get
-    f unifyState.unknowns
-
-  /-- Directly applies a function `f` to the `constraint` map in the state  -/
-  def modifyConstraints (f : UnknownMap → UnknownMap) : UnifyM Unit :=
-    modify $ fun s => { s with constraints := f s.constraints }
-
-   /-- Batches multiple constraint updates together for performance  -/
-  def updateMany (updates : List (Unknown × Range)) : UnifyM Unit :=
-    modifyConstraints $ fun constraints =>
-      updates.foldl (fun acc (u, r) => acc.insert u r) constraints
-
-  /-- Registers a new equality check between unknowns `u1` and `u2` -/
-  def registerEquality (u1 : Unknown) (u2 : Unknown) : UnifyM Unit :=
-    modify $ fun s =>
-      let eqs := s.equalities
-      { s with equalities := eqs.union {(u1, u2)} }
-
-  /-- Adds a new pattern match -/
-  def addPattern (u : Unknown) (p : Pattern) : UnifyM Unit :=
-    modify $ fun s =>
-      let ps := s.patterns
-      { s with patterns := (u, p) :: ps }
-
-  /-- Produces a fresh unknown that is guaranteed not to be in the
-      existing set of `unknowns` -/
-  def freshUnknown (unknowns : Std.HashSet Unknown) : Unknown :=
-    let existingNames := unknowns.toArray
-    genFreshName existingNames `u
-
-  /-- Produces and registers a new unknown in the `UnifyState` -/
-  def registerFreshUnknown : UnifyM Unknown := do
-    modifyGet $ fun s =>
-      let us := s.unknowns
-      let u := freshUnknown us
-      (u, { s with unknowns := us.union { u } })
-
-  /-- Inserts an unknown `u` into the set of existing `unknowns` in `UnifyState` -/
-  def insertUnknown (u : Unknown) : UnifyM Unit := do
-    modify $ fun s => { s with unknowns := s.unknowns.insert u}
-
-  /-- Runs a `UnifyM` computation and discards the resulting state,
-      with the result returned in the `MetaM` monad as an `Option` -/
-  def runInMetaM (action : UnifyM α) (st : UnifyState) : MetaM (Option α) := do
-    OptionT.run (StateT.run' action st)
-
-  def runUnifyM (action : UnifyM α) (st : UnifyState) : MetaM (Option (α × UnifyState)) := do
-    OptionT.run (StateT.run action st)
-
-  /-- Finds the `Range` corresponding to an `Unknown` `u` in the
-      `UnknownMap` `k`, returning an informative error message if `u ∉ k.keys` -/
-  def findCorrespondingRange (k : UnknownMap) (u : Unknown) : UnifyM Range :=
-    match k[u]? with
-    | some r => return r
-    | none => throwError m!"unable to find unknown {u} in UnknownMap {k.toList}"
-
-  /-- Determines if an unknown `u` has a `Range` of `Undef τ` for some type `τ`
-      in the constraints map -/
-  def hasUndefRange (u : Unknown) : UnifyM Bool := do
-    UnifyM.withConstraints (fun k => do
-      let r ← findCorrespondingRange k u
-      match r with
-      | .Undef _ => return true
-      | _ => return false)
-
-  /-- Determines whether a `Range` is fixed with respect to the constraint map `k` -/
-  partial def hasFixedRange (k : UnknownMap) (r : Range) : UnifyM Bool := do
-    match r with
-    | .Undef _ => return false
-    | .Fixed => return true
-    | .Unknown u => do
-      let range ← findCorrespondingRange k u
-      hasFixedRange k range
-    | .Ctor _ rs => rs.allM (hasFixedRange k)
-
-  /-- `findUnknownsWithUndefRanges unknowns` returns all `u ∈ unknowns`
-      such that `u ↦ Undef τ` for some type `τ` in the `constraints` map stored within `UnifyState` -/
-  def findUnknownsWithUndefRanges (unknowns : List Unknown) : UnifyM (List Unknown) := do
-    let state ← get
-    let k := state.constraints
-    List.foldlM (fun acc u => do
-      let r ← findCorrespondingRange k u
-      match r with
-      | .Undef _ => return (u :: acc)
-      | _ => return acc) [] unknowns
-
-  /-- Updates the `constraint` map so that for each `u ∈ unknowns`,
-      we have the binding `u ↦ Fixed` in the `UnknownMap` `constraints`
-      - Note: this doesn't handle chains of `Unknown`s in `constraints` -/
-  def fixRanges (unknowns : List Unknown) : UnifyM Unit := do
-    updateMany (unknowns.zip (List.replicate unknowns.length .Fixed))
-
-  /-- `fixRangeHandleUnknownChains u` updates the `constraint` map
-      so that we have the binding `u ↦ Fixed` in the `UnknownMap` `constraints`
-      - This handles chains of `Unknown`s in the `UnknownMap`,
-        i.e. cases where `u ↦ Unknown u'` where `u'` is another key in
-        the `UnknownMap` (in this case, we recursively fix
-        the range corresponding to `u'`)
-
-      - This function corresponds to `fixVariable` / `fixRange` in the QuickChick codebase -/
-  partial def fixRangeHandleUnknownChains (u : Unknown) : UnifyM Unit := do
-    let s ← get
+/-- `update u r` sets the range of the unknown `u` to be `r` -/
+def update (u : Unknown) (r : Range) : UnifyM Unit := do
+  modify $ fun s =>
     let k := s.constraints
+    { s with constraints := k.insert u r }
+
+/-- Applies a function `f` to the `constraints` map stored in `UnifyState`
+    - This function allows us to fetch the `constraints` map without needing
+      a seperate `get` call inside the State monad -/
+def withConstraints (f : UnknownMap → UnifyM α) : UnifyM α := do
+  let unifyState ← get
+  f unifyState.constraints
+
+/-- Applies a function `f` to the list of `hypotheses` stored in `UnifyState`
+    - This function allows us to fetch the `hypotheses` field without needing
+      a seperate `get` call inside the State monad -/
+def withHypotheses (f : List (Name × List ConstructorExpr) → UnifyM α) : UnifyM α := do
+  let unifyState ← get
+  f unifyState.hypotheses
+
+/-- Applies a function `f` to the set of `unknowns` stored in `UnifyState`
+    - This function allows us to fetch the `hypotheses` field without needing
+      a seperate `get` call inside the State monad -/
+def withUnknowns (f : Std.HashSet Unknown → UnifyM α) : UnifyM α := do
+  let unifyState ← get
+  f unifyState.unknowns
+
+/-- Directly applies a function `f` to the `constraint` map in the state  -/
+def modifyConstraints (f : UnknownMap → UnknownMap) : UnifyM Unit :=
+  modify $ fun s => { s with constraints := f s.constraints }
+
+  /-- Batches multiple constraint updates together for performance  -/
+def updateMany (updates : List (Unknown × Range)) : UnifyM Unit :=
+  modifyConstraints $ fun constraints =>
+    updates.foldl (fun acc (u, r) => acc.insert u r) constraints
+
+/-- Registers a new equality check between unknowns `u1` and `u2` -/
+def registerEquality (u1 : Unknown) (u2 : Unknown) : UnifyM Unit :=
+  modify $ fun s =>
+    let eqs := s.equalities
+    { s with equalities := eqs.union {(u1, u2)} }
+
+/-- Adds a new pattern match -/
+def addPattern (u : Unknown) (p : Pattern) : UnifyM Unit :=
+  modify $ fun s =>
+    let ps := s.patterns
+    { s with patterns := (u, p) :: ps }
+
+/-- Produces a fresh unknown that is guaranteed not to be in the
+    existing set of `unknowns` -/
+def freshUnknown (unknowns : Std.HashSet Unknown) : Unknown :=
+  let existingNames := unknowns.toArray
+  genFreshName existingNames `u
+
+/-- Produces and registers a new unknown in the `UnifyState` -/
+def registerFreshUnknown : UnifyM Unknown := do
+  modifyGet $ fun s =>
+    let us := s.unknowns
+    let u := freshUnknown us
+    (u, { s with unknowns := us.union { u } })
+
+/-- Inserts an unknown `u` into the set of existing `unknowns` in `UnifyState` -/
+def insertUnknown (u : Unknown) : UnifyM Unit := do
+  modify $ fun s => { s with unknowns := s.unknowns.insert u}
+
+/-- Runs a `UnifyM` computation and discards the resulting state,
+    with the result returned in the `MetaM` monad as an `Option` -/
+def runInMetaM (action : UnifyM α) (st : UnifyState) : MetaM (Option α) := do
+  OptionT.run (StateT.run' action st)
+
+/-- Runs a `UnifyM α` to something in `MetaM`, keeping the unification state. -/
+def runUnifyM (action : UnifyM α) (st : UnifyState) : MetaM (Option (α × UnifyState)) := do
+  OptionT.run (StateT.run action st)
+
+/-- Finds the `Range` corresponding to an `Unknown` `u` in the
+    `UnknownMap` `k`, returning an informative error message if `u ∉ k.keys` -/
+def findCorrespondingRange (k : UnknownMap) (u : Unknown) : UnifyM Range :=
+  match k[u]? with
+  | some r => return r
+  | none => throwError m!"unable to find unknown {u} in UnknownMap {k.toList}"
+
+/-- Determines if an unknown `u` has a `Range` of `Undef τ` for some type `τ`
+    in the constraints map -/
+def hasUndefRange (u : Unknown) : UnifyM Bool := do
+  UnifyM.withConstraints (fun k => do
     let r ← findCorrespondingRange k u
-    fixRange u r
-      where
-        /-- `fixRange u r` updates the binding for `u` `UnknownMap`
-             so that corresponding range is `Fixed` if `r`
-             is not already `Fixed` -/
-        fixRange (u : Unknown) (r : Range) : UnifyM Unit :=
-          match r with
-          | .Fixed => return ()
-          | .Undef _ => update u .Fixed
-          | .Unknown u' => do
-            let s ← get
-            let r' ← findCorrespondingRange s.constraints u'
-            fixRange u' r'
-          | .Ctor _ rs =>
-            for range in rs do
-              fixRange `unusedParameter range
+    match r with
+    | .Undef _ => return true
+    | _ => return false)
 
-  /--`findCanonicalUnknown k u` finds the *canonical* representation of the unknown `u` based on the `ConstraintMap` `k`.
-      Specifically:
-      - If `u ↦ Unknown u'` in `k`, then we recursively look up the canonical representation of `u'` by traversing
-        the unification graph formed by the `constraints` map in `UnifyState`
-      - If `u ↦ r` (where `r` is any `Range` that is not some `Unknown`), then `u` is its own canonical representation
-      - If `u ∉ k`, then we just return `u` as is.
-      - This function is used to handle cases in `constraints` where an unknown maps to another unknown.
-      - Note: this function corresponds to `correct_var` in the QuickChick code.  -/
-  partial def findCanonicalUnknown (k : UnknownMap) (u : Unknown) : UnifyM Unknown :=
-    try (do
-      let r ← UnifyM.findCorrespondingRange k u
-      match r with
-      | .Unknown u' => findCanonicalUnknown k u'
-      | _ => return u)
-  catch _ => return u
+/-- Determines whether a `Range` is fixed with respect to the constraint map `k` -/
+partial def hasFixedRange (k : UnknownMap) (r : Range) : UnifyM Bool := do
+  match r with
+  | .Undef _ => return false
+  | .Fixed => return true
+  | .Unknown u => do
+    let range ← findCorrespondingRange k u
+    hasFixedRange k range
+  | .Ctor _ rs => rs.allM (hasFixedRange k)
 
-  /-- `updateConstructorArg k ctorArg` uses the `UnknownMap` `k` to rewrite any unknowns that appear in the
-      `ConstructorExpr` `ctorArg`, substituting each `Unknown` with its canonical representation
-      (determined by calling `updateUnknown`)
-      - See `updateHypothesesWithUnificationResult` for an example of how this function is used.
-      - Note: this function corresponds to `correct_rocq_constr` in the QuickChick code. -/
-  partial def updateConstructorArg (k : UnknownMap) (ctorArg : ConstructorExpr) : UnifyM ConstructorExpr := do
-    match ctorArg with
-    | .Unknown arg =>
-      let canonicalUnknown ← findCanonicalUnknown k arg
-      if arg != canonicalUnknown then
-        return (.Unknown canonicalUnknown)
-      else
-        return (.Unknown arg)
-    | .Ctor ctorName args
-    | .FuncApp ctorName args =>
-      let updatedArgs ← args.mapM (updateConstructorArg k)
-      return (.Ctor ctorName updatedArgs)
+/-- `findUnknownsWithUndefRanges unknowns` returns all `u ∈ unknowns`
+    such that `u ↦ Undef τ` for some type `τ` in the `constraints` map stored within `UnifyState` -/
+def findUnknownsWithUndefRanges (unknowns : List Unknown) : UnifyM (List Unknown) := do
+  let state ← get
+  let k := state.constraints
+  List.foldlM (fun acc u => do
+    let r ← findCorrespondingRange k u
+    match r with
+    | .Undef _ => return (u :: acc)
+    | _ => return acc) [] unknowns
 
-  /-- `updatePattern k p` uses the `UnknownMap` `k` to rewrite any unknowns that appear in the
-      `Pattern` `p`, substituting each `Unknown` with its canonical representation
-      (determined by calling `updateUnknown`)
-    - Note: this function corresponds to `correct_pat` in the QuickChick code -/
-  partial def updatePattern (k : UnknownMap) (p : Pattern) : UnifyM Pattern := do
-    match p with
-    | .UnknownPattern u => return .UnknownPattern (← findCanonicalUnknown k u)
-    | .CtorPattern c args => do
-      let updatedArgs ← args.mapM (updatePattern k)
-      return .CtorPattern c updatedArgs
+/-- Updates the `constraint` map so that for each `u ∈ unknowns`,
+    we have the binding `u ↦ Fixed` in the `UnknownMap` `constraints`
+    - Note: this doesn't handle chains of `Unknown`s in `constraints` -/
+def fixRanges (unknowns : List Unknown) : UnifyM Unit := do
+  updateMany (unknowns.zip (List.replicate unknowns.length .Fixed))
 
-  /-- Extends the current state with the contents of the fields in `newState`
-      (Note that the `outputName` and `outputType` of `newStates` are used) -/
-  def extendState (newState : UnifyState) : UnifyM Unit := do
-    modify $ fun s => { s with
-      constraints := s.constraints.union newState.constraints
-      equalities := s.equalities.union newState.equalities
-      patterns := s.patterns ++ newState.patterns
-      unknowns := s.unknowns.union newState.unknowns
-      outputName := newState.outputName
-      outputType := newState.outputType
-      inputNames := s.inputNames ++ newState.inputNames
-      hypotheses := s.hypotheses ++ newState.hypotheses
-    }
+/-- `fixRangeHandleUnknownChains u` updates the `constraint` map
+    so that we have the binding `u ↦ Fixed` in the `UnknownMap` `constraints`
+    - This handles chains of `Unknown`s in the `UnknownMap`,
+      i.e. cases where `u ↦ Unknown u'` where `u'` is another key in
+      the `UnknownMap` (in this case, we recursively fix
+      the range corresponding to `u'`)
+
+    - This function corresponds to `fixVariable` / `fixRange` in the QuickChick codebase -/
+partial def fixRangeHandleUnknownChains (u : Unknown) : UnifyM Unit := do
+  let s ← get
+  let k := s.constraints
+  let r ← findCorrespondingRange k u
+  fixRange u r
+    where
+      /-- `fixRange u r` updates the binding for `u` `UnknownMap`
+            so that corresponding range is `Fixed` if `r`
+            is not already `Fixed` -/
+      fixRange (u : Unknown) (r : Range) : UnifyM Unit :=
+        match r with
+        | .Fixed => return ()
+        | .Undef _ => update u .Fixed
+        | .Unknown u' => do
+          let s ← get
+          let r' ← findCorrespondingRange s.constraints u'
+          fixRange u' r'
+        | .Ctor _ rs =>
+          for range in rs do
+            fixRange `unusedParameter range
+
+/--`findCanonicalUnknown k u` finds the *canonical* representation of the unknown `u` based on the `ConstraintMap` `k`.
+    Specifically:
+    - If `u ↦ Unknown u'` in `k`, then we recursively look up the canonical representation of `u'` by traversing
+      the unification graph formed by the `constraints` map in `UnifyState`
+    - If `u ↦ r` (where `r` is any `Range` that is not some `Unknown`), then `u` is its own canonical representation
+    - If `u ∉ k`, then we just return `u` as is.
+    - This function is used to handle cases in `constraints` where an unknown maps to another unknown.
+    - Note: this function corresponds to `correct_var` in the QuickChick code.  -/
+partial def findCanonicalUnknown (k : UnknownMap) (u : Unknown) : UnifyM Unknown :=
+  try (do
+    let r ← UnifyM.findCorrespondingRange k u
+    match r with
+    | .Unknown u' => findCanonicalUnknown k u'
+    | _ => return u)
+catch _ => return u
+
+/-- `updateConstructorArg k ctorArg` uses the `UnknownMap` `k` to rewrite any unknowns that appear in the
+    `ConstructorExpr` `ctorArg`, substituting each `Unknown` with its canonical representation
+    (determined by calling `updateUnknown`)
+    - See `updateHypothesesWithUnificationResult` for an example of how this function is used.
+    - Note: this function corresponds to `correct_rocq_constr` in the QuickChick code. -/
+partial def updateConstructorArg (k : UnknownMap) (ctorArg : ConstructorExpr) : UnifyM ConstructorExpr := do
+  match ctorArg with
+  | .Unknown arg =>
+    let canonicalUnknown ← findCanonicalUnknown k arg
+    if arg != canonicalUnknown then
+      return (.Unknown canonicalUnknown)
+    else
+      return (.Unknown arg)
+  | .Ctor ctorName args
+  | .FuncApp ctorName args =>
+    let updatedArgs ← args.mapM (updateConstructorArg k)
+    return (.Ctor ctorName updatedArgs)
+
+/-- `updatePattern k p` uses the `UnknownMap` `k` to rewrite any unknowns that appear in the
+    `Pattern` `p`, substituting each `Unknown` with its canonical representation
+    (determined by calling `updateUnknown`)
+  - Note: this function corresponds to `correct_pat` in the QuickChick code -/
+partial def updatePattern (k : UnknownMap) (p : Pattern) : UnifyM Pattern := do
+  match p with
+  | .UnknownPattern u => return .UnknownPattern (← findCanonicalUnknown k u)
+  | .CtorPattern c args => do
+    let updatedArgs ← args.mapM (updatePattern k)
+    return .CtorPattern c updatedArgs
+
+/-- Extends the current state with the contents of the fields in `newState`
+    (Note that the `outputName` and `outputType` of `newStates` are used) -/
+def extendState (newState : UnifyState) : UnifyM Unit := do
+  modify $ fun s => { s with
+    constraints := s.constraints.union newState.constraints
+    equalities := s.equalities.union newState.equalities
+    patterns := s.patterns ++ newState.patterns
+    unknowns := s.unknowns.union newState.unknowns
+    outputName := newState.outputName
+    outputType := newState.outputType
+    inputNames := s.inputNames ++ newState.inputNames
+    hypotheses := s.hypotheses ++ newState.hypotheses
+  }
 
 
-  /-- Converts an array of `ConstructorExpr`s to one single `TSyntaxArray term`-/
-  partial def convertConstructorExprsToTSyntaxTerms (ctorExprs : Array ConstructorExpr) : UnifyM (TSyntaxArray `term) :=
-    ctorExprs.mapM (fun ctorExpr => do
-      match ctorExpr with
-      | .Unknown u => `($(Lean.mkIdent u))
-      | .Ctor c args
-      | .FuncApp c args =>
-        let argTerms ← convertConstructorExprsToTSyntaxTerms args.toArray
-        `($(mkIdent c) $argTerms*))
-
-  /-- Accumulates all the `Unknown`s in a `ConstructorExpr` -/
-  def collectUnknownsInConstructorExpr (ctorExpr : ConstructorExpr) : List Unknown :=
+/-- Converts an array of `ConstructorExpr`s to one single `TSyntaxArray term`-/
+partial def convertConstructorExprsToTSyntaxTerms (ctorExprs : Array ConstructorExpr) : UnifyM (TSyntaxArray `term) :=
+  ctorExprs.mapM (fun ctorExpr => do
     match ctorExpr with
-    | .Unknown u => [u]
+    | .Unknown u => `($(Lean.mkIdent u))
     | .Ctor c args
     | .FuncApp c args =>
-      c :: List.flatMap collectUnknownsInConstructorExpr args
+      let argTerms ← convertConstructorExprsToTSyntaxTerms args.toArray
+      `($(mkIdent c) $argTerms*))
 
-  mutual
-    /-- Evaluates a `Range`, returning a `ConstructorExpr`. Note that if the
-        `Range` is `Fixed` or `Undef`, we return `none` (via `failure`). -/
-    partial def evaluateRange (r : Range) : UnifyM ConstructorExpr := do
-      match r with
-      | .Ctor c args => do
-        let args' ← List.mapM evaluateRange args
-        return (ConstructorExpr.Ctor c args')
-      | .Unknown u => evaluateUnknown u
-      | .Fixed | .Undef _ =>
-        throwError m!"unable to evaluate range {r}"
+/-- Accumulates all the `Unknown`s in a `ConstructorExpr` -/
+def collectUnknownsInConstructorExpr (ctorExpr : ConstructorExpr) : List Unknown :=
+  match ctorExpr with
+  | .Unknown u => [u]
+  | .Ctor c args
+  | .FuncApp c args =>
+    c :: List.flatMap collectUnknownsInConstructorExpr args
 
-    /-- Evaluates an `Unknown` based on the bindings in the `UnknownMap`,
-        returning a `ConstructorExpr`.
-
-        Precondition: there must not be any cycles of `Unknown`s in the `UnknownMap`. -/
-    partial def evaluateUnknown (v : Unknown) : UnifyM ConstructorExpr := do
-      withConstraints $ fun k => do
-        let r ← findCorrespondingRange k v
-        match r with
-        | .Undef _ | .Fixed => return ConstructorExpr.Unknown v
-        | .Unknown u =>
-          (evaluateUnknown u) <|> (return ConstructorExpr.Unknown v)
-        | .Ctor c args => do
-          let args' ← args.mapM evaluateRange
-          return (ConstructorExpr.Ctor c args')
-  end
-
-  /-- Determines whether a `Range` is `Fixed`. If the `Range` is in the form `Unknown u`,
-      we check if the range corresponding to `u` in the `UnknownMap` is `Fixed`
-      (this handles chains of `Unknowns` in the `UnknownMap`)  -/
-  partial def isRangeFixed (r : Range) : UnifyM Bool :=
+mutual
+  /-- Evaluates a `Range`, returning a `ConstructorExpr`. Note that if the
+      `Range` is `Fixed` or `Undef`, we return `none` (via `failure`). -/
+  partial def evaluateRange (r : Range) : UnifyM ConstructorExpr := do
     match r with
-    | .Fixed => return true
-    | .Undef _ => return false
-    | .Unknown u => do
-      withConstraints $ fun k => do
-        match k[u]? with
-        | none => return false
-        | some r' => isRangeFixed r'
-    | .Ctor _ args => List.allM isRangeFixed args
+    | .Ctor c args => do
+      let args' ← List.mapM evaluateRange args
+      return (ConstructorExpr.Ctor c args')
+    | .Unknown u => evaluateUnknown u
+    | .Fixed | .Undef _ =>
+      throwError m!"unable to evaluate range {r}"
 
-  /-- Determines if an `Unknown` has a `Fixed` `Range` in the `UnknownMap`
-      (this handles chains of `Unknowns` in the `UnknownMap`) -/
-  def isUnknownFixed (u : Unknown) : UnifyM Bool :=
-    isRangeFixed (.Unknown u)
+  /-- Evaluates an `Unknown` based on the bindings in the `UnknownMap`,
+      returning a `ConstructorExpr`.
+
+      Precondition: there must not be any cycles of `Unknown`s in the `UnknownMap`. -/
+  partial def evaluateUnknown (v : Unknown) : UnifyM ConstructorExpr := do
+    withConstraints $ fun k => do
+      let r ← findCorrespondingRange k v
+      match r with
+      | .Undef _ | .Fixed => return ConstructorExpr.Unknown v
+      | .Unknown u =>
+        (evaluateUnknown u) <|> (return ConstructorExpr.Unknown v)
+      | .Ctor c args => do
+        let args' ← args.mapM evaluateRange
+        return (ConstructorExpr.Ctor c args')
+end
+
+/-- Determines whether a `Range` is `Fixed`. If the `Range` is in the form `Unknown u`,
+    we check if the range corresponding to `u` in the `UnknownMap` is `Fixed`
+    (this handles chains of `Unknowns` in the `UnknownMap`)  -/
+partial def isRangeFixed (r : Range) : UnifyM Bool :=
+  match r with
+  | .Fixed => return true
+  | .Undef _ => return false
+  | .Unknown u => do
+    withConstraints $ fun k => do
+      match k[u]? with
+      | none => return false
+      | some r' => isRangeFixed r'
+  | .Ctor _ args => List.allM isRangeFixed args
+
+/-- Determines if an `Unknown` has a `Fixed` `Range` in the `UnknownMap`
+    (this handles chains of `Unknowns` in the `UnknownMap`) -/
+def isUnknownFixed (u : Unknown) : UnifyM Bool :=
+  isRangeFixed (.Unknown u)
 
 
 
