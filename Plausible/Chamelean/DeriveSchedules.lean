@@ -5,6 +5,7 @@ import Plausible.Chamelean.Schedules
 import Plausible.Chamelean.UnificationMonad
 import Plausible.Chamelean.MakeConstrainedProducerInstance
 import Plausible.Chamelean.LazyList
+import Lean.Util.SCC
 
 
 open Lean Meta
@@ -35,6 +36,7 @@ def variablesInConstructorExpr (ctorExpr : ConstructorExpr) : List Name :=
   match ctorExpr with
   | .Unknown u => [u]
   | .Ctor _ args | .FuncApp _ args => args.flatMap variablesInConstructorExpr
+  | .Lit _ => []
 
 /-- Given a hypothesis `hyp`, along with `binding` (a list of variables that we are binding with a call to a generator), plus `recCall` (a pair contianing the name of the inductive and a list of output argument indices),
     this function checks whether the generator we're using is recursive.
@@ -152,6 +154,7 @@ partial def outputsNotConstrainedByFunctionApplication (hyp : HypothesisExpr) (o
         | .Unknown u => return (b && u ∈ outputVars)
         | .Ctor _ args => args.anyM (check b)
         | .FuncApp _ args => args.anyM (check true)
+        | .Lit _ => return false
 
 private inductive OptionallyTypedVar where
 | TVar : TypedVar -> OptionallyTypedVar
@@ -215,7 +218,11 @@ def handleConstrainedOutputs (hyp : HypothesisExpr) (outputVars : List TypedVar)
       | none  =>
         pure (none, arg, none)
     | .FuncApp _ _ =>
-      pure (none, arg, none))
+      pure (none, arg, none)
+    | .Lit _ =>
+      pure (none, arg, none)
+
+      )
 
   return (patternMatches.filterMap id, (ctorName, args'), newOutputs.filterMap id)
 
@@ -251,7 +258,7 @@ private def subsetsAndComplements {α} (as : List α) : LazyList (List α × Lis
   | [] => pure ([],[])
   | a :: as' => do
     let (subset,comp) ← subsetsAndComplements as'
-    .lcons (subset,a :: comp) ⟨ fun _ => .lcons (a :: subset, comp) ⟨fun _ => .lnil⟩⟩
+    .lcons (a :: subset, comp) ⟨ fun _ => .lcons (subset, a :: comp) ⟨fun _ => .lnil⟩⟩
 
 /- Unused utility function for future if we wish to prune selections of hypotheses by some predicate -/
 private def subsetsAndComplementsSuchThat {α} (p : α -> Bool) (as : List α) : LazyList (List α × List α) :=
@@ -302,13 +309,16 @@ private partial def containsFunctionCall (ctrExpr : ConstructorExpr) : Bool :=
   | .Unknown _ => false
   | .Ctor _ args => List.any args (fun x => containsFunctionCall x)
   | .FuncApp _ _ => true
+  | .Lit _ => false
 
 private def constructHypothesis (hyp : HypothesisExpr × List (List Name)) : HypothesisExpr × List (List Name) × List Name :=
   let repeatedNames := collectRepeatedNames hyp.snd
   let hypIndices := List.zip hyp.fst.snd hyp.snd
   let (mustBind, allSafe) := hypIndices.partition (fun (ctrExpr, vars) =>
     containsFunctionCall ctrExpr || (vars.any (List.contains repeatedNames)))
-  (hyp.fst, allSafe.map (fun x => x.snd), mustBind.flatMap (fun x => x.snd))
+  -- Any variables that appear multiple times in a hypothesis will end up in mustBind the same number of times, so we must deduplicate
+  -- to avoid instantiating it multiple times.
+  (hyp.fst, allSafe.map (fun x => x.snd), (List.eraseDups mustBind).flatMap (fun x => x.snd))
 
 private def needs_checking {α v} [BEq v] (env : List v) (a_vars : α × List (List v) × List v) : Bool :=
   let (_, potentialIndices, alwaysBound) := a_vars
@@ -325,77 +335,111 @@ private def prune_empties {α v} (schd : List (PreScheduleStep α v)) : List (Pr
       | .Produce [] h => .Checks [h] :: l
       | _ => pss :: l
 
-  /- For each permutation, for each of its hypotheses, select which of its
-  unbound variables should be instantiated to satisfy it.
-  Not all unbound variables are able to be instantiated by a hypothesis,
-  so we must filter out those unbound mentioned in the hypothesis which
-  are arguments to a function (1) and those which are under a constructor
-  that contains a bound or invalid unbound variable (2) and those that
-  appear nonlinearly (as they would require an unlikely equality check)(3).
-  Here is an encompassing example:
-  `H (C a (f b)) c (C₃ c) d (C₃ (C₂ e) C₄)`
-  We can't instantiate `b` because it is under a function (1),
-   `a` because it is under a constructor with an invalid variable `b` (2),
-   `c` because it appears nonlinearly
-  We *can* instantiate `d` and `e` because they satisfy all three conditions
-  Note that despite e being stored under several constructors, there are no
-  bound or invalid variables mixed in, so we can generate H's 5th argument
-  and pattern match the result against `(C₃ (C₂ x) C₄)` and if it matches,
-  `e` to the value `x`.
+def computeSCC {v a} [DecidableEq v] (hypotheses : List (a × List v)) : List (List (a × List v)) :=
+  let indices := List.range hypotheses.length
+  let successors := fun i =>
+    indices.filter fun j =>
+      i ≠ j &&
+      match hypotheses[i]?, hypotheses[j]? with
+      | some (_, vars), some (_, vars') => vars.any (· ∈ vars')
+      | _, _ => false
+  let sccIndices := Lean.SCC.scc indices successors
+  sccIndices.map fun component =>
+    component.filterMap (fun i => hypotheses[i]?)
 
-  The remainder of its unbound variables should be instantiated according
-  to their type unconstrained by a hypothesis. These unconstrained instantiations
-  should happen before the constrained instantiation. For each `2^|unbound ∩ valid|`
-  choice, we prepend the unconstrained instantiations behind the constrained one
-  and lazily cons that version of the schedule to our list.
+-- Two connected components {H} and {I,J}, as the latter share the variable 5
+/--info: [[("H", [1, 2, 3]), ("J", [5, 1]), ("I", [4, 5])]]-/
+#guard_msgs(all) in
+#eval computeSCC [("H", [1,2,3]), ("I", [4,5]), ("J",[5,1])]
 
-  Finally, we fold through the list, tracking the set of variables bound, as soon
-  as a constraint has had all its variables bound, a check for it
-  should be inserted at that point in the schedule. Finally, return
-  the schedules. -/
+-- Example: Two connected components H1{a,b,c} & H2{a} vs H3{d} & H4{d,e}; the first two share a, the latter two share d
+/--info: [[("H1", ["a", "b", "c"]), ("H2", ["a"])], [("H3", ["d"]), ("H4", ["d", "e"])]]-/
+#guard_msgs(all) in
+#eval computeSCC [("H1", ["a", "b", "c"]), ("H2", ["a"]), ("H3", ["d"]), ("H4", ["d", "e"])]
 
-/- Depth-first enumeration of all possible schedules.
+-- Example: Transitive dependencies make one big connected component.
+/--info: [[("H1", ["a"]), ("H2", ["a", "b"]), ("H3", ["b", "c"]), ("H4", ["c"])]]-/
+#guard_msgs(all) in
+#eval computeSCC [("H1", ["a"]), ("H2", ["a", "b"]), ("H3", ["b", "c"]), ("H4", ["c"])]
 
-    The list of possible schedules boils down to taking a permutation of list of hypotheses -- what this function
-    does is it comes up with the list of possible permutations of hypotheses.
+-- Example: No overlap so all hypotheses are singleton components.
+/--info: [[("H1", ["a"])], [("H2", ["b"])], [("H3", ["c"])]]-/
+#guard_msgs(all) in
+#eval computeSCC [("H1", ["a"]), ("H2", ["b"]), ("H3", ["c"])]
 
-    For `TyApp` in the STLC example, here are the possible permutations (output is e, the unbound vars are {e1, e2, t1}):
 
-    (a.) `[typing Γ e1 (TFun 𝜏1 𝜏2), typing Γ e2 𝜏1]`
-    (b.) `[typing Γ e2 𝜏1, typing Γ e1 (TFun 𝜏1 𝜏2)]`
+/- For each permutation, for each of its hypotheses, select which of its
+unbound variables should be instantiated to satisfy it.
+Not all unbound variables are able to be instantiated by a hypothesis,
+so we must filter out those unbound mentioned in the hypothesis which
+are arguments to a function (1) and those which are under a constructor
+that contains a bound or invalid unbound variable (2) and those that
+appear nonlinearly (as they would require an unlikely equality check)(3).
+Here is an encompassing example:
+`H (C a (f b)) c (C₃ c) d (C₃ (C₂ e) C₄)`
+We can't instantiate `b` because it is under a function (1),
+  `a` because it is under a constructor with an invalid variable `b` (2),
+  `c` because it appears nonlinearly
+We *can* instantiate `d` and `e` because they satisfy all three conditions
+Note that despite e being stored under several constructors, there are no
+bound or invalid variables mixed in, so we can generate H's 5th argument
+and pattern match the result against `(C₃ (C₂ x) C₄)` and if it matches,
+`e` to the value `x`.
 
-    We first discuss permutation (a).
+The remainder of its unbound variables should be instantiated according
+to their type unconstrained by a hypothesis. These unconstrained instantiations
+should happen before the constrained instantiation. For each `2^|unbound ∩ valid|`
+choice, we prepend the unconstrained instantiations behind the constrained one
+and lazily cons that version of the schedule to our list.
 
-    For permutation (a), `t1` and `e1` are unbound, so we're generate the max no. of variables possible
-      * `e1` is in an outputtable position (since its not under a constructor)
-      * `t1` is *not* in an ouputtable position (since `t1` is under the `TFun` constructor, `type` is an input mode, and `t2` is also an input mode)
-      * This means `t1` has to be generated first arbitrarily
+Finally, we fold through the list, tracking the set of variables bound, as soon
+as a constraint has had all its variables bound, a check for it
+should be inserted at that point in the schedule. Finally, return
+the schedules. -/
 
-    We have elaborated this step to:
-    ```lean
-      t1 ← type                      -- (this uses the `Arbitrary` instance for [type])
-      e1 ← typing Γ ? (TFun t1 t2)    -- (this desugars to `arbitraryST (fun e1 => typing Γ e1 (TFun t1 t2))` )
-    ```
+/-
+  Depth-first enumeration of all possible schedules.
 
-    Now that we have generated `t1` and `e1`, the next hypothesis is `typing Γ e2 𝜏1`
-    * `e2` is the only variable that's unbound
-    * Thus, our only option is to do:
-    ```lean
-      e2 ← typing Γ ? t1
-    ```
+  The list of possible schedules boils down to taking a permutation of list of hypotheses -- what this function
+  does is it comes up with the list of possible permutations of hypotheses.
 
-    + For permutation (b), the first thing we do is check what are the unbound (not generated & not fixed by inputs)
-      variables that are constrained by the first hypothesis `typing Γ e2 𝜏1`
-      * `e2` is unbound & can be output (since its in the output mode & not generated yet)
-      * `t1` can also be output since its not been generated yet & not under a constructor
-        * `Γ` is fixed already (bound) b/c its a top-level argument (input) to `aux_arb`
-      * Here we have 3 possible choices:
-        1. Arbitrary [t1], ArbitrarySuchThat [e2]
-        2. Arbitrary [e2], ArbitrarySuchThat [t1]
-        3. ArbitrarySuchThat [e2, t1]
+  For `TyApp` in the STLC example, here are the possible permutations (output is e, the unbound vars are {e1, e2, t1}):
 
-      * For each choice, we can then elaborate the next `ScheduleStep` in our hypothesis permutation (i.e. `typing Γ e1 (TFun 𝜏1 𝜏2)`)
-      + Rest of the logic for dealing with permutation (b) is similar to as the 1st permutation
+  (a.) `[typing Γ e1 (TFun 𝜏1 𝜏2), typing Γ e2 𝜏1]`
+  (b.) `[typing Γ e2 𝜏1, typing Γ e1 (TFun 𝜏1 𝜏2)]`
+
+  We first discuss permutation (a).
+
+  For permutation (a), `t1` and `e1` are unbound, so we're generate the max no. of variables possible
+    * `e1` is in an outputtable position (since its not under a constructor)
+    * `t1` is *not* in an ouputtable position (since `t1` is under the `TFun` constructor, `type` is an input mode, and `t2` is also an input mode)
+    * This means `t1` has to be generated first arbitrarily
+
+  We have elaborated this step to:
+  ```lean
+    t1 ← type                      -- (this uses the `Arbitrary` instance for [type])
+    e1 ← typing Γ ? (TFun t1 t2)    -- (this desugars to `arbitraryST (fun e1 => typing Γ e1 (TFun t1 t2))` )
+  ```
+
+  Now that we have generated `t1` and `e1`, the next hypothesis is `typing Γ e2 𝜏1`
+  * `e2` is the only variable that's unbound
+  * Thus, our only option is to do:
+  ```lean
+    e2 ← typing Γ ? t1
+  ```
+
+  + For permutation (b), the first thing we do is check what are the unbound (not generated & not fixed by inputs)
+    variables that are constrained by the first hypothesis `typing Γ e2 𝜏1`
+    * `e2` is unbound & can be output (since its in the output mode & not generated yet)
+    * `t1` can also be output since its not been generated yet & not under a constructor
+      * `Γ` is fixed already (bound) b/c its a top-level argument (input) to `aux_arb`
+    * Here we have 3 possible choices:
+      1. Arbitrary [t1], ArbitrarySuchThat [e2]
+      2. Arbitrary [e2], ArbitrarySuchThat [t1]
+      3. ArbitrarySuchThat [e2, t1]
+
+    * For each choice, we can then elaborate the next `ScheduleStep` in our hypothesis permutation (i.e. `typing Γ e1 (TFun 𝜏1 𝜏2)`)
+    + Rest of the logic for dealing with permutation (b) is similar to as the 1st permutation
 -/
 
 /- Variables in third elt of hyp should be disjoint from flatten of snd elt
@@ -405,9 +449,9 @@ private def prune_empties {α v} (schd : List (PreScheduleStep α v)) : List (Pr
    variables.
 
    The snd and third elements combined should equal the set vars(hyp.fst)
- -/
+-/
 
-private partial def enum_schedules {α v} [BEq v] (vars : List v) (hyps : List (α × List (List v) × List v)) (env : List v)
+private partial def enumSchedules {α v} [BEq v] (vars : List v) (hyps : List (α × List (List v) × List v)) (env : List v)
   : LazyList (List (PreScheduleStep α v)) :=
   match hyps with
   | [] => pure (prune_empties [.InstVars $ vars.removeAll env])
@@ -427,43 +471,43 @@ private partial def enum_schedules {α v} [BEq v] (vars : List v) (hyps : List (
                               , .Produce out_vars hyp
                               , .Checks (Prod.fst <$> postchecks)
                               ]
-                              ++ l) (enum_schedules vars to_be_satisfied' env'')
+                              ++ l) (enumSchedules vars to_be_satisfied' env'')
 
 #guard_msgs(error, drop info) in
-#eval (enum_schedules [1,2,3,4] [("A",[[1,2,3],[4]],[]), ("B",[[4]],[])] []).take 15
+#eval (enumSchedules [1,2,3,4] [("A",[[1,2,3],[4]],[]), ("B",[[4]],[])] []).take 15
 
 -- Simple test with 2 hypotheses
 #guard_msgs(error, drop info) in
-#eval (enum_schedules [1,2,3] [("A",[[1],[2]],[]), ("B",[[2],[3]],[])] []).take 3
+#eval (enumSchedules [1,2,3] [("A",[[1],[2]],[]), ("B",[[2],[3]],[])] []).take 3
 
 -- Test with overlapping variables
 #guard_msgs(error, drop info) in
-#eval (enum_schedules [1,2,3,4,5] [("H1",[[1],[2],[3]],[]), ("H2",[[3],[4]],[]), ("H3",[[4],[5]],[])] []).take 5
+#eval (enumSchedules [1,2,3,4,5] [("H1",[[1],[2],[3]],[]), ("H2",[[3],[4]],[]), ("H3",[[4],[5]],[])] []).take 5
 
 -- Test with some variables already bound
 #guard_msgs(error, drop info) in
-#eval (enum_schedules [1,2,3] [("A",[[1],[2]],[]), ("B",[[2],[3]],[])] [1])
+#eval (enumSchedules [1,2,3] [("A",[[1],[2]],[]), ("B",[[2],[3]],[])] [1])
 
 -- Larger example to test scalability
 #guard_msgs(error, drop info) in
-#eval (enum_schedules [1,2,3,4] [("P",[[1],[2]],[]), ("Q",[[2],[3]],[]), ("R",[[3],[4]],[]), ("S",[[1],[4]],[])] []).take 10
+#eval (enumSchedules [1,2,3,4] [("P",[[1],[2]],[]), ("Q",[[2],[3]],[]), ("R",[[3],[4]],[]), ("S",[[1],[4]],[])] []).take 10
 
 -- Lots of variables (10 variables in one hypothesis)
 #guard_msgs(error, drop info) in
-#eval (enum_schedules [1,2,3,4,5,6,7,8,9,10] [("BigHyp",[[1],[2],[3],[4],[5],[6],[7],[8],[9],[10]],[])] []).take 5
+#eval (enumSchedules [1,2,3,4,5,6,7,8,9,10] [("BigHyp",[[1],[2],[3],[4],[5],[6],[7],[8],[9],[10]],[])] []).take 5
 
 -- Lots of hypotheses (10 hypotheses with few variables each)
 #guard_msgs(error, drop info) in
-#eval (enum_schedules [1,2,3,4,5,6,7,8,9,10] [("H1",[[1]],[]), ("H2",[[2]],[]), ("H3",[[3]],[]), ("H4",[[4]],[]), ("H5",[[5]],[]),
+#eval (enumSchedules [1,2,3,4,5,6,7,8,9,10] [("H1",[[1]],[]), ("H2",[[2]],[]), ("H3",[[3]],[]), ("H4",[[4]],[]), ("H5",[[5]],[]),
                        ("H6",[[6]],[]), ("H7",[[7]],[]), ("H8",[[8]],[]), ("H9",[[9]],[]), ("H10",[[10]],[])] []).take 3
 
 -- Both: many hypotheses with many variables each
 #guard_msgs(error, drop info) in
-#eval (enum_schedules (List.range 14) [("A",[[1],[2],[3],[4],[5]],[]), ("B",[[3],[4],[5],[6],[7]],[]), ("C",[[5],[6],[7],[8],[9]],[]),
+#eval (enumSchedules (List.range 14) [("A",[[1],[2],[3],[4],[5]],[]), ("B",[[3],[4],[5],[6],[7]],[]), ("C",[[5],[6],[7],[8],[9]],[]),
                        ("D",[[7],[8],[9],[10],[11],[3],[1],[2]],[]), ("E",[[9],[10],[11],[12],[13]],[])] []).take 100
 
 #guard_msgs(error, drop info) in
-#eval (@enum_schedules String Nat _ [] [] [])
+#eval (@enumSchedules String Nat _ [] [] [])
 
 -- Example for BetweenN constructor:
 -- BetweenN : ∀ n m, n <= m -> Between n (.succ n) (.succ (.succ m))
@@ -471,7 +515,69 @@ private partial def enum_schedules {α v} [BEq v] (vars : List v) (hyps : List (
 -- Hypothesis: n <= m
 -- The hypothesis "n <= m" has variables [n, m] which are both inputs (always bound)
 #guard_msgs(error, drop info) in
-#eval (enum_schedules [`n, `m] [(`n_le_m, [], [`n, `m])] [`n,`m]).take 5
+#eval (enumSchedules [`n, `m] [(`n_le_m, [], [`n, `m])] [`n,`m]).take 5
+
+/--
+`enumSchedules'` is a variant of `enumSchedules` where instead of taking a list of hypotheses to permute,
+it takes a list of simply connected components of hypotheses based on reachability in the graph
+where an edge between hypotheses exists iff their variable sets overlap. It then permutes
+only hypotheses within components but not between components. The different components are kept
+in a canonical order always, thus dramatically reducing the size of the enumeration. This is okay
+because hypotheses in different components cannot possibly depend on each other, so their ordering
+does not make a difference.
+-/
+private partial def enumSchedules' {α v} [BEq v] (vars : List v) (hypComps : List (List (α × List (List v) × List v))) (env : List v)
+  : LazyList (List (PreScheduleStep α v)) :=
+  match hypComps with
+  | [] => pure (prune_empties [.InstVars $ vars.removeAll env])
+  | [] :: hypComps' => enumSchedules' vars hypComps' env
+  | hyps :: hypComps' => do
+    let ⟨ (hyp, potential_output_indices, always_bound_variables),hyps' ⟩ ← select hyps
+    let (some_bound_output_indices, all_unbound_output_indices) := List.partition (fun l => List.any l (List.contains env) || l.isEmpty) potential_output_indices
+    let (out,bound) ← subsetsAndComplements all_unbound_output_indices
+    if out.length > 1 then .lnil else
+    let bound_vars := bound.flatten ++ (always_bound_variables ++ some_bound_output_indices.flatten).filter (not ∘ List.contains env)
+    let env' := bound_vars ++ env
+    let (prechecks,to_be_satisfied) := List.partition (needs_checking env') hyps'
+    let out_vars := out.flatten
+    let env'' := out_vars ++ env'
+    let (postchecks,to_be_satisfied') := List.partition (needs_checking env'') to_be_satisfied
+    LazyList.mapLazyList (fun l => prune_empties [.InstVars bound_vars
+                              , .Checks (Prod.fst <$> prechecks)
+                              , .Produce out_vars hyp
+                              , .Checks (Prod.fst <$> postchecks)
+                              ]
+                              ++ l) (enumSchedules' vars (to_be_satisfied' :: hypComps') env'')
+
+#guard_msgs(error, drop info) in
+#eval (enumSchedules' [1,2,3,4] [[("A",[[1,2,3],[4]],[])], [("B",[[4]],[])]] []).take 15
+
+-- Two separate SCCs: {H1,H2} share 'a', {H3,H4} share 'd'
+#guard_msgs(error, drop info) in
+#eval (enumSchedules' ["a","b","c","d","e"] [[("H1",[["a"],["b"],["c"]],[]), ("H2",[["a"]],[])], [("H3",[["d"]],[]), ("H4",[["d"],["e"]],[])]] []).take 100
+
+-- Three SCCs: connected chain, isolated, pair
+#guard_msgs(error, drop info) in
+#eval (enumSchedules' [1,2,3,4,5,6] [[("A",[[1],[2]],[]), ("B",[[2],[3]],[]), ("C",[[3]],[])], [("D",[[4]],[])], [("E",[[5]],[]), ("F",[[5],[6]],[])]] []).take 100
+
+-- Multiple single-node SCCs
+#guard_msgs(error, drop info) in
+#eval (enumSchedules' [1,2,3] [[("X",[[1]],[])], [("Y",[[2]],[])], [("Z",[[3]],[])]] []).take 2
+
+-- Comparison: enumSchedules vs enumSchedules' - total schedule counts
+-- Example 1: Two separate SCCs should reduce schedules significantly
+#guard_msgs(error, drop info) in
+#eval (enumSchedules ["a","b","c","d"] [("H1",[["a"],["b"]],[]), ("H2",[["a"]],[]), ("H3",[["c"],["d"]],[]), ("H4",[["c"]],[])] []).length
+
+#guard_msgs(error, drop info) in
+#eval (enumSchedules' ["a","b","c","d"] [[("H1",[["a"],["b"]],[]), ("H2",[["a"]],[])], [("H3",[["c"],["d"]],[]), ("H4",[["c"]],[])]] []).length
+
+-- Example 2: Single SCC should have same count
+#guard_msgs(error, drop info) in
+#eval (enumSchedules [1,2,3] [("A",[[1],[2]],[]), ("B",[[2],[3]],[])] []).length
+
+#guard_msgs(error, drop info) in
+#eval (enumSchedules' [1,2,3] [[("A",[[1],[2]],[]), ("B",[[2],[3]],[])]] []).length
 
 -- Determine the right name for the recursive function in the producer
 private def recursiveFunctionName (deriveSort : DeriveSort) : Name :=
@@ -530,7 +636,7 @@ def convertDeriveSortToProducerSort (deriveSort : DeriveSort) : ProducerSort :=
   | .Checker | .Enumerator => ProducerSort.Enumerator
   | .Generator | .Theorem => ProducerSort.Generator
 
-def typePreScheduleStep {α} (tyMap : NameMap Expr) (step : PreScheduleStep α Name) : (PreScheduleStep α TypedVar) :=
+private def typePreScheduleStep {α} (tyMap : NameMap Expr) (step : PreScheduleStep α Name) : (PreScheduleStep α TypedVar) :=
   match step with
   | .Checks hyps => .Checks hyps
   | .Produce out hyp =>
@@ -574,15 +680,16 @@ def possibleSchedules (vars : List TypedVar) (hypotheses : List HypothesisExpr) 
   let remainingVars := List.filter (fun v => not $ fixedVars.contains v) varNames
   let (newCheckedIdxs, newCheckedHyps) := List.unzip $ (collectCheckSteps scheduleEnv fixedVars [])
   let remainingSortedHypotheses := filterWithIndex (fun i _ => i ∉ newCheckedIdxs) sortedHypotheses
+  let connectedHypotheses := (computeSCC (remainingSortedHypotheses.map (fun (h,vars) => ((h,vars),vars.flatten)))).map (List.map fun ((h,vars),_) => constructHypothesis (h,vars))
   let firstChecks := List.reverse $ (ScheduleStep.Check . true) <$> newCheckedHyps
-  let lazyPreSchedules : LazyList (List (PreScheduleStep HypothesisExpr Name)) := enum_schedules remainingVars (remainingSortedHypotheses.map constructHypothesis) fixedVars
+  let lazyPreSchedules : LazyList (List (PreScheduleStep HypothesisExpr Name)) := enumSchedules' remainingVars connectedHypotheses fixedVars
   let nameTypeMap := List.foldl (fun m ⟨name,ty⟩ => NameMap.insert m name ty) ∅ vars
   let typedPreSchedules : LazyList (List (PreScheduleStep HypothesisExpr TypedVar)) := lazyPreSchedules.mapLazyList (List.map (typePreScheduleStep nameTypeMap))
   let lazySchedules := typedPreSchedules.mapLazyList ((ReaderT.run . scheduleEnv) ∘ ((firstChecks ++ .) <$> .) ∘ List.flatMapM preScheduleStepToScheduleStep)
   lazySchedules
 
 private def tryTypedSchedules (vars : List (Name × Expr)) hyps := do
-  let lazyPreSchedules : LazyList (List (PreScheduleStep Name Name)) := enum_schedules (List.map (fun ((name, _typ) : Name × Expr) => name) vars) hyps []
+  let lazyPreSchedules : LazyList (List (PreScheduleStep Name Name)) := enumSchedules (List.map (fun ((name, _typ) : Name × Expr) => name) vars) hyps []
   let nameTypeMap := List.foldl (fun m (name, (ty : Expr)) => NameMap.insert m name ty) ∅ vars
   let typedPreSchedules : LazyList (List (PreScheduleStep Name TypedVar)) := lazyPreSchedules.mapLazyList (List.map (typePreScheduleStep nameTypeMap))
   typedPreSchedules

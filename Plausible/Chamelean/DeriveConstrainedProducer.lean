@@ -156,13 +156,7 @@ partial def convertExprToRangeInCurrentContext (e : Expr) : UnifyM Range := do
     else
       match e with
       | .const u _ => return (.Unknown u)
-      | .lit literal =>
-        -- Nat / String literals correspond to a `Range` that is a nullary constructor
-        let name :=
-          match literal with
-          | .natVal n => Name.mkStr1 (toString n)
-          | .strVal s => Name.mkStr1 s
-        return .Ctor name []
+      | .lit literal => return .Lit literal
       | _ => throwError m!"Cannot convert expression {e} to Range"
 
 /-- Converts a hypothesis (reprented as a `TSyntax term`) to a `Range` -/
@@ -190,6 +184,7 @@ def convertPatternToTerm (pattern : Pattern) : MetaM (TSyntax `term) :=
     let ctorIdent := mkIdent ctorName
     let argSyntaxes ← args.mapM convertPatternToTerm
     argSyntaxes.foldlM (fun acc arg => `($acc $arg)) ctorIdent
+  | .LitPattern l => mkLiteral l
 
 
 /-- Converts a `Range` to a `ConstructorExpr`
@@ -200,6 +195,8 @@ partial def convertRangeToConstructorExpr (r : Range) : UnifyM ConstructorExpr :
   | .Ctor ctorName args => do
     let updatedArgs ← args.mapM convertRangeToConstructorExpr
     return (.Ctor ctorName updatedArgs)
+  | .Lit l =>
+    return .Lit l
   | _ => throwError m!"Unable to convert {r} to a constructor expression"
 
 /-- Converts a `Range` that is either an `Unknown` or `Ctor` to
@@ -255,7 +252,9 @@ def rewriteFunctionCallsInConclusion (hypotheses : Array Expr) (conclusion : Exp
   -- Find all sub-terms which are non-trivial function applications
   let funcAppExprs ← conclusion.foldlM (init := []) (fun acc subExpr => do
     if (← containsNonTrivialFuncApp subExpr inductiveRelationName)
-      then pure (subExpr :: acc)
+      then
+      trace[plausible.deriving.arbitrary]  m!"{repr subExpr} has a function call in it"
+      pure (subExpr :: acc)
     else
       pure acc)
 
@@ -323,7 +322,7 @@ def rewriteFunctionCallsInConclusion (hypotheses : Array Expr) (conclusion : Exp
 def getScheduleForInductiveRelationConstructor
   (inductiveName : Name) (ctorName : Name) (inputNames : List Name)
   (deriveSort : DeriveSort) (outputNameTypeOption : Option (Name × Expr)) (unknownsArray : Array Unknown) : UnifyM Schedule := do
-  logWarning m!"CALL MADE: {inductiveName} {ctorName} {inputNames} {unknownsArray}"
+  trace[plausible.deriving.arbitrary] "Schedule requested for inductive {inductiveName}'s constructor, {ctorName} with inputs: {inputNames} and outputs: {unknownsArray}"
 
   let ctorInfo ← getConstInfoCtor ctorName
   let ctorType := ctorInfo.type
@@ -478,28 +477,33 @@ def getScheduleForInductiveRelationConstructor
       let countChecks (schd : List ScheduleStep) : Nat :=
         schd.foldl (fun acc step => match step with | .Check _ _ => acc + 1 | _ => acc) 0
 
-      let smallestOfFirst100 ← List.foldlM (fun (shortest,minChecks,minLen) schdM => do
+      let mut minChecks := countChecks fstSchd
+      let mut countSeen  := 1
+      let mut minLen     := fstSchd.length
+      let mut bestSchedule   := fstSchd
+
+      let prefixSize := 100000
+
+      for schdM in LazyList.take prefixSize rest.get do
         let schd ← schdM
         let checkCount := countChecks schd
+        countSeen := countSeen + 1
         let len := schd.length
         if checkCount < minChecks || (checkCount == minChecks && len < minLen) then
-          pure (schd, checkCount, len)
-        else pure (shortest, minChecks, minLen)) (fstSchd, countChecks fstSchd, fstSchd.length)
-                    $ LazyList.take 100 rest.get
+          bestSchedule := schd
+          minChecks := checkCount
+          minLen := len
 
-      logInfo m!"Chosen Schedule: {scheduleStepsToString smallestOfFirst100.1} \n Checks: {smallestOfFirst100.2}"
+      trace[plausible.deriving.arbitrary] m!"Chosen Schedule: {scheduleStepsToString bestSchedule} \nChecks & Length: {(minChecks, minLen)} \nSchedules Considered: {repr countSeen}"
 
-      -- A *naive* schedule is the first schedule contained in `possibleSchedules`
-      let originalNaiveScheduleM := smallestOfFirst100.1
-      -- Update the naive schedule with the result of unification
-      let updatedNaiveScheduleUnify ← updateScheduleSteps originalNaiveScheduleM
-      let updatedNaiveSchedule := updatedNaiveScheduleUnify
+      -- Update the best schedule with the result of unification
+      let updatedBestSchedule ← updateScheduleSteps bestSchedule
       let finalState ← get
 
       -- Takes the `patterns` and `equalities` fields from `UnifyState` (created after
       -- the conclusion of a constructor has been unified with the top-level arguments to the inductive relation),
       -- convert them to the appropriate `ScheduleStep`s, and prepends them to the `naiveSchedule`
-      pure $ addConclusionPatternsAndEqualitiesToSchedule finalState.patterns finalState.equalities (updatedNaiveSchedule, scheduleSort))
+      pure $ addConclusionPatternsAndEqualitiesToSchedule finalState.patterns finalState.equalities (updatedBestSchedule, scheduleSort))
   )
 
 
@@ -634,7 +638,7 @@ def deriveConstrainedProducer (outputVar : Ident) (outputTypeSyntax : TSyntax `t
 
       if (not requiredInstances.isEmpty) then
         let deduplicatedInstances := List.eraseDups requiredInstances.toList
-        logWarning m!"Required typeclass instances (please derive these first if they aren't already defined):\n{deduplicatedInstances}"
+        trace[plausible.deriving.arbitrary]  m!"Required typeclass instances (please derive these first if they aren't already defined):\n{deduplicatedInstances}"
 
       -- Collect all the base / inductive producers into two Lean list terms
       -- Base producers are invoked when `size = 0`, inductive producers are invoked when `size > 0`

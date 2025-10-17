@@ -3,6 +3,7 @@ import Std.Data.HashMap
 import Lean.Expr
 import Lean.Exception
 import Plausible.Chamelean.Idents
+import Plausible.Chamelean.TSyntaxCombinators
 
 
 open Lean Idents Elab
@@ -38,13 +39,19 @@ inductive Range
 
   /-- A `Range` can be a constructor `C` fully applied to a list of `Range`s -/
   | Ctor (ctor : Name) (rs : List Range)
+  | Lit (l : Literal)
   deriving Repr, Inhabited, BEq
+
+deriving instance Ord for Literal
 
 /-- A `Pattern` is either an unknown or a fully-applied constructor -/
 inductive Pattern
   | UnknownPattern : Unknown -> Pattern
   | CtorPattern : Name -> List Pattern -> Pattern
+  | LitPattern : Literal → Pattern
   deriving Repr, Inhabited, BEq, Ord
+
+
 
 /-- A *constructor expression* (`ConstructorExpr`) is either a variable (represented by its `Name`),
     or a constructor (identified by its `Name`) applied to some list of arguments,
@@ -53,9 +60,10 @@ inductive Pattern
     - Note: this type is isomorphic to `Pattern`, but we define a separate type to avoid confusing
     `ConstructorExpr` with `Pattern` since they are used in different parts of the algorithm -/
 inductive ConstructorExpr
-  | Unknown : Name -> ConstructorExpr
-  | Ctor : Name -> List ConstructorExpr -> ConstructorExpr
-  | FuncApp : Name -> List ConstructorExpr -> ConstructorExpr
+  | Unknown : Name → ConstructorExpr
+  | Ctor : Name → List ConstructorExpr → ConstructorExpr
+  | FuncApp : Name → List ConstructorExpr → ConstructorExpr
+  | Lit : Literal → ConstructorExpr
   deriving Repr, BEq, Inhabited, Ord
 
 /-- Converts a `ConstructorExpr` to a Lean `Expr` -/
@@ -66,6 +74,7 @@ partial def constructorExprToExpr (ctorExpr : ConstructorExpr) : Expr :=
     mkAppN (mkConst ctorName) (constructorExprToExpr <$> ctorArgs.toArray)
   | .FuncApp funcName ctorArgs =>
     mkAppN (mkConst funcName) (constructorExprToExpr <$> ctorArgs.toArray)
+  | .Lit l => .lit l
 
 /-- `ToExpr` instance for `ConstructorExpr` -/
 instance : ToExpr ConstructorExpr where
@@ -80,6 +89,7 @@ partial def constructorExprToTSyntaxTerm (ctorExpr : ConstructorExpr) : MetaM (T
   | .FuncApp ctorName ctorArgs => do
     let argTerms ← ctorArgs.toArray.mapM constructorExprToTSyntaxTerm
     `($(mkIdent ctorName) $argTerms:term*)
+  | .Lit l => mkLiteral l
 
 
 /-- Converts a `Pattern` to an equivalent `ConstructorExpr` -/
@@ -87,6 +97,7 @@ partial def constructorExprOfPattern (pattern : Pattern) : ConstructorExpr :=
   match pattern with
   | .UnknownPattern u => .Unknown u
   | .CtorPattern ctorName args => .Ctor ctorName (constructorExprOfPattern <$> args)
+  | .LitPattern l => .Lit l
 
 /-- Converts a `ConstructorExpr` to an equivalent `Pattern` -/
 partial def patternOfConstructorExpr (ctorExpr : ConstructorExpr) : Option Pattern :=
@@ -94,6 +105,7 @@ partial def patternOfConstructorExpr (ctorExpr : ConstructorExpr) : Option Patte
   | .Unknown u => some $ .UnknownPattern u
   | .Ctor ctorName args => .CtorPattern ctorName <$> (List.mapM patternOfConstructorExpr args)
   | .FuncApp _ _ => none
+  | .Lit l => some $ .LitPattern l
 
 
 /-- An `UnknownMap` maps `Unknown`s to `Range`s -/
@@ -157,6 +169,7 @@ partial def toMessageDataRange (range : Range) : MessageData :=
     m!"Ctor ({c} {rendredCtorArgs})"
   | .Unknown u => m!"Unknown {u}"
   | .Fixed => m!"Fixed"
+  | .Lit l => m!"Lit {repr l}"
 
 instance : ToMessageData Range where
   toMessageData := toMessageDataRange
@@ -168,6 +181,8 @@ partial def toMessageDataPattern (p : Pattern) : MessageData :=
   | .CtorPattern c ps =>
     let renderedCtorArgs := toMessageDataPattern <$> ps
     m!"CtorPattern ({c} {renderedCtorArgs})"
+  | .LitPattern l =>
+    m!"LitPattern {repr l}"
 
 instance : ToMessageData Pattern where
   toMessageData pattern := toMessageDataPattern pattern
@@ -182,6 +197,7 @@ partial def toMessageDataConstructorExpr (ctorExpr : ConstructorExpr) : MessageD
   | .FuncApp f args =>
     let renderedArgs := toMessageDataConstructorExpr <$> args
     m!"FuncApp ({f} {renderedArgs})"
+  | .Lit l => m!"Lit {repr l}"
 
 instance : ToMessageData ConstructorExpr where
   toMessageData := toMessageDataConstructorExpr
@@ -319,6 +335,7 @@ partial def hasFixedRange (k : UnknownMap) (r : Range) : UnifyM Bool := do
     let range ← findCorrespondingRange k u
     hasFixedRange k range
   | .Ctor _ rs => rs.allM (hasFixedRange k)
+  | .Lit _ => return true
 
 /-- `findUnknownsWithUndefRanges unknowns` returns all `u ∈ unknowns`
     such that `u ↦ Undef τ` for some type `τ` in the `constraints` map stored within `UnifyState` -/
@@ -335,7 +352,7 @@ def findUnknownsWithUndefRanges (unknowns : List Unknown) : UnifyM (List Unknown
     we have the binding `u ↦ Fixed` in the `UnknownMap` `constraints`
     - Note: this doesn't handle chains of `Unknown`s in `constraints` -/
 def fixRanges (unknowns : List Unknown) : UnifyM Unit := do
-  updateMany (unknowns.zip (List.replicate unknowns.length .Fixed))
+  updateMany (unknowns.map (fun u => (u, .Fixed)))
 
 /-- `fixRangeHandleUnknownChains u` updates the `constraint` map
     so that we have the binding `u ↦ Fixed` in the `UnknownMap` `constraints`
@@ -365,6 +382,7 @@ partial def fixRangeHandleUnknownChains (u : Unknown) : UnifyM Unit := do
         | .Ctor _ rs =>
           for range in rs do
             fixRange `unusedParameter range
+        | .Lit _ => return ()
 
 /--`findCanonicalUnknown k u` finds the *canonical* representation of the unknown `u` based on the `ConstraintMap` `k`.
     Specifically:
@@ -399,6 +417,7 @@ partial def updateConstructorArg (k : UnknownMap) (ctorArg : ConstructorExpr) : 
   | .FuncApp ctorName args =>
     let updatedArgs ← args.mapM (updateConstructorArg k)
     return (.Ctor ctorName updatedArgs)
+  | .Lit l => return .Lit l
 
 /-- `updatePattern k p` uses the `UnknownMap` `k` to rewrite any unknowns that appear in the
     `Pattern` `p`, substituting each `Unknown` with its canonical representation
@@ -410,6 +429,7 @@ partial def updatePattern (k : UnknownMap) (p : Pattern) : UnifyM Pattern := do
   | .CtorPattern c args => do
     let updatedArgs ← args.mapM (updatePattern k)
     return .CtorPattern c updatedArgs
+  | .LitPattern l => return .LitPattern l
 
 /-- Extends the current state with the contents of the fields in `newState`
     (Note that the `outputName` and `outputType` of `newStates` are used) -/
@@ -425,17 +445,6 @@ def extendState (newState : UnifyState) : UnifyM Unit := do
     hypotheses := s.hypotheses ++ newState.hypotheses
   }
 
-
-/-- Converts an array of `ConstructorExpr`s to one single `TSyntaxArray term`-/
-partial def convertConstructorExprsToTSyntaxTerms (ctorExprs : Array ConstructorExpr) : UnifyM (TSyntaxArray `term) :=
-  ctorExprs.mapM (fun ctorExpr => do
-    match ctorExpr with
-    | .Unknown u => `($(Lean.mkIdent u))
-    | .Ctor c args
-    | .FuncApp c args =>
-      let argTerms ← convertConstructorExprsToTSyntaxTerms args.toArray
-      `($(mkIdent c) $argTerms*))
-
 /-- Accumulates all the `Unknown`s in a `ConstructorExpr` -/
 def collectUnknownsInConstructorExpr (ctorExpr : ConstructorExpr) : List Unknown :=
   match ctorExpr with
@@ -443,6 +452,7 @@ def collectUnknownsInConstructorExpr (ctorExpr : ConstructorExpr) : List Unknown
   | .Ctor c args
   | .FuncApp c args =>
     c :: List.flatMap collectUnknownsInConstructorExpr args
+  | .Lit _ => []
 
 mutual
   /-- Evaluates a `Range`, returning a `ConstructorExpr`. Note that if the
@@ -453,6 +463,7 @@ mutual
       let args' ← List.mapM evaluateRange args
       return (ConstructorExpr.Ctor c args')
     | .Unknown u => evaluateUnknown u
+    | .Lit l => return .Lit l
     | .Fixed | .Undef _ =>
       throwError m!"unable to evaluate range {r}"
 
@@ -470,6 +481,7 @@ mutual
       | .Ctor c args => do
         let args' ← args.mapM evaluateRange
         return (ConstructorExpr.Ctor c args')
+      | .Lit l => return .Lit l
 end
 
 /-- Determines whether a `Range` is `Fixed`. If the `Range` is in the form `Unknown u`,
@@ -485,6 +497,7 @@ partial def isRangeFixed (r : Range) : UnifyM Bool :=
       | none => return false
       | some r' => isRangeFixed r'
   | .Ctor _ args => List.allM isRangeFixed args
+  | .Lit _ => return true
 
 /-- Determines if an `Unknown` has a `Fixed` `Range` in the `UnknownMap`
     (this handles chains of `Unknowns` in the `UnknownMap`) -/
@@ -521,6 +534,15 @@ mutual
       UnifyM.withConstraints $ fun k => do
         let r2 ← UnifyM.findCorrespondingRange k u2
         unifyRC (u2, r2) c1
+    | .Lit l, .Lit l' => unifyL l l'
+    | .Unknown u1, .Lit l =>
+      UnifyM.withConstraints $ fun k => do
+        let r1 ← UnifyM.findCorrespondingRange k u1
+        unifyRC (u1, r1) (.Lit l)
+    | .Lit l, .Unknown u2 =>
+      UnifyM.withConstraints $ fun k => do
+        let r2 ← UnifyM.findCorrespondingRange k u2
+        unifyRC (u2, r2) (.Lit l)
     | r1, r2 => throwError "Unable to unify {r1} with {r2}"
 
   /-- Takes two `(Unknown, Range)` pairs & unifies them based on their `Range`s -/
@@ -539,6 +561,21 @@ mutual
       UnifyM.update u1 (.Unknown u2)
     | (u1, .Fixed), (_, c2@(.Ctor _ _)) => handleMatch u1 c2
     | (_, c1@(.Ctor _ _)), (u2, .Fixed) => handleMatch u2 c1
+    | (_u1, .Lit l), (_u2, .Lit l') => unifyL l l'
+    | (u, .Fixed), (_u', .Lit l) =>
+      handleMatch u (.Lit l)
+    | (_, .Lit l), (u, .Fixed) =>
+      handleMatch u (.Lit l)
+    | (_u1, .Lit l), (_u2, c@(.Ctor _ _)) => throwError m!"unifyC: unable to unify literal {repr l} with constructor {c}"
+    | (_u1, c@(.Ctor _ _)), (_u2, .Lit l) => throwError m!"unifyC: unable to unify constructor {c} with literal {repr l}"
+
+  partial def unifyL (l l' : Literal) : UnifyM Unit :=
+    if l == l' then
+      return ()
+    else do
+      let st ← get
+      let constraints := st.constraints
+      throwError m!"unifyC: unable to unify {repr $ Range.Lit l} with {repr $ Range.Lit l'}, constraints = {constraints.toList}, literals not equal."
 
   /-- Unifies two `Range`s that are both constructors -/
   partial def unifyC (r1 : Range) (r2 : Range) : UnifyM Unit :=
@@ -557,13 +594,17 @@ mutual
 
   /-- Unifies an `(Unknown, Range)` pair with a `Range` -/
   partial def unifyRC : Unknown × Range → Range → UnifyM Unit
-    | (u1, .Undef _), c2@(.Ctor _ _) => UnifyM.update u1 c2
-    | (_, .Unknown u'), c2@(.Ctor _ _) =>
+    | (u1, .Undef _), c2@(.Ctor _ _)
+    | (u1, .Undef _), c2@(.Lit _) => UnifyM.update u1 c2
+    | (_, .Unknown u'), c2@(.Ctor _ _)
+    |  (_, .Unknown u'), c2@(.Lit _) =>
       UnifyM.withConstraints $ fun k => do
         let r ← UnifyM.findCorrespondingRange k u'
         unifyRC (u', r) c2
-    | (u, .Fixed), c2@(.Ctor _ _) => handleMatch u c2
+    | (u, .Fixed), c2@(.Ctor _ _)
+    | (u, .Fixed), c2@(.Lit _) => handleMatch u c2
     | (_, c1@(.Ctor _ _)), c2@(.Ctor _ _) => unifyC c1 c2
+    | (_, .Lit l), .Lit l' => unifyL l l'
     | (u, r), r' => throwError m!"unifyRC called, unable to unify (unknown {u}, range {r}) with range {r'}"
 
   /-- Corresponds to `match` in the pseudocode
@@ -573,6 +614,8 @@ mutual
     | u, .Ctor c rs => do
       let ps ← rs.mapM matchAux
       UnifyM.addPattern u (Pattern.CtorPattern c ps)
+    | u, .Lit l =>
+      UnifyM.addPattern u (Pattern.LitPattern l)
     | u, r => throwError m!"handleMatch called, unable to match unknown {u} with range {r} which is not in constructor form"
 
   /-- `matchAux` traverses a `Range` and converts it into a
@@ -582,7 +625,7 @@ mutual
     | .Ctor c rs => do
       -- Recursively handle ranges
       let ps ← rs.mapM matchAux
-      return (.CtorPattern c ps)
+      return .CtorPattern c ps
     | .Unknown u => UnifyM.withConstraints $ fun k => do
       let r ← UnifyM.findCorrespondingRange k u
       match r with
@@ -592,7 +635,7 @@ mutual
         -- We update `u`'s range to be `fixed`
         -- (since we're extracting information out of the scrutinee)
         UnifyM.update u .Fixed
-        return (.UnknownPattern u)
+        return .UnknownPattern u
       | .Fixed => do
         -- Handles non-linear patterns:
         -- produce a fresh unknown `u'`, use `u'` as the pattern variable
@@ -600,11 +643,14 @@ mutual
         let u' ← UnifyM.registerFreshUnknown
         UnifyM.registerEquality u' u
         UnifyM.update u' r
-        return (.UnknownPattern u')
+        return .UnknownPattern u'
       | u'@(.Unknown _) => matchAux u'
       | .Ctor c rs => do
         let ps ← rs.mapM matchAux
-        return (.CtorPattern c ps)
+        return .CtorPattern c ps
+      | .Lit l =>
+        return .LitPattern l
+    | .Lit l => return .LitPattern l
     | _ => throwError m!"matchAux called with unexpected range {range}"
 
 end

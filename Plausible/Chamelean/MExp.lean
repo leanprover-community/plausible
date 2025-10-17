@@ -74,6 +74,9 @@ inductive MExp : Type where
       and `body` is an `MExp` representing the function body -/
   | MFun (args : List (Name × Option Expr)) (body : MExp)
 
+  /-- A natural number or string literal. -/
+  | MLit (l : Literal)
+
   /-- Signifies failure (corresponds to the term `OptionT.fail`) -/
   | MFail
 
@@ -148,6 +151,8 @@ partial def compilePattern (p : Pattern) : MetaM (TSyntax `term) :=
   | .CtorPattern ctorName args => do
     let compiledArgs ← args.toArray.mapM compilePattern
     `($(mkIdent ctorName):ident $compiledArgs*)
+  | .LitPattern l => mkLiteral l
+
 
 /-- `MExp` representation of a `DecOpt` instance (a checker).
     Specifically, `decOptChecker prop fuel` represents the term
@@ -161,6 +166,7 @@ partial def constructorExprToMExp (expr : ConstructorExpr) : MExp :=
   | .Unknown u => .MId u
   | .Ctor c args => .MCtr c (constructorExprToMExp <$> args)
   | .FuncApp f args => .MApp (.MId f) (constructorExprToMExp <$> args)
+  | .Lit l => .MLit l
 
 
 /-- `MExp` representation of a recursive function call,
@@ -236,8 +242,6 @@ mutual
       `($(mkIdent ctorName) $compiledArgs*)
     | .MFun vars body => do
       let compiledBody ← mexpToTSyntax body deriveSort
-
-
       match vars with
       | [] => throwError "empty list of function arguments supplied to MFun"
         -- When we have multiple args, create a tuple containing all of them
@@ -259,7 +263,6 @@ mutual
       -- Compile the monadic expression `m` and the continuation `k` to `TSyntax term`s
       let m1 ← mexpToTSyntax m deriveSort
       let k1 ← mexpToTSyntax k deriveSort
-
       match deriveSort, monadSort with
       | .Generator, .Gen
       | .Enumerator, .Enumerator
@@ -321,6 +324,7 @@ mutual
         let compiledRHS ← mexpToTSyntax rhs deriveSort
         `(Term.matchAltExpr| | $lhs:term => $compiledRHS))
       `(match $compiledScrutinee:term with $compiledCases:matchAlt*)
+    | .MLit l => mkLiteral l
 
   /-- `MExp` representation of a constrained producer,
       parameterized by a `producerSort`, a list of variable names & their types `varsTys`,

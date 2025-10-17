@@ -104,6 +104,9 @@ deriving instance DecidableEq for PathSet
 #derive_checker (WfRecordType n r)
 
 #guard_msgs(drop info, drop warning) in
+#derive_checker (BindAttrType ns TE t)
+
+#guard_msgs(drop info, drop warning) in
 #derive_generator (fun (ns : _) => BindAttrType ns TE t_1)
 
 #guard_msgs(drop info, drop warning) in
@@ -298,16 +301,12 @@ set_option maxHeartbeats 2000000
 #guard_msgs(drop info, drop warning) in
 #derive_generator (fun (tef : (CedarType × String × Bool)) => BindAttrType ns tef t)
 
+#guard_msgs(drop info) in
+#derive_generator (fun (T : _) => BindAttrType ns (TE, F, true) T)
 
 ------------------------------------------------------------
 -- Generator for well-typed Cedar expressions
 ------------------------------------------------------------
 
 #guard_msgs(drop info, drop warning) in
-#derive_checker (HasTypePrim a b t)
-
--- #guard_msgs(drop info, drop warning) in
--- #derive_generator (fun (t : _) => HasType a v ex t)
-
--- #guard_msgs(drop info, drop warning) in
--- #derive_generator (fun (ex : (CedarExpr × PathSet)) => HasType a v ex t)
+#derive_generator (fun (ex : (CedarExpr × PathSet)) => HasType a v ex t)

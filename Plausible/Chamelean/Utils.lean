@@ -35,6 +35,7 @@ def containsNonTrivialFuncApp (e : Expr) (inductiveRelationName : Name) : MetaM 
       return false
 
   match e with
+  | (.app (.app (.app (.const ``OfNat.ofNat _) _) (.lit _)) _) => return false
   | .app f arg =>
     if (← checkSubTerm f)
       then return true
@@ -49,6 +50,7 @@ def containsNonTrivialFuncApp (e : Expr) (inductiveRelationName : Name) : MetaM 
       checkSubTerm body
   | .mdata _ expr => checkSubTerm expr
   | .proj _ _ struct => checkSubTerm struct
+  | .lit _ => return false
   | _ => return false
 
 

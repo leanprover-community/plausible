@@ -206,7 +206,7 @@ def Gen.printSamples {t : Type} [Repr t] (g : Gen t) : IO PUnit := do
   let xs : List t ← (List.range 10).mapM (Gen.run g)
   let xs := xs.map repr
   for x in xs do
-    IO.println s!"{x}"
+    IO.println s!"{x}\n"
 
 /-- Execute a `Gen` until it actually produces an output. May diverge for bad generators! -/
 partial def Gen.runUntil {α : Type} (attempts : Option Nat := .none) (x : Gen α) (size : Nat) : IO α :=

@@ -152,6 +152,9 @@ partial def exprToConstructorExpr (e : Expr) : MetaM ConstructorExpr := do
       return ConstructorExpr.FuncApp name (args ++ [argExpr])
     | ConstructorExpr.Unknown name =>
       throwError m!"exprToConstructorExpr: We do not support higher order application of {name} in Expr {e}"
+    | ConstructorExpr.Lit _ =>
+      throwError m!"exprToConstructorExpr: String and Nat Literals cannot be applied as functions, see: {f} in {e}"
+  | .lit l => return ConstructorExpr.Lit l
   | _ =>
     -- For other expression types (literals, lambdas, etc.), generate a placeholder name
     throwError m!"exprToConstructorExpr can only handle free variables, constants, and applications. Attempted to convert: {e}"
