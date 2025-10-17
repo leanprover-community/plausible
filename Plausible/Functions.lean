@@ -8,7 +8,7 @@ module
 public meta import Plausible.Sampleable
 public meta import Plausible.Testable
 
-public meta section
+@[expose] public meta section
 
 /-!
 ## `plausible`: generators for functions
