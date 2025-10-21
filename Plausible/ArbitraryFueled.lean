@@ -3,8 +3,12 @@ Copyright (c) 2025 AWS. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
 Authors: AWS
 -/
-import Plausible.Arbitrary
-import Plausible.Gen
+module
+
+public import Plausible.Arbitrary
+public import Plausible.Gen
+
+public section
 
 namespace Plausible
 
@@ -22,11 +26,11 @@ class ArbitraryFueled (α : Type) where
   arbitraryFueled : Nat → Gen α
 
 /-- Every `ArbitraryFueled` instance gives rise to an `Arbitrary` instance -/
-instance [ArbitraryFueled α] : Arbitrary α where
+meta instance [ArbitraryFueled α] : Arbitrary α where
   arbitrary := Gen.sized ArbitraryFueled.arbitraryFueled
 
 /-- Raised when a fueled generator fails due to insufficient fuel. -/
-def Gen.outOfFuel : GenError :=
+meta def Gen.outOfFuel : GenError :=
   .genError "out of fuel"
 
 end Plausible

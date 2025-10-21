@@ -3,10 +3,14 @@ Copyright (c) 2022 Henrik Böving. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Henrik Böving, Simon Hudon
 -/
-import Lean.Elab.Command
-import Lean.Meta.Eval
-import Plausible.Gen
-import Plausible.Arbitrary
+module
+
+public meta import Lean.Elab.Command
+public meta import Lean.Meta.Eval
+public meta import Plausible.Gen
+public meta import Plausible.Arbitrary
+
+public meta section
 
 /-!
 # `SampleableExt` Class
@@ -155,7 +159,7 @@ instance Unit.shrinkable : Shrinkable Unit where
 /-- `Nat.shrink' n` creates a list of smaller natural numbers by
 successively dividing `n` by 2 . For example, `Nat.shrink 5 = [2, 1, 0]`. -/
 def Nat.shrink (n : Nat) : List Nat :=
-  if h : 0 < n then
+  if 0 < n then
     let m := n/2
     m :: shrink m
   else
@@ -304,7 +308,7 @@ instance Array.sampleableExt [SampleableExt α] : SampleableExt (Array α) where
 end Samplers
 
 /-- An annotation for values that should never get shrunk. -/
-def NoShrink (α : Type u) := α
+@[expose] def NoShrink (α : Type u) := α
 
 namespace NoShrink
 
