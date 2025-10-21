@@ -159,7 +159,7 @@ instance Unit.shrinkable : Shrinkable Unit where
 /-- `Nat.shrink' n` creates a list of smaller natural numbers by
 successively dividing `n` by 2 . For example, `Nat.shrink 5 = [2, 1, 0]`. -/
 def Nat.shrink (n : Nat) : List Nat :=
-  if h : 0 < n then
+  if 0 < n then
     let m := n/2
     m :: shrink m
   else
