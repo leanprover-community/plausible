@@ -6,6 +6,7 @@ Authors: Henrik Böving, Simon Hudon
 import Lean.Elab.Command
 import Lean.Meta.Eval
 import Plausible.Gen
+import Plausible.Arbitrary
 
 /-!
 # `SampleableExt` Class
@@ -38,8 +39,8 @@ the test passes and `Plausible` moves on to trying more examples.
 
 `SampleableExt` can be used in two ways. The first (and most common)
 is to simply generate values of a type directly using the `Gen` monad,
-if this is what you want to do then `SampleableExt.mkSelfContained` is
-the way to go.
+if this is what you want to do then the way to go is to declare an `Arbitrary`
+instance, and rely on the default `selfContained` instance.
 
 Furthermore it makes it possible to express generators for types that
 do not lend themselves to introspection, such as `Nat → Nat`.
@@ -96,8 +97,8 @@ class Shrinkable (α : Type u) where
 
 /-- `SampleableExt` can be used in two ways. The first (and most common)
 is to simply generate values of a type directly using the `Gen` monad,
-if this is what you want to do then `SampleableExt.mkSelfContained` is
-the way to go.
+if this is what you want to do then declaring an `Arbitrary` instance is the
+way to go.
 
 Furthermore it makes it possible to express generators for types that
 do not lend themselves to introspection, such as `Nat → Nat`.
@@ -110,7 +111,7 @@ class SampleableExt (α : Sort u) where
   proxy : Type v
   [proxyRepr : Repr proxy]
   [shrink : Shrinkable proxy]
-  sample : Gen proxy
+  [sample : Arbitrary proxy]
   interp : proxy → α
 
 attribute [instance] SampleableExt.proxyRepr
@@ -118,19 +119,25 @@ attribute [instance] SampleableExt.shrink
 
 namespace SampleableExt
 
-/-- Use to generate instance whose purpose is to simply generate values
-of a type directly using the `Gen` monad -/
-def mkSelfContained [Repr α] [Shrinkable α] (sample : Gen α) : SampleableExt α where
+/-- Default instance whose purpose is to simply generate values
+of a type directly using the `Arbitrary` instance -/
+@[default_instance]
+instance selfContained [Repr α] [Shrinkable α] [Arbitrary α] : SampleableExt α where
   proxy := α
   proxyRepr := inferInstance
   shrink := inferInstance
-  sample := sample
+  sample := inferInstance
   interp := id
+
+/-- This is kept for backwards compatibility -/
+def mkSelfContained [Repr α] [Shrinkable α] (g : Gen α) : SampleableExt α :=
+  let : Arbitrary α := ⟨g⟩
+  inferInstance
 
 /-- First samples a proxy value and interprets it. Especially useful if
 the proxy and target type are the same. -/
 def interpSample (α : Type u) [SampleableExt α] : Gen α :=
-  SampleableExt.interp <$> SampleableExt.sample
+  SampleableExt.interp <$> SampleableExt.sample.arbitrary
 
 end SampleableExt
 
@@ -242,95 +249,26 @@ end Shrinkers
 section Samplers
 
 open SampleableExt
+open Arbitrary
+
+instance arbitraryProxy [SampleableExt α] : Arbitrary (proxy α) := sample
 
 instance Sum.SampleableExt [SampleableExt α] [SampleableExt β] : SampleableExt (Sum α β) where
   proxy := Sum (proxy α) (proxy β)
-  sample := do
-    match ← chooseAny Bool with
-    | true => return .inl (← sample)
-    | false => return .inr (← sample)
+  sample := inferInstance
   interp s :=
     match s with
     | .inl l => .inl (interp l)
     | .inr r => .inr (interp r)
 
-instance Unit.sampleableExt : SampleableExt Unit :=
-  mkSelfContained (return ())
-
 instance [SampleableExt α] [SampleableExt β] : SampleableExt ((_ : α) × β) where
   proxy := (_ : proxy α) × proxy β
-  sample := do
-    let p ← prodOf sample sample
-    return ⟨p.fst, p.snd⟩
+  sample := inferInstance
   interp s := ⟨interp s.fst, interp s.snd⟩
-
-instance Nat.sampleableExt : SampleableExt Nat :=
-  mkSelfContained (do choose Nat 0 (← getSize) (Nat.zero_le _))
-
-instance Fin.sampleableExt {n : Nat} : SampleableExt (Fin (n.succ)) :=
-  mkSelfContained do
-    let m ← choose Nat 0 (min (← getSize) n) (Nat.zero_le _)
-    return (Fin.ofNat _ m)
-
-instance BitVec.sampleableExt {n : Nat} : SampleableExt (BitVec n) :=
-  mkSelfContained do
-    let m ← choose Nat 0 (min (← getSize) (2^n)) (Nat.zero_le _)
-    return BitVec.ofNat _ m
-
-instance UInt8.SampleableExt : SampleableExt UInt8 :=
-  mkSelfContained do
-    let n ← choose Nat 0 (min (← getSize) UInt8.size) (Nat.zero_le _)
-    return UInt8.ofNat n
-
-instance UInt16.SampleableExt : SampleableExt UInt16 :=
-  mkSelfContained do
-    let n ← choose Nat 0 (min (← getSize) UInt16.size) (Nat.zero_le _)
-    return UInt16.ofNat n
-
-instance UInt32.SampleableExt : SampleableExt UInt32 :=
-  mkSelfContained do
-    let n ← choose Nat 0 (min (← getSize) UInt32.size) (Nat.zero_le _)
-    return UInt32.ofNat n
-
-instance UInt64.SampleableExt : SampleableExt UInt64 :=
-  mkSelfContained do
-    let n ← choose Nat 0 (min (← getSize) UInt64.size) (Nat.zero_le _)
-    return UInt64.ofNat n
-
-instance USize.SampleableExt : SampleableExt USize :=
-  mkSelfContained do
-    let n ← choose Nat 0 (min (← getSize) USize.size) (Nat.zero_le _)
-    return USize.ofNat n
-
-instance Int.sampleableExt : SampleableExt Int :=
-  mkSelfContained do
-    choose Int (-(← getSize)) (← getSize) (by omega)
-
-instance Bool.sampleableExt : SampleableExt Bool :=
-  mkSelfContained <| chooseAny Bool
-
-/-- This can be specialized into customized `SampleableExt Char` instances.
-The resulting instance has `1 / length` chances of making an unrestricted choice of characters
-and it otherwise chooses a character from `chars` with uniform probabilities. -/
-def Char.sampleable (length : Nat) (chars : List Char) (pos : 0 < chars.length) :
-    SampleableExt Char :=
-  mkSelfContained do
-    let x ← choose Nat 0 length (Nat.zero_le _)
-    if x.val == 0 then
-      let n ← interpSample Nat
-      pure <| Char.ofNat n
-    else
-      elements chars pos
-
-instance Char.sampleableDefault : SampleableExt Char :=
-  Char.sampleable 3 " 0123abcABC:,;`\\/".toList (by decide)
 
 instance Option.sampleableExt [SampleableExt α] : SampleableExt (Option α) where
   proxy := Option (proxy α)
-  sample := do
-    match ← chooseAny Bool with
-    | true => return none
-    | false => return some (← sample)
+  sample := inferInstance
   interp o := o.map interp
 
 instance Prod.sampleableExt {α : Type u} {β : Type v} [SampleableExt α] [SampleableExt β] :
@@ -338,19 +276,19 @@ instance Prod.sampleableExt {α : Type u} {β : Type v} [SampleableExt α] [Samp
   proxy := Prod (proxy α) (proxy β)
   proxyRepr := inferInstance
   shrink := inferInstance
-  sample := prodOf sample sample
+  sample := inferInstance
   interp := Prod.map interp interp
 
 instance Prop.sampleableExt : SampleableExt Prop where
   proxy := Bool
   proxyRepr := inferInstance
-  sample := interpSample Bool
+  sample := inferInstance
   shrink := inferInstance
   interp := Coe.coe
 
 instance List.sampleableExt [SampleableExt α] : SampleableExt (List α) where
   proxy := List (proxy α)
-  sample := Gen.listOf sample
+  sample := inferInstance
   interp := List.map interp
 
 instance ULift.sampleableExt [SampleableExt α] : SampleableExt (ULift α) where
@@ -358,12 +296,9 @@ instance ULift.sampleableExt [SampleableExt α] : SampleableExt (ULift α) where
   sample := sample
   interp a := ⟨interp a⟩
 
-instance String.sampleableExt : SampleableExt String :=
-  mkSelfContained do return String.mk (← Gen.listOf (Char.sampleableDefault.sample))
-
 instance Array.sampleableExt [SampleableExt α] : SampleableExt (Array α) where
   proxy := Array (proxy α)
-  sample := Gen.arrayOf sample
+  sample := inferInstance
   interp := Array.map interp
 
 end Samplers
@@ -372,6 +307,8 @@ end Samplers
 def NoShrink (α : Type u) := α
 
 namespace NoShrink
+
+open SampleableExt
 
 def mk (x : α) : NoShrink α := x
 def get (x : NoShrink α) : α := x
@@ -382,26 +319,13 @@ instance repr [inst : Repr α] : Repr (NoShrink α) := inst
 instance shrinkable : Shrinkable (NoShrink α) where
   shrink := fun _ => []
 
-instance sampleableExt [SampleableExt α] [Repr α] : SampleableExt (NoShrink α) :=
-  SampleableExt.mkSelfContained <| (NoShrink.mk ∘ SampleableExt.interp) <$> SampleableExt.sample
+instance arbitrary [arb : Arbitrary α] : Arbitrary (NoShrink α) := arb
+
+instance sampleableExt [SampleableExt α] [Repr α] : SampleableExt (NoShrink α) where
+  proxy := NoShrink (proxy α)
+  interp := interp
 
 end NoShrink
-
-/--
-Print (at most) 10 samples of a given type to stdout for debugging.
--/
-def printSamples {t : Type u} [Repr t] (g : Gen t) : IO PUnit := do
--- TODO: this should be a global instance
-  letI : MonadLift Id IO := ⟨fun f => pure <| Id.run f⟩
-  do
-    -- we can't convert directly from `Rand (List t)` to `RandT IO (List Std.Format)`
-    -- (and `RandT IO (List t)` isn't type-correct without
-    -- https://github.com/leanprover/lean4/issues/3011), so go via an intermediate
-    let xs : List Std.Format ← Plausible.runRand <| Rand.down <| do
-      let xs : List t ← (List.range 10).mapM (ReaderT.run g ∘ ULift.up)
-      pure <| ULift.up (xs.map repr)
-    for x in xs do
-      IO.println s!"{x}"
 
 open Lean Meta Elab
 
@@ -426,7 +350,8 @@ private def mkGenerator (e : Expr) : MetaM (Level × Expr × Expr × Expr) := do
     let sampleableExtInst ← synthInstance (mkApp (mkConst ``SampleableExt [u, v]) e)
     let v ← instantiateLevelMVars v
     let reprInst := mkApp2 (mkConst ``SampleableExt.proxyRepr [u, v]) e sampleableExtInst
-    let gen := mkApp2 (mkConst ``SampleableExt.sample [u, v]) e sampleableExtInst
+    let arb := mkApp2 (mkConst ``SampleableExt.sample [u, v]) e sampleableExtInst
+    let gen := mkApp2 (mkConst ``Arbitrary.arbitrary [v]) e arb
     let typ := mkApp2 (mkConst ``SampleableExt.proxy [u, v]) e sampleableExtInst
     return ⟨v, typ, reprInst, gen⟩
 
@@ -467,8 +392,8 @@ values of type `type` using an increasing size parameter.
 elab "#sample " e:term : command =>
   Command.runTermElabM fun _ => do
     let e ← Elab.Term.elabTermAndSynthesize e none
-    let ⟨u, α, repr, gen⟩ ← mkGenerator e
-    let printSamples := mkApp3 (mkConst ``printSamples [u]) α repr gen
+    let ⟨_, α, repr, gen⟩ ← mkGenerator e
+    let printSamples := mkApp3 (mkConst ``Gen.printSamples []) α repr gen
     let code ← unsafe evalExpr (IO PUnit) (mkApp (mkConst ``IO) (mkConst ``PUnit [1])) printSamples
     _ ← code
 
