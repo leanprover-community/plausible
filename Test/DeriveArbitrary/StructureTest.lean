@@ -98,10 +98,6 @@ instance : Shrinkable Foo where
     let zippedFields := List.zip (List.zip strings bools) nats
     (fun ((s, b), n) => Foo.mk s b n) <$> zippedFields
 
-/-- `SampleableExt` instance for `Tree` -/
-instance : SampleableExt Foo :=
-  SampleableExt.mkSelfContained Arbitrary.arbitrary
-
 /-- error: Found a counter-example! -/
 #guard_msgs in
 #eval Testable.check (∀ foo : Foo, foo.stringField.isEmpty || !foo.boolField || foo.natField == 0)

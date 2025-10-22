@@ -75,10 +75,6 @@ def shrinkDummyInductive : DummyInductive → List DummyInductive
 instance : Shrinkable DummyInductive where
   shrink := shrinkDummyInductive
 
-/-- `SampleableExt` instance for `DummyInductive` -/
-instance : SampleableExt DummyInductive :=
-  SampleableExt.mkSelfContained Arbitrary.arbitrary
-
 /-- To test whether the derived generator can generate counterexamples,
     we state an (erroneous) property that states that all `BitVec` arguments
     to `DummyInductive.FromBitVec` represent the `Nat` 2, and see

@@ -152,11 +152,6 @@ def shrinkNatTree (tree : NatTree) : List NatTree :=
 instance : Shrinkable NatTree where
   shrink := shrinkNatTree
 
-/-- `SampleableExt` instance for `NatTree` -/
-instance : SampleableExt NatTree :=
-  SampleableExt.mkSelfContained Arbitrary.arbitrary
-
-
 /-!
 To test whether the derived generator can generate counterexamples,
 we create an erroneous property `∀ tree : NatTree, search tree 5`,

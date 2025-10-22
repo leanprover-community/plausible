@@ -98,10 +98,6 @@ def shrinkTree (t : Tree) : List Tree :=
 instance : Shrinkable Tree where
   shrink := shrinkTree
 
-/-- `SampleableExt` instance for `Tree` -/
-instance : SampleableExt Tree :=
-  SampleableExt.mkSelfContained Arbitrary.arbitrary
-
 -- Mirroring a tree twice should yield the original tree
 -- Test that we can succesfully generate a counterexample to the erroneous property
 

@@ -62,10 +62,6 @@ deriving instance Arbitrary for BinOp
 instance : Shrinkable BinOp where
   shrink := fun _ => []
 
-/-- `SampleableExt` instance for `BinOp` -/
-instance : SampleableExt BinOp :=
-  SampleableExt.mkSelfContained Arbitrary.arbitrary
-
 -- To test whether the derived generator can generate counterexamples,
 -- we state an (erroneous) property that states that all binary operators
 -- are logical operators, and see if the generator can refute this property.
