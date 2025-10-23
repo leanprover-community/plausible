@@ -2,29 +2,118 @@ import Plausible.Arbitrary
 import Plausible.DeriveArbitrary
 import Plausible.Attr
 import Plausible.Testable
-import Test.CommonDefinitions.STLCDefinitions
 
 open Plausible Gen
 
 set_option guard_msgs.diff true
 
+/-- Base types in the Simply-Typed Lambda Calculus (STLC)
+    (either Nat or functions) -/
+inductive type where
+  | Nat : type
+  | Fun : type → type → type
+  deriving BEq, DecidableEq, Repr
+
+/-- Terms in the STLC extended with naturals and addition -/
+inductive term where
+  | Const: Nat → term
+  | Add: term → term → term
+  | Var: Nat → term
+  | App: term → term → term
+  | Abs: type → term → term
+  deriving BEq, Repr
+
 -- Invoke deriving instance handler for the `Arbitrary` typeclass on `type` and `term`
-#guard_msgs(drop info, drop warning) in
+set_option trace.plausible.deriving.arbitrary true in
+/--
+trace: [plausible.deriving.arbitrary] ⏎
+    [mutual
+       def instArbitraryType.arbitrary : Nat → Plausible.Gen (@type✝) :=
+         let rec aux_arb (fuel✝ : Nat) : Plausible.Gen (@type✝) :=
+           (match fuel✝ with
+           | Nat.zero => Plausible.Gen.oneOfWithDefault (pure type.Nat) [(pure type.Nat)]
+           | fuel'✝ + 1 =>
+             Plausible.Gen.frequency (pure type.Nat)
+               [(1, (pure type.Nat)),
+                 (fuel'✝ + 1,
+                   (do
+                     let a✝ ← aux_arb fuel'✝
+                     let a✝¹ ← aux_arb fuel'✝
+                     return type.Fun a✝ a✝¹))])
+         fun fuel✝ => aux_arb fuel✝
+     end,
+     instance : Plausible.ArbitraryFueled✝ (@type✝) :=
+       ⟨instArbitraryType.arbitrary⟩]
+---
+trace: [plausible.deriving.arbitrary] ⏎
+    [mutual
+       def instArbitraryTerm.arbitrary : Nat → Plausible.Gen (@term✝) :=
+         let rec aux_arb (fuel✝ : Nat) : Plausible.Gen (@term✝) :=
+           (match fuel✝ with
+           | Nat.zero =>
+             Plausible.Gen.oneOfWithDefault
+               (do
+                 let a✝ ← Plausible.Arbitrary.arbitrary
+                 return term.Const a✝)
+               [(do
+                   let a✝ ← Plausible.Arbitrary.arbitrary
+                   return term.Const a✝),
+                 (do
+                   let a✝¹ ← Plausible.Arbitrary.arbitrary
+                   return term.Var a✝¹)]
+           | fuel'✝ + 1 =>
+             Plausible.Gen.frequency
+               (do
+                 let a✝ ← Plausible.Arbitrary.arbitrary
+                 return term.Const a✝)
+               [(1,
+                   (do
+                     let a✝ ← Plausible.Arbitrary.arbitrary
+                     return term.Const a✝)),
+                 (1,
+                   (do
+                     let a✝¹ ← Plausible.Arbitrary.arbitrary
+                     return term.Var a✝¹)),
+                 (fuel'✝ + 1,
+                   (do
+                     let a✝² ← aux_arb fuel'✝
+                     let a✝³ ← aux_arb fuel'✝
+                     return term.Add a✝² a✝³)),
+                 (fuel'✝ + 1,
+                   (do
+                     let a✝⁴ ← aux_arb fuel'✝
+                     let a✝⁵ ← aux_arb fuel'✝
+                     return term.App a✝⁴ a✝⁵)),
+                 (fuel'✝ + 1,
+                   (do
+                     let a✝⁶ ← Plausible.Arbitrary.arbitrary
+                     let a✝⁷ ← aux_arb fuel'✝
+                     return term.Abs a✝⁶ a✝⁷))])
+         fun fuel✝ => aux_arb fuel✝
+     end,
+     instance : Plausible.ArbitraryFueled✝ (@term✝) :=
+       ⟨instArbitraryTerm.arbitrary⟩]
+-/
+#guard_msgs in
 deriving instance Arbitrary for type, term
 
 -- Test that we can successfully synthesize instances of `Arbitrary` & `ArbitraryFueled`
 -- for both `type` & `term`
 
-#guard_msgs(drop info, drop warning) in
+/-- info: instArbitraryFueledType -/
+#guard_msgs in
 #synth ArbitraryFueled type
 
-#guard_msgs(drop info, drop warning) in
+/-- info: instArbitraryFueledTerm -/
+#guard_msgs in
 #synth ArbitraryFueled term
 
-#guard_msgs(drop info, drop warning) in
+/-- info: instArbitraryOfArbitraryFueled -/
+#guard_msgs in
 #synth Arbitrary type
 
-#guard_msgs(drop info, drop warning) in
+/-- info: instArbitraryOfArbitraryFueled -/
+#guard_msgs in
 #synth Arbitrary term
 
 

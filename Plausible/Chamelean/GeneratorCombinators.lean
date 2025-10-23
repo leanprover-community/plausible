@@ -1,5 +1,5 @@
 import Plausible.Gen
-import Plausible.Chamelean.ArbitraryFueled
+import Plausible.ArbitraryFueled
 open Plausible
 
 namespace GeneratorCombinators

@@ -203,10 +203,14 @@ def Gen.run {α : Type} (x : Gen α) (size : Nat) : IO α :=
 Print (at most) 10 samples of a given type to stdout for debugging. Sadly specialized to `Type 0`
 -/
 def Gen.printSamples {t : Type} [Repr t] (g : Gen t) : IO PUnit := do
-  let xs : List t ← (List.range 10).mapM (Gen.run g)
-  let xs := xs.map repr
+  let xs := List.range 10
   for x in xs do
-    IO.println s!"{x}\n"
+    try
+      let y ← Gen.run g x
+      IO.println s!"{repr y}"
+    catch
+      | .userError msg => IO.println msg
+      | e => throw e
 
 /-- Execute a `Gen` until it actually produces an output. May diverge for bad generators! -/
 partial def Gen.runUntil {α : Type} (attempts : Option Nat := .none) (x : Gen α) (size : Nat) : IO α :=
@@ -223,7 +227,6 @@ partial def Gen.runUntil {α : Type} (attempts : Option Nat := .none) (x : Gen �
   decr : Option Nat → Option Nat
   | .some n => .some (n-1)
   | .none => .none
-
 
 private def test : Gen Nat :=
   do

@@ -1,22 +1,8 @@
 import Plausible.Chamelean.DecOpt
 import Plausible.Chamelean.Enumerators
 import Plausible.Chamelean.EnumeratorCombinators
+import Test.DeriveArbitrary.DeriveSTLCTermTypeGenerators
 
-/-- Base types in the Simply-Typed Lambda Calculus (STLC)
-    (either Nat or functions) -/
-inductive type where
-  | Nat : type
-  | Fun : type → type → type
-  deriving BEq, DecidableEq, Repr
-
-/-- Terms in the STLC extended with naturals and addition -/
-inductive term where
-  | Const: Nat → term
-  | Add: term → term → term
-  | Var: Nat → term
-  | App: term → term → term
-  | Abs: type → term → term
-  deriving BEq, Repr
 
 /-- `lookup Γ n τ` checks whether the `n`th element of the context `Γ` has type `τ` -/
 inductive lookup : List type -> Nat -> type -> Prop where

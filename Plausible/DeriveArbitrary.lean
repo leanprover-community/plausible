@@ -7,7 +7,8 @@ import Lean.Elab
 import Lean.Elab.Deriving.Basic
 import Lean.Elab.Deriving.Util
 
-import Plausible.Arbitrary import Plausible.Chamelean.ArbitraryFueled
+import Plausible.Arbitrary
+import Plausible.ArbitraryFueled
 
 open Lean Elab Meta Parser Term
 open Elab.Deriving
@@ -73,7 +74,7 @@ open Arbitrary
     (This will result in constructor argument names being non-unique in the array
     that is returned -- it is the caller's responsibility to produce fresh names.)
 -/
-def getCtorArgsNamesAndTypes (header : Header) (indVal : InductiveVal) (ctorName : Name) : MetaM (Array (Name × Expr)) := do
+def getCtorArgsNamesAndTypes (_header : Header) (indVal : InductiveVal) (ctorName : Name) : MetaM (Array (Name × Expr)) := do
   let ctorInfo ← getConstInfoCtor ctorName
 
   forallTelescopeReducing ctorInfo.type fun args _ => do
@@ -81,15 +82,13 @@ def getCtorArgsNamesAndTypes (header : Header) (indVal : InductiveVal) (ctorName
 
     for i in *...args.size do
       let arg := args[i]!
-      let localDecl ← arg.fvarId!.getDecl
-      let argType := localDecl.type
+      let argType ← arg.fvarId!.getType
 
-      let argName ← if i < indVal.numParams then pure header.argNames[i]! else Core.mkFreshUserName `a
       if i < indVal.numParams then
         continue
       else
+        let argName ← Core.mkFreshUserName `a
         argNamesAndTypes := argNamesAndTypes.push (argName, argType)
-
     return argNamesAndTypes
 
 -- Note: the following functions closely follow the implementation of the deriving handler for `Repr` / `BEq`
@@ -241,7 +240,6 @@ def mkBody (header : Header) (inductiveVal : InductiveVal) (generatorType : TSyn
   let zeroCase ← `(Term.matchAltExpr| | $(mkIdent ``Nat.zero) => $(mkIdent ``Gen.oneOfWithDefault) $defaultGenerator [$nonRecursiveGeneratorsNoWeights,*])
   caseExprs := caseExprs.push zeroCase
 
-
   -- If `fuel = fuel' + 1`, pick a generator (it can be non-recursive or recursive)
   let mut allWeightedGenerators ← `([$weightedNonRecursiveGenerators,*, $weightedRecursiveGenerators,*])
   let succCase ← `(Term.matchAltExpr| | $freshFuel' + 1 => $(mkIdent ``Gen.frequency) $defaultGenerator $allWeightedGenerators)
@@ -296,9 +294,9 @@ def mkMutualBlock (ctx : Deriving.Context) : TermElabM Syntax := do
      $auxDefs:command*
     end)
 
-/-- Creates an instance of the `ArbitraryFueled` typeclass -/
+/-- Creates an instance of the `Arbitrary` typeclass -/
 private def mkArbitraryFueledInstanceCmd (declName : Name) : TermElabM (Array Syntax) := do
-  let ctx ← mkContext ``ArbitraryFueled "arbitrary" declName
+  let ctx ← mkContext ``Arbitrary "arbitrary" declName
   let cmds := #[← mkMutualBlock ctx] ++ (← mkArbitraryFueledInstanceCmds ctx #[declName])
   trace[plausible.deriving.arbitrary] "\n{cmds}"
   return cmds

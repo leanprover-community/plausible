@@ -11,6 +11,8 @@ This file invokes the generator for well-typed Cedar terms, defined in `Test/Ced
 Note: the structure of this file closely follows Mike Hicks's Coq formalization of Cedar (not publicly available).
 -/
 
+open Cedar
+
 /-- Schema based on one of Cedar's sample apps -/
 private def schema : Schema :=
   -- entity types

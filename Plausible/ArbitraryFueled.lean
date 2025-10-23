@@ -1,11 +1,10 @@
 /-
 Copyright (c) 2025 AWS. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
-Authors: Ernest Ng
+Authors: AWS
 -/
-import Plausible.Gen
 import Plausible.Arbitrary
-
+import Plausible.Gen
 
 namespace Plausible
 
@@ -19,12 +18,15 @@ open Gen
        already internalizes the size parameter.) -/
 class ArbitraryFueled (α : Type) where
   /-- Takes a `Nat` and produces a random generator dependent on the `Nat` parameter
-      (which indicates the size of the output) -/
+      (which indicates the amount of fuel to be used before failing). -/
   arbitraryFueled : Nat → Gen α
 
 /-- Every `ArbitraryFueled` instance gives rise to an `Arbitrary` instance -/
 instance [ArbitraryFueled α] : Arbitrary α where
   arbitrary := Gen.sized ArbitraryFueled.arbitraryFueled
 
-/-- This error is thrown if the generator runs out of fuel; can be caught with `try ... catch | .genError "GenError: Out of fuel." => ...` -/
-def Gen.outOfFuel : GenError := .genError "GenError: Out of fuel."
+/-- Raised when a fueled generator fails due to insufficient fuel. -/
+def Gen.outOfFuel : GenError :=
+  .genError "out of fuel"
+
+end Plausible

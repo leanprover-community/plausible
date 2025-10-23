@@ -13,15 +13,55 @@ inductive DummyInductive where
   | FromBitVec : ∀ (n : Nat), BitVec n → String → DummyInductive
   deriving Repr
 
-#guard_msgs(drop info, drop warning) in
+set_option trace.plausible.deriving.arbitrary true in
+/--
+trace: [plausible.deriving.arbitrary] ⏎
+    [mutual
+       def instArbitraryDummyInductive.arbitrary : Nat → Plausible.Gen (@DummyInductive✝) :=
+         let rec aux_arb (fuel✝ : Nat) : Plausible.Gen (@DummyInductive✝) :=
+           (match fuel✝ with
+           | Nat.zero =>
+             Plausible.Gen.oneOfWithDefault
+               (do
+                 let a✝ ← Plausible.Arbitrary.arbitrary
+                 let a✝¹ ← Plausible.Arbitrary.arbitrary
+                 let a✝² ← Plausible.Arbitrary.arbitrary
+                 return DummyInductive.FromBitVec a✝ a✝¹ a✝²)
+               [(do
+                   let a✝ ← Plausible.Arbitrary.arbitrary
+                   let a✝¹ ← Plausible.Arbitrary.arbitrary
+                   let a✝² ← Plausible.Arbitrary.arbitrary
+                   return DummyInductive.FromBitVec a✝ a✝¹ a✝²)]
+           | fuel'✝ + 1 =>
+             Plausible.Gen.frequency
+               (do
+                 let a✝ ← Plausible.Arbitrary.arbitrary
+                 let a✝¹ ← Plausible.Arbitrary.arbitrary
+                 let a✝² ← Plausible.Arbitrary.arbitrary
+                 return DummyInductive.FromBitVec a✝ a✝¹ a✝²)
+               [(1,
+                   (do
+                     let a✝ ← Plausible.Arbitrary.arbitrary
+                     let a✝¹ ← Plausible.Arbitrary.arbitrary
+                     let a✝² ← Plausible.Arbitrary.arbitrary
+                     return DummyInductive.FromBitVec a✝ a✝¹ a✝²)),
+                 ])
+         fun fuel✝ => aux_arb fuel✝
+     end,
+     instance : Plausible.ArbitraryFueled✝ (@DummyInductive✝) :=
+       ⟨instArbitraryDummyInductive.arbitrary⟩]
+-/
+#guard_msgs in
 deriving instance Arbitrary for DummyInductive
 
 -- Test that we can successfully synthesize instances of `Arbitrary` & `ArbitraryFueled`
 
-#guard_msgs(drop info, drop warning) in
+/-- info: instArbitraryFueledDummyInductive -/
+#guard_msgs in
 #synth ArbitraryFueled DummyInductive
 
-#guard_msgs(drop info, drop warning) in
+/-- info: instArbitraryOfArbitraryFueled -/
+#guard_msgs in
 #synth Arbitrary DummyInductive
 
 /-- Shrinker for `DummyInductive` -/

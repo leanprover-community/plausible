@@ -10,6 +10,8 @@ import Plausible.Testable
 import Plausible.Functions
 import Plausible.Attr
 import Plausible.Tactic
+import Plausible.Arbitrary
+import Plausible.DeriveArbitrary
 
 -- Source files for Chamelean
 -- (extension to Plausible for deriving generators, enumerators & checkers)
@@ -31,10 +33,3 @@ import Plausible.Chamelean.DeriveConstrainedProducer
 import Plausible.Chamelean.Schedules
 import Plausible.Chamelean.DeriveSchedules
 import Plausible.Chamelean.MExp
-
--- Note that `DeriveArbitrary` & `Arbitrary` are in the top-level `Plausible` directory
--- and not the `Chamelean` subdirectory as a result of the changes
--- in this (WIP) PR submitted to Plausible
--- https://github.com/leanprover-community/plausible/pull/35
-import Plausible.DeriveArbitrary
-import Plausible.Arbitrary

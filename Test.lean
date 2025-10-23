@@ -78,3 +78,6 @@ import Test.KeyValueStoreExample.TestKeyValueStoreCheckerGenerators
 import Test.CedarExample.Cedar
 import Test.CedarExample.CedarCheckerGenerators
 import Test.CedarExample.CedarWellTypedTermGenerator
+import Test.DeriveArbitrary.MissingNonRecursiveConstructorTest
+import Test.DeriveArbitrary.ParameterizedTypeTest
+import Test.DeriveArbitrary.MutuallyRecursiveTypeTest

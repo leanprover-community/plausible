@@ -15,6 +15,8 @@ This file contains a Lean formalization of the Cedar policy language (OOPSLA '24
 adapted from Mike Hicks's Coq formalization (not publicly available).
 -/
 
+namespace Cedar
+
 ------------------------------------
 -- Part One: Cedar expression syntax
 -------------------------------------
@@ -950,3 +952,5 @@ instance : ToString PathSet where
 
 instance : Repr PathSet where
   reprPrec pathset _ := toString pathset
+
+end Cedar

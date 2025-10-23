@@ -1,7 +1,7 @@
 import Plausible.Chamelean.Enumerators
 import Plausible.Chamelean.LazyList
 import Plausible.Gen
-import Plausible.Chamelean.ArbitraryFueled
+import Plausible.ArbitraryFueled
 
 open LazyList Plausible
 

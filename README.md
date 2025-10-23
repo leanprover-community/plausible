@@ -40,6 +40,9 @@ Similarly, to return the elements produced form a derived enumerator, users can 
 #eval runEnum (α := Tree) 10
 ```
 
+If you are defining your own type it needs instances of `Repr`, `Plausible.Shrinkable` and
+`Plausible.SampleableExt` (or `Plausible.Arbitrary`):
+
 **2. Deriving constrained generators** (for inductive relations)                
 A *constrained* producer only produces values that satisfy a user-specified inductive relation. 
 
@@ -210,3 +213,5 @@ We provide a command elaborator which elaborates the `#derive_checker` command:
 **Plausible Tests** (inherited from the original Plausible repo):
 - [`Tactic.lean`](./Test/Tactic.lean): Tests the `plausible` tactic on core Lean types
 - [`Testable.lean`](./Test/Testable.lean): Tests for the `Testable` typeclass infrastructure with custom types
+
+For more documentation refer to the module docs.
