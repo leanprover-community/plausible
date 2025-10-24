@@ -9,7 +9,7 @@ import Plausible.Chamelean.Schedules
 
 
 open Lean Elab Command Meta Term Parser Std
-open Idents
+open Idents Schedules
 
 /-- Extracts the name of the induction relation and its arguments -/
 def parseInductiveApp (body : Term) : CommandElabM (TSyntax `ident × TSyntaxArray `ident) := do

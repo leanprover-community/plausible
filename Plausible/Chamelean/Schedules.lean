@@ -3,6 +3,8 @@ import Plausible.Chamelean.Utils
 
 open Lean
 
+
+namespace Schedules
 ----------------------------------------------
 -- Type definitions
 ----------------------------------------------
@@ -246,3 +248,5 @@ def addConclusionPatternsAndEqualitiesToSchedule (patterns : List (Unknown × Pa
   let matchSteps := (Function.uncurry ScheduleStep.Match) <$> patterns
   let equalityCheckSteps := (fun (u1, u2) => ScheduleStep.Check (Source.NonRec (`BEq.beq, [.Unknown u1, .Unknown u2])) true) <$> equalities.toList
   (matchSteps ++ equalityCheckSteps ++ existingScheduleSteps, scheduleSort)
+
+end Schedules

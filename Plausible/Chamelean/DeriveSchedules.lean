@@ -7,8 +7,10 @@ import Plausible.Chamelean.MakeConstrainedProducerInstance
 import Plausible.Chamelean.LazyList
 import Lean.Util.SCC
 
+namespace Schedules
 
 open Lean Meta
+open Schedules
 
 -- Adapted from QuickChick source code
 -- https://github.com/QuickChick/QuickChick/blob/internal-rewrite/plugin/newGenericLib.ml

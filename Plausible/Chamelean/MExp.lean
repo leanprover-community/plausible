@@ -9,8 +9,10 @@ import Plausible.Chamelean.UnificationMonad
 import Plausible.Chamelean.Idents
 import Plausible.Chamelean.Utils
 
+namespace MExp
+
 open Plausible
-open Idents
+open Idents Schedules
 open Lean Parser Elab Term Command ToExpr TSyntax
 
 -- Adapted from QuickChick source code

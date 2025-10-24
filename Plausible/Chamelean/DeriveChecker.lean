@@ -7,7 +7,7 @@ import Plausible.Chamelean.DecOpt
 import Plausible.Chamelean.UnificationMonad
 
 open Lean Std Elab Command Meta Term Parser
-open Idents
+open Idents Schedules
 
 
 
@@ -140,8 +140,8 @@ def deriveScheduledChecker (inductiveProp : TSyntax `term) : CommandElabM (TSynt
           -- This is all done in a state monad: when we detect that a new instance is required, we append it to an array of `TSyntax term`s
           -- (where each term represents a typeclass instance)
           let (subChecker, instances) ← StateT.run (s := #[]) (do
-            let mexp ← scheduleToMExp schedule (.MId `size) (.MId `initSize) unifyState.outputType
-            mexpToTSyntax mexp (deriveSort := .Checker))
+            let mexp ← MExp.scheduleToMExp schedule (.MId `size) (.MId `initSize) unifyState.outputType
+            MExp.mexpToTSyntax mexp (deriveSort := .Checker))
 
           requiredInstances := requiredInstances ++ instances
 

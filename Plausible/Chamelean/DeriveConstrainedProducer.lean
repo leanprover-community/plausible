@@ -16,7 +16,7 @@ import Lean.Elab.Command
 import Lean.Meta.Basic
 
 open Lean Elab Command Meta Term Parser
-open Idents
+open Idents Schedules
 
 
 ----------------------------------------------------------------------------------------------------------------------------------
@@ -606,8 +606,8 @@ def deriveConstrainedProducer (outputVar : Ident) (outputTypeSyntax : TSyntax `t
           -- This is all done in a state monad: when we detect that a new instance is required, we append it to an array of `TSyntax term`s
           -- (where each term represents a typeclass instance)
           let (subProducer, instances) ← StateT.run (s := #[]) (do
-            let mexp ← scheduleToMExp schedule (.MId `size) (.MId `initSize) outputType
-            mexpToTSyntax mexp deriveSort)
+            let mexp ← MExp.scheduleToMExp schedule (.MId `size) (.MId `initSize) outputType
+            MExp.mexpToTSyntax mexp deriveSort)
 
           requiredInstances := requiredInstances ++ instances
 
