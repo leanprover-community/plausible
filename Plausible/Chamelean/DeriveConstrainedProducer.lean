@@ -484,6 +484,8 @@ def getScheduleForInductiveRelationConstructor
 
       let prefixSize := 100000
 
+      trace[plausible.deriving.arbitrary] m!"First Schedule: {scheduleStepsToString bestSchedule} \nChecks & Length: {(minChecks, minLen)} \nSchedules Considered: {repr countSeen}"
+
       for schdM in LazyList.take prefixSize rest.get do
         let schd ← schdM
         let checkCount := countChecks schd
@@ -493,6 +495,8 @@ def getScheduleForInductiveRelationConstructor
           bestSchedule := schd
           minChecks := checkCount
           minLen := len
+          trace[plausible.deriving.arbitrary] m!"Better Schedule: {scheduleStepsToString bestSchedule} \nChecks & Length: {(minChecks, minLen)} \nSchedules Considered: {repr countSeen}"
+
 
       trace[plausible.deriving.arbitrary] m!"Chosen Schedule: {scheduleStepsToString bestSchedule} \nChecks & Length: {(minChecks, minLen)} \nSchedules Considered: {repr countSeen}"
 

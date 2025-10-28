@@ -31,6 +31,10 @@ def toListAux (acc : List α) : LazyList α → List α
 def toList (l : LazyList α) : List α :=
   toListAux [] l
 
+/-- Converts a `List` into a `LazyList`-/
+def fromList (l : List α) : LazyList α :=
+  l.foldr (fun a acc => .lcons a ⟨fun _ => acc⟩) .lnil
+
 /-- We pretty-print `LazyList`s by converting them to ordinary lists
     (forcing all the thunks) & pretty-printing the resultant list. -/
 instance [Repr α] : Repr (LazyList α) where
@@ -163,5 +167,9 @@ def lazySeq (s : α → α) (lo : α) (len : Nat) : LazyList α :=
     | .zero => .lnil
     | .succ remaining' => .lcons current (Thunk.mk $ fun _ => go (s current) remaining')
   go lo len
+
+/-- Creates a lazy sequence from 0 to n built lazily. -/
+def range (n : Nat) : LazyList Nat :=
+  lazySeq .succ .zero n
 
 end LazyList

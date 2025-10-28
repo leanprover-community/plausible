@@ -124,6 +124,18 @@ def collectCheckSteps (env : ScheduleEnv) (boundVars : List Name) (checkedHypoth
 
   checkSteps
 
+/-- After we generate some variables, look at the hypotheses and see if any of them only contain fixed variables
+    (if yes, then we need to check that hypothesis)
+    - `checkedHypotheses` contains the hypotheses that have been checked so far. This version returns raw
+    hypothesisExprs without checking what their source (recursive/nonrecursive) should be.  -/
+def collectCheckedHypotheses (env : ScheduleEnv) (boundVars : List Name) (checkedHypotheses : List Nat) : List (Nat × HypothesisExpr) := do
+  let checkSteps := filterMapWithIndex (fun i (hyp, vars) =>
+    if i ∉ checkedHypotheses && List.all vars (List.all · (· ∈ boundVars)) then
+      some (i, hyp)
+    else none) env.sortedHypotheses
+
+  checkSteps
+
 /-- Determines whether inputs & outputs of a generator appear under the same constructor in a hypothesis `hyp`
     - Example: consider the `TApp` constructor for STLC (when we are generating `e` such that `typing Γ e τ` holds):
     ```
@@ -537,14 +549,14 @@ private partial def enumSchedules' {α v} [BEq v] (vars : List v) (hypComps : Li
     let ⟨ (hyp, potential_output_indices, always_bound_variables),hyps' ⟩ ← select hyps
     let (some_bound_output_indices, all_unbound_output_indices) := List.partition (fun l => List.any l (List.contains env) || l.isEmpty) potential_output_indices
     let (out,bound) ← subsetsAndComplements all_unbound_output_indices
-    if out.length > 1 then .lnil else
+    if out.length > 1 || (out.isEmpty && !bound.isEmpty) then .lnil else
     let bound_vars := bound.flatten ++ (always_bound_variables ++ some_bound_output_indices.flatten).filter (not ∘ List.contains env)
     let env' := bound_vars ++ env
     let (prechecks,to_be_satisfied) := List.partition (needs_checking env') hyps'
     let out_vars := out.flatten
     let env'' := out_vars ++ env'
     let (postchecks,to_be_satisfied') := List.partition (needs_checking env'') to_be_satisfied
-    LazyList.mapLazyList (fun l => prune_empties [.InstVars bound_vars
+    LazyList.mapLazyList (fun l => prune_empties [.InstVars (List.eraseDups bound_vars)
                               , .Checks (Prod.fst <$> prechecks)
                               , .Produce out_vars hyp
                               , .Checks (Prod.fst <$> postchecks)
@@ -580,6 +592,209 @@ private partial def enumSchedules' {α v} [BEq v] (vars : List v) (hypComps : Li
 
 #guard_msgs(error, drop info) in
 #eval (enumSchedules' [1,2,3] [[("A",[[1],[2]],[]), ("B",[[2],[3]],[])]] []).length
+
+
+-- Compare binary choice approach vs full permutations
+-- Generates all possible permutations of a list (factorial growth)
+private partial def enumAllPermutations {α} [BEq α] (hyps : List α) : LazyList (List α) :=
+  match hyps with
+  | [] => pure []
+  | _ => do
+    let ⟨h, rest⟩ ← select hyps
+    let restPerms ← enumAllPermutations rest
+    pure (h :: restPerms)
+
+-- Build dependency graph: for each hypothesis, find all other hypotheses that share variables
+private def getNeighbors {α v} [BEq α] [BEq v] (hyps : List (α × List v)) : List (α × List α) :=
+  hyps.map (fun (hyp, vars) =>
+    let neighbors := hyps.filter (fun (otherHyp, otherVars) =>
+      hyp != otherHyp && vars.any (otherVars.contains ·))
+    (hyp, neighbors.map Prod.fst))
+
+-- Represents a partitioning of an ordering into chunks separated by anchor points
+-- Used to efficiently insert new elements while respecting dependency constraints
+structure Chunks α where
+  beforeAnchor : List α     -- Elements before any anchor
+  anchors : List (List α)   -- Chunks starting with anchor elements
+  numAnchors : Nat         -- Number of anchor chunks
+  deriving Repr
+
+-- Split an ordering into chunks based on anchor points (dependencies that must be preserved)
+private def splitIntoChunks {α} [BEq α] (order : List α) (anchors : List α) : Chunks α :=
+  let (beforeAnchor, rest) := order.span (!anchors.contains ·)
+  let rec split (remaining : List α) (currentChunk : List α) (result : List (List α)) : List (List α) :=
+    match remaining with
+    | [] => currentChunk.reverse :: result |>.reverse
+    | x :: xs =>
+      if anchors.contains x then
+        split xs [x] (currentChunk.reverse :: result)
+      else
+        split xs (x :: currentChunk) result
+  let anchors :=
+    match rest with
+    | firstAnchor :: rest' => split rest' [firstAnchor] []
+    | [] => []
+  let numAnchors := anchors.length
+  ⟨beforeAnchor, anchors, numAnchors⟩
+
+-- Insert new hypotheses into chunks while preserving anchor constraints
+-- Each new hypothesis can be inserted at any valid chunk boundary
+private partial def enumChunkedInsertions {α} [BEq α] (newHyps : List α) (chunks : Chunks α) : LazyList (List α) :=
+  match newHyps, chunks with
+  | [], _ => pure $ chunks.beforeAnchor ++ chunks.anchors.flatten
+  | h :: hs, _ => do
+    let chunkIdx ← LazyList.range (chunks.numAnchors + 1)
+    let newChunks := {chunks with anchors := chunks.anchors.insertIdx (chunkIdx) [h], numAnchors := chunks.numAnchors + 1}
+    enumChunkedInsertions hs newChunks
+
+/-Simple examples  displaying how a list is chunked into relevant sublists to insert around.-/
+
+/--info: { beforeAnchor := ["A"], anchors := [["B", "C"]], numAnchors := 1 } -/
+#guard_msgs in
+#eval splitIntoChunks ["A", "B", "C"] ["B"]
+
+/--info: { beforeAnchor := [], anchors := [[4], [5, 6]], numAnchors := 2 }-/
+#guard_msgs in
+#eval (splitIntoChunks [4,5,6] [4,5])
+
+/-Example of the result of chunking followed by insertion around those chunks.-/
+/--info: [[1, 4, 5, 6], [4, 1, 5, 6], [4, 5, 6, 1]]-/
+#guard_msgs in
+#eval enumChunkedInsertions [1] (splitIntoChunks [4,5,6] [4,5])
+
+-- Generate orderings that satisfy dependency constraints between hypotheses
+-- Uses chunked insertion to avoid exponential blowup while respecting variable dependencies
+private partial def enumDependencySatisfyingOrderings {α v} [BEq α] [Repr α] [Repr v] [BEq v] [Hashable v] (hyps : List (α × List v)) : LazyList (List α) := do
+  let neighbors := getNeighbors hyps
+  let mut currentOrder := []
+  for (h, neighbors) in neighbors do
+    -- For each hypothesis, find which of its dependencies are already in the current order
+    let inOrder := neighbors.filter (currentOrder.contains ·)
+    -- Split current order into chunks based on these dependency anchors
+    let chunks := splitIntoChunks currentOrder inOrder
+    -- Insert the new hypothesis at all valid positions (respecting dependencies)
+    currentOrder ← enumChunkedInsertions [h] chunks
+  return currentOrder
+
+/--info: [[2, 5, 1], [1, 2, 5], [5, 1, 2], [1, 5, 2]]-/
+#guard_msgs in
+#eval (enumChunkedInsertions [2] $ splitIntoChunks · [5]) =<< (enumChunkedInsertions [1,5] (splitIntoChunks [] []))
+
+-- Test chunked approach with simple dependency chain: H depends on var 1, I depends on vars 1&2, J depends on var 2
+/--info: [["J", "I", "H"], ["H", "J", "I"], ["I", "H", "J"], ["H", "I", "J"]]-/
+#guard_msgs in
+#eval enumDependencySatisfyingOrderings [("H",[1]),("I",[1,2]),("J",[2])]
+
+-- Test with linear chain of 26 hypotheses - should generate only a single ordering, much less than 26! permutations
+/--info: 1-/
+#guard_msgs in
+#eval enumDependencySatisfyingOrderings (List.map (fun a => (a,[a+1])) (1...26).toList) |>.take 100 |>.length
+
+-- Test with real Cedar example (with numbers in place of variable names) showing complex variable dependencies
+/--info: 288-/
+#guard_msgs in
+#eval @enumDependencySatisfyingOrderings _ _ _ _ _ _ _ ([("V_eq", [11, 0, 1, 2]),
+                                   ("DefinedEntities", [0, 3]),
+                                   ("WfCedarType", [3, 4]),
+                                   ("SubType_T1", [5, 4]),
+                                   ("SubType_T2", [6, 4]),
+                                   ("HasType_E2", [11, 12, 8, 10, 6]),
+                                   ("HasType_E1", [11, 12, 7, 9, 5])]) |>.length
+
+-- Test cases comparing exponential permutation growth vs dependency-aware ordering
+-- Baseline: all permutations of 4 elements = 4! = 24
+/--info: 24-/
+#guard_msgs in
+#eval enumAllPermutations ["H", "I", "J", "K"] |>.length  -- Should be 4! = 24
+
+-- Dependency-constrained: H,I share var 1; I,J share var 2; K is independent
+/--info: 4-/
+#guard_msgs in
+#eval enumDependencySatisfyingOrderings [("H",[1]),("I",[1,2]),("J",[2]),("K",[3])] |>.length  -- Should be much less
+
+-- More complex example: 5 hypotheses with mixed dependencies vs 6! = 720 permutations
+/--info: 720-/
+#guard_msgs in
+#eval enumAllPermutations ["A", "B", "C", "D", "E", "F"] |>.length  -- 5! = 120
+
+-- Complex dependency graph with multiple connected components
+/--info: 32-/
+#guard_msgs in
+#eval enumDependencySatisfyingOrderings [("A",[1]),("B",[1,2]),("C",[2,3]),("D",[4]),("E",[5,1,2]), ("F",[4,6])] |>.length  -- Should be much less
+
+-- Subset with connected component A-B-C-E
+/--info: [["E", "C", "B", "A"],
+ ["E", "A", "C", "B"],
+ ["E", "B", "A", "C"],
+ ["E", "A", "B", "C"],
+ ["C", "E", "B", "A"],
+ ["A", "E", "C", "B"],
+ ["B", "E", "A", "C"],
+ ["A", "E", "B", "C"],
+ ["C", "B", "E", "A"],
+ ["A", "C", "E", "B"],
+ ["B", "A", "E", "C"],
+ ["A", "B", "E", "C"],
+ ["C", "B", "A", "E"],
+ ["A", "C", "B", "E"],
+ ["B", "A", "C", "E"],
+ ["A", "B", "C", "E"]]-/
+#guard_msgs in
+#eval enumDependencySatisfyingOrderings [("A",[1]),("B",[1,2]),("C",[2,3]),("E",[5,1,2])]
+
+-- Separate component D-F
+/--info: [["F", "D"], ["D", "F"]]-/
+#guard_msgs in
+#eval enumDependencySatisfyingOrderings [("D",[4]), ("F",[4,6])]  -- Should be much less
+
+-- Extreme case: 7! = 5040 permutations
+/--info: 5040-/
+#guard_msgs in
+#eval enumAllPermutations (0...7).toList |>.length
+
+-- vs dependency-aware with overlapping variable ranges (much more constrained)
+/--info: 720-/
+#guard_msgs in
+#eval enumDependencySatisfyingOrderings (List.map (fun a => (a,(a...(a + 10)).toList)) (1...7).toList) |>.length  -- Should be much less
+
+/--
+`enumSchedules'` is a variant of `enumSchedules` where instead of taking a list of hypotheses to permute,
+it takes a list of simply connected components of hypotheses based on reachability in the graph
+where an edge between hypotheses exists iff their variable sets overlap. It then permutes
+only hypotheses within components but not between components. The different components are kept
+in a canonical order always, thus dramatically reducing the size of the enumeration. This is okay
+because hypotheses in different components cannot possibly depend on each other, so their ordering
+does not make a difference.
+-/
+private def enumSchedulesChunked {α v} [BEq v] (vars : List v) (hypComps : List (LazyList (List (α × List (List v) × List v)))) (env : List v)
+  : LazyList (List (PreScheduleStep α v)) :=
+  match hypComps with
+  | [] => pure (prune_empties [.InstVars $ vars.removeAll env])
+  | componentPerms :: hypComps' => do
+    let mut perm ← componentPerms
+    let mut sched := []
+    let mut env := env
+    repeat
+      match perm with
+      | [] => break
+      | (hyp, potential_output_indices, always_bound_variables) :: rest =>
+      perm := rest
+      let (some_bound_output_indices, all_unbound_output_indices) := List.partition (fun l => List.any l (List.contains env) || l.isEmpty) potential_output_indices
+      let (out,bound) ← subsetsAndComplements all_unbound_output_indices
+      if out.length > 1 || (out.isEmpty && !bound.isEmpty) then .lnil else
+      let bound_vars := bound.flatten ++ (always_bound_variables ++ some_bound_output_indices.flatten).filter (not ∘ List.contains env)
+      env := bound_vars ++ env
+      let (prechecks,to_be_satisfied) := List.partition (needs_checking env) perm
+      let out_vars := out.flatten
+      env := out_vars ++ env
+      let (postchecks,to_be_satisfied') := List.partition (needs_checking env) to_be_satisfied
+      sched := sched ++ prune_empties [.InstVars bound_vars
+                                , .Checks (Prod.fst <$> prechecks)
+                                , .Produce out_vars hyp
+                                , .Checks (Prod.fst <$> postchecks)
+                                ];
+      perm := to_be_satisfied'
+    LazyList.mapLazyList (sched ++ ·) $ enumSchedulesChunked vars hypComps' env
 
 -- Determine the right name for the recursive function in the producer
 private def recursiveFunctionName (deriveSort : DeriveSort) : Name :=
@@ -663,6 +878,42 @@ instance [ToString α] [ToString v] : ToString (List (List (PreScheduleStep α v
       "do\n  " ++ String.intercalate "\n  " lines
     ) |> String.intercalate "\n\n"
 
+private def possiblePreSchedules (vars : List TypedVar) (hypotheses : List HypothesisExpr) (deriveSort : DeriveSort)
+  (recCall : Name × List Nat) (fixedVars : List Name) : LazyList ((List (PreScheduleStep HypothesisExpr TypedVar))) × ScheduleEnv :=
+  let sortedHypotheses := mkSortedHypothesesVariablesMap hypotheses
+  let varNames := vars.map (fun x => x.var)
+  let prodSort := convertDeriveSortToProducerSort deriveSort
+  let scheduleEnv := ⟨ vars, sortedHypotheses, deriveSort, prodSort, recCall, fixedVars ⟩
+  let remainingVars := List.filter (fun v => not $ fixedVars.contains v) varNames
+  let (newCheckedIdxs, newCheckedHyps) := List.unzip $ (collectCheckedHypotheses scheduleEnv fixedVars [])
+  let remainingSortedHypotheses := filterWithIndex (fun i _ => i ∉ newCheckedIdxs) sortedHypotheses
+  let connectedHypotheses := remainingSortedHypotheses
+                             |>.map (fun (h,vars) => ((h,vars), List.flatten vars))
+                             |> computeSCC
+                             |>.map (enumDependencySatisfyingOrderings ·
+                                    |> LazyList.mapLazyList (List.map constructHypothesis))
+  let firstChecks := PreScheduleStep.Checks newCheckedHyps.reverse
+  let lazyPreSchedules : LazyList (List (PreScheduleStep HypothesisExpr Name)) := enumSchedulesChunked remainingVars connectedHypotheses fixedVars
+  let nameTypeMap := List.foldl (fun m ⟨name,ty⟩ => NameMap.insert m name ty) ∅ vars
+  let typedPreSchedules : LazyList (List (PreScheduleStep HypothesisExpr TypedVar)) := lazyPreSchedules.mapLazyList ((firstChecks :: ·) ∘ List.map (typePreScheduleStep nameTypeMap))
+  (typedPreSchedules, scheduleEnv)
+
+/-- Computes all possible schedules for a constructor
+    (each candidate schedule is represented as a `List ScheduleStep`).
+
+    Arguments:
+    - `vars`: list of universally-quantified variables and their types
+    - `hypotheses`: List of hypotheses about the variables in `vars`
+    - `deriveSort` determines whether we're deriving a checker/enumerator/generator
+    - `recCall`: a pair contianing the name of the inductive relation and a list of indices for output arguments
+      + `recCall` represents what a recursive call to the function being derived looks like
+    - `fixedVars`: A list of fixed variables (i.e. inputs to the inductive relation) -/
+def possibleSchedules' (vars : List TypedVar) (hypotheses : List HypothesisExpr) (deriveSort : DeriveSort)
+  (recCall : Name × List Nat) (fixedVars : List Name) : LazyList (MetaM (List ScheduleStep)) := do
+  let (typedPreSchedules, scheduleEnv) := possiblePreSchedules vars hypotheses deriveSort recCall fixedVars
+  let lazySchedules := typedPreSchedules.mapLazyList ((ReaderT.run . scheduleEnv) ∘ List.flatMapM preScheduleStepToScheduleStep)
+  lazySchedules
+
 /-- Computes all possible schedules for a constructor
     (each candidate schedule is represented as a `List ScheduleStep`).
 
@@ -690,8 +941,33 @@ def possibleSchedules (vars : List TypedVar) (hypotheses : List HypothesisExpr) 
   let lazySchedules := typedPreSchedules.mapLazyList ((ReaderT.run . scheduleEnv) ∘ ((firstChecks ++ .) <$> .) ∘ List.flatMapM preScheduleStepToScheduleStep)
   lazySchedules
 
-private def tryTypedSchedules (vars : List (Name × Expr)) hyps := do
-  let lazyPreSchedules : LazyList (List (PreScheduleStep Name Name)) := enumSchedules (List.map (fun ((name, _typ) : Name × Expr) => name) vars) hyps []
-  let nameTypeMap := List.foldl (fun m (name, (ty : Expr)) => NameMap.insert m name ty) ∅ vars
-  let typedPreSchedules : LazyList (List (PreScheduleStep Name TypedVar)) := lazyPreSchedules.mapLazyList (List.map (typePreScheduleStep nameTypeMap))
-  typedPreSchedules
+def exampleEnumSchedulesChunked :=
+  -- All hypotheses from Cedar.HasType.TContainsAny constructor
+  let hypotheses := [
+    (`V_eq, [[`ets, `acts, `R]], [`V]),
+    (`DefinedEntities, [[`ets], [`ns]], []),
+    (`WfCedarType, [[`ns], [`T]], []),
+    (`SubType_T1, [[`T1], [`T]], []),
+    (`SubType_T2, [[`T2], [`T]], []),
+    (`HasType_E1, [ [`E1], [`x1], [`T1]], [`V]),
+    (`HasType_E2, [ [`E2], [`x2], [`T2]], [`V])
+  ]
+
+  -- Use computeSCC to find connected components then enumerate valid orderings that satisfy dependencies within each.
+  let components := hypotheses |>.map (fun (h,vars) => ((h,vars), List.flatten vars.1 ++ vars.2))
+                             |> computeSCC
+                             |>.map (@enumDependencySatisfyingOrderings _ _ ⟨fun (a,_) (b,_) => BEq.beq a b⟩ _ _ _ _)
+  enumSchedulesChunked [`ets,`acts,`R,`ns,`T,`T1,`T2,`E1,`x1,`x2] components [`V]
+
+def countChecks (schd : List (PreScheduleStep α β)) : Nat :=
+  schd.foldl (fun acc step => match step with | PreScheduleStep.Checks cs => acc + cs.length | _ => acc) 0
+
+/-
+Sorts all the schedules according to the used ordering, so we can examine them.
+-/
+#guard_msgs(drop info) in
+#eval exampleEnumSchedulesChunked.take 200000 |>.mergeSort (le := fun a b =>
+  match compare (countChecks a) (countChecks b) with
+  | .eq => a.length < b.length
+  | .gt => false
+  | .lt => true)
