@@ -3,7 +3,11 @@ Copyright (c) 2021 Henrik Böving. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Henrik Böving, Simon Hudon
 -/
-import Plausible.Random
+module
+
+public meta import Plausible.Random
+
+public meta section
 
 /-!
 # `Gen` Monad
@@ -192,7 +196,7 @@ private def errorOfGenError {α} (m : Except GenError α) : IO α :=
 
 -- Instance that just sets the size to zero (it will be reset later)
 instance instMonadLiftStateIOGen : MonadLift (ReaderT (ULift Nat) (Except GenError)) IO where
-  monadLift m := errorOfGenError <| ReaderT.run m ⟨0⟩
+  monadLift m := private errorOfGenError <| ReaderT.run m ⟨0⟩
 
 /-- Execute a `Gen` inside the `IO` monad using `size` as the example size -/
 def Gen.run {α : Type} (x : Gen α) (size : Nat) : IO α :=

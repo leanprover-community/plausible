@@ -1,5 +1,10 @@
-import Plausible.Gen
+
+module
+
+public import Plausible.Gen
 open Plausible
+
+public meta section
 
 /-- Sized generators of type `α` such that `P : α -> Prop` holds for all generated values. -/
 class ArbitrarySizedSuchThat (α : Type) (P : α → Prop) where

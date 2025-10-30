@@ -1,4 +1,8 @@
 
+module
+
+public section
+
 -- Adapted from QuickChick source code
 -- https://github.com/QuickChick/QuickChick/blob/master/src/LazyList.v
 

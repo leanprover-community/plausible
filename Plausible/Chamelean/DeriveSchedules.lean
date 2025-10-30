@@ -1,16 +1,21 @@
-import Lean.Expr
-import Batteries
-import Plausible.Chamelean.Utils
-import Plausible.Chamelean.Schedules
-import Plausible.Chamelean.UnificationMonad
-import Plausible.Chamelean.MakeConstrainedProducerInstance
-import Plausible.Chamelean.LazyList
-import Lean.Util.SCC
+
+module
+
+meta import Lean.Expr
+meta import Batteries
+public meta import Plausible.Chamelean.Utils
+public meta import Plausible.Chamelean.Schedules
+meta import Plausible.Chamelean.UnificationMonad
+meta import Plausible.Chamelean.MakeConstrainedProducerInstance
+public meta import Plausible.Chamelean.LazyList
+meta import Lean.Util.SCC
 
 namespace Schedules
 
+meta section
+
 open Lean Meta
-open Schedules
+open Schedules UnificationMonad
 
 -- Adapted from QuickChick source code
 -- https://github.com/QuickChick/QuickChick/blob/internal-rewrite/plugin/newGenericLib.ml
@@ -848,7 +853,7 @@ private def preScheduleStepToScheduleStep (preStep : PreScheduleStep HypothesisE
       since its more efficient to enumerate values when checking
     - If we're deriving a `Generator` or a function which generates inputs to a `Theorem`,
       the corresponding `ProducerSort` is a `Generator`, since we want to generate random inputs -/
-def convertDeriveSortToProducerSort (deriveSort : DeriveSort) : ProducerSort :=
+public def convertDeriveSortToProducerSort (deriveSort : DeriveSort) : ProducerSort :=
   match deriveSort with
   | .Checker | .Enumerator => ProducerSort.Enumerator
   | .Generator | .Theorem => ProducerSort.Generator
@@ -924,7 +929,7 @@ def possibleSchedules' (vars : List TypedVar) (hypotheses : List HypothesisExpr)
     - `recCall`: a pair contianing the name of the inductive relation and a list of indices for output arguments
       + `recCall` represents what a recursive call to the function being derived looks like
     - `fixedVars`: A list of fixed variables (i.e. inputs to the inductive relation) -/
-def possibleSchedules (vars : List TypedVar) (hypotheses : List HypothesisExpr) (deriveSort : DeriveSort)
+public def possibleSchedules (vars : List TypedVar) (hypotheses : List HypothesisExpr) (deriveSort : DeriveSort)
   (recCall : Name × List Nat) (fixedVars : List Name) : LazyList (MetaM (List ScheduleStep)) := do
   let sortedHypotheses := mkSortedHypothesesVariablesMap hypotheses
   let varNames := vars.map (fun x => x.var)

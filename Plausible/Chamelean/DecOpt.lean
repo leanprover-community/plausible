@@ -2,9 +2,13 @@
 -- The `DecOpt` typeclass (adapted from QuickChick)
 ----------------------------------------------------------------------------------
 
-import Plausible.Gen
+module
+
+public import Plausible.Gen
 
 open Plausible
+
+public section
 
 /-- The `DecOpt` class encodes partial decidability:
      - It takes a `nat` argument as fuel
@@ -36,7 +40,7 @@ namespace DecOpt
     - `ok false` if *all* sub-checkers do so
     - `error` otherwise
     (see section 2 of "Computing Correctly with Inductive Relations") -/
-def checkerBacktrack (checkers : List (Unit → Except GenError Bool)) : Except GenError Bool :=
+meta def checkerBacktrack (checkers : List (Unit → Except GenError Bool)) : Except GenError Bool :=
   let rec aux (l : List (Unit → Except GenError Bool)) (b : Bool) : Except GenError Bool :=
     let err := .genError "DecOpt.checkerBacktrack failure."
     match l with

@@ -1,9 +1,13 @@
 
-import Lean
+module
 
-import Batteries.Data.List.Basic
+public import Lean
+
+public import Batteries.Data.List.Basic
 
 open Lean Meta LocalContext Std
+
+public section
 
 /-- A variable along with its fully elaborated type.
 Will likely be replaced by variables directly living in `Expr` at some point. -/

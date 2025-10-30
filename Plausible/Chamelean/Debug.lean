@@ -1,4 +1,7 @@
-import Lean
+
+module
+
+public import Lean
 open Lean
 
 /-- Option to enable debug messages from Chamelean -/

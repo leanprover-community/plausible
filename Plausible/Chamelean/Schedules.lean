@@ -1,10 +1,15 @@
-import Plausible.Chamelean.UnificationMonad
-import Plausible.Chamelean.Utils
 
-open Lean
+module
 
+public import Plausible.Chamelean.UnificationMonad
+public import Plausible.Chamelean.Utils
+
+open Lean UnificationMonad
 
 namespace Schedules
+
+public section
+
 ----------------------------------------------
 -- Type definitions
 ----------------------------------------------
@@ -251,4 +256,5 @@ def addConclusionPatternsAndEqualitiesToSchedule (patterns : List (Unknown × Pa
   let equalityCheckSteps := (fun (u1, u2) => ScheduleStep.Check (Source.NonRec (`BEq.beq, [.Unknown u1, .Unknown u2])) true) <$> equalities.toList
   (matchSteps ++ equalityCheckSteps ++ existingScheduleSteps, scheduleSort)
 
+end
 end Schedules

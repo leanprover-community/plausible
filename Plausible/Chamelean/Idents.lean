@@ -1,10 +1,15 @@
-import Lean
+
+module
+
+public import Lean
 import Plausible.Gen
 open Lean Meta Std
 
 -- Create idents for commonly-called functions & commonly-referenced types
 
 namespace Idents
+
+public section
 
 -- Idents for commonly-called functions
 def generatorCombinatorsThunkGenFn : Ident := mkIdent $ Name.mkStr2 "GeneratorCombinators" "thunkGen"
@@ -133,5 +138,7 @@ def extractParamName (arg : Term) : MetaM Name :=
   match arg with
   | `($name:ident) => return name.getId
   | _ => return (genFreshName #[] `param)
+
+end
 
 end Idents

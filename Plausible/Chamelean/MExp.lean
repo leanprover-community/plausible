@@ -1,19 +1,24 @@
-import Plausible.Arbitrary
-import Plausible.Chamelean.ArbitrarySizedSuchThat
-import Plausible.Chamelean.Enumerators
-import Plausible.Chamelean.DecOpt
-import Plausible.Chamelean.TSyntaxCombinators
-import Batteries.Lean.Expr
-import Plausible.Chamelean.Schedules
-import Plausible.Chamelean.UnificationMonad
-import Plausible.Chamelean.Idents
-import Plausible.Chamelean.Utils
+
+module
+
+public import Plausible.Arbitrary
+public import Plausible.Chamelean.ArbitrarySizedSuchThat
+public import Plausible.Chamelean.Enumerators
+public import Plausible.Chamelean.DecOpt
+public import Plausible.Chamelean.TSyntaxCombinators
+public import Batteries.Lean.Expr
+public import Plausible.Chamelean.Schedules
+public import Plausible.Chamelean.UnificationMonad
+public import Plausible.Chamelean.Idents
+public import Plausible.Chamelean.Utils
+
+open Plausible
+open Idents Schedules UnificationMonad TSyntaxCombinators
+open Lean Parser Elab Term Command ToExpr TSyntax
 
 namespace MExp
 
-open Plausible
-open Idents Schedules
-open Lean Parser Elab Term Command ToExpr TSyntax
+public section
 
 -- Adapted from QuickChick source code
 -- https://github.com/QuickChick/QuickChick/blob/internal-rewrite/plugin/newGenericLib.ml

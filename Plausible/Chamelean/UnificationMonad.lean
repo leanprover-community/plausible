@@ -1,13 +1,18 @@
 
-import Std.Data.HashMap
-import Lean.Expr
-import Lean.Exception
-import Plausible.Chamelean.Idents
-import Plausible.Chamelean.TSyntaxCombinators
+module
 
+public import Std.Data.HashMap
+public import Lean.Expr
+public import Lean.Meta
+public import Lean.Exception
+public import Plausible.Chamelean.Idents
+public import Plausible.Chamelean.TSyntaxCombinators
 
-open Lean Idents Elab
+open Lean Idents Elab TSyntaxCombinators
 
+namespace UnificationMonad
+
+public section
 
 -- Adapted from "Generating Good Generators for Inductive Relations", POPL '18
 -- and the QuickChick source code

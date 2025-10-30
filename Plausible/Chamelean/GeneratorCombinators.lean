@@ -1,6 +1,11 @@
-import Plausible.Gen
-import Plausible.ArbitraryFueled
+
+module
+
+public import Plausible.Gen
+public import Plausible.ArbitraryFueled
 open Plausible
+
+public meta section
 
 namespace GeneratorCombinators
 
@@ -15,6 +20,9 @@ def pick (default : Gen α) (xs : List (Nat × Gen α)) (n : Nat) : Nat × Gen �
     else
       pick default xs (n - k)
 
+-- For now, `Gen` is inhabited due to the exceptions.
+instance: Inhabited (Gen α) where
+  default := throw <| GenError.genError ""
 
 /-- `pickDrop xs n` returns a weight & its generator `(k, gen)` from the list `xs`
      such that `n < k`, and also returns the other elements of the list after `(k, gen)` -/

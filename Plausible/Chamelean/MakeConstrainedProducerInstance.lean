@@ -1,15 +1,20 @@
-import Lean
+
+module
+
+public import Lean
 import Std
 import Plausible.Gen
 import Plausible.Chamelean.GeneratorCombinators
 import Plausible.Chamelean.TSyntaxCombinators
 import Plausible.Chamelean.Idents
 import Plausible.Chamelean.Utils
-import Plausible.Chamelean.Schedules
+public import Plausible.Chamelean.Schedules
 
 
 open Lean Elab Command Meta Term Parser Std
-open Idents Schedules
+open Idents Schedules TSyntaxCombinators
+
+public section
 
 /-- Extracts the name of the induction relation and its arguments -/
 def parseInductiveApp (body : Term) :

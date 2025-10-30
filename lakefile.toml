@@ -6,6 +6,7 @@ lintDriver = "batteries/runLinter"
 
 [leanOptions]
 linter.missingDocs = false
+experimental.module = true
 
 [[lean_lib]]
 name = "Test"

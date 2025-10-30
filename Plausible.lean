@@ -3,15 +3,18 @@ Copyright (c) 2024 Lean FRO, LLC. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Henrik Böving
 -/
-import Plausible.Random
-import Plausible.Gen
-import Plausible.Sampleable
-import Plausible.Testable
-import Plausible.Functions
-import Plausible.Attr
-import Plausible.Tactic
-import Plausible.Arbitrary
-import Plausible.DeriveArbitrary
+
+module
+
+public import Plausible.Random
+public import Plausible.Gen
+public import Plausible.Sampleable
+public import Plausible.Testable
+public import Plausible.Functions
+public import Plausible.Attr
+public import Plausible.Tactic
+public import Plausible.Arbitrary
+public import Plausible.DeriveArbitrary
 
 -- Source files for Chamelean
 -- (extension to Plausible for deriving generators, enumerators & checkers)

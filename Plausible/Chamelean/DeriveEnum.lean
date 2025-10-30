@@ -1,14 +1,19 @@
-import Lean
 
-import Plausible.Chamelean.Idents
-import Plausible.Chamelean.TSyntaxCombinators
-import Plausible.Chamelean.Enumerators
-import Plausible.Chamelean.Utils
-import Plausible.DeriveArbitrary
+module
+
+public meta import Lean
+
+public meta import Plausible.Chamelean.Idents
+public meta import Plausible.Chamelean.TSyntaxCombinators
+public meta import Plausible.Chamelean.Enumerators
+public meta import Plausible.Chamelean.Utils
+public meta import Plausible.DeriveArbitrary
 
 open Lean Elab Command Meta Term Parser
 
-open Idents
+open Idents TSyntaxCombinators
+
+meta section
 
 /-- Takes the name of a constructor for an algebraic data type and returns an array
     containing `(argument_name, argument_type)` pairs.
@@ -145,7 +150,7 @@ syntax (name := enum_deriver) "derive_enum" term : command
 
 /-- Command elaborator which derives an instance of the `EnumSized` typeclass -/
 @[command_elab enum_deriver]
-def elabDeriveEnum : CommandElab := fun stx => do
+public def elabDeriveEnum : CommandElab := fun stx => do
   match stx with
   | `(derive_enum $targetTypeTerm:term) => do
 

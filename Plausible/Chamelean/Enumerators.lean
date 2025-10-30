@@ -1,8 +1,13 @@
-import Plausible.Chamelean.LazyList
-import Plausible.Chamelean.Utils
-import Plausible.Gen
+
+module
+
+public import Plausible.Chamelean.LazyList
+public import Plausible.Chamelean.Utils
+public import Plausible.Gen
 
 open LazyList Plausible
+
+public section
 
 /-- An enumerator is a function from `Nat` to `LazyList α`, where the `Nat`
     serves an upper bound for the enumeration process, i.e. the LazyList returned

@@ -1,7 +1,14 @@
-import Lean
-import Plausible.Chamelean.Utils
-import Batteries.Lean.Expr
+
+module
+
+public import Lean
+public import Plausible.Chamelean.Utils
+public import Batteries.Lean.Expr
 open Lean Elab Command Meta Term Parser
+
+namespace TSyntaxCombinators
+
+public section
 
 /-- `mkLetBind lhs rhsTerms` constructs a monadic let-bind expression of the form
     `let lhs ← e0 e1 … en`, where `rhsTerms := #[e0, e1, …, en]`.
@@ -25,7 +32,7 @@ def mkTuple (components : List (Name × Option Expr)) : MetaM (TSyntax `term) :=
   match components with
   | [] => `(())
   | [(var, some ty)] => do
-    let tSyn ← (withOptions setDelaboratorOptions (delabExprInLocalContext lctx ty))
+    let tSyn ← PrettyPrinter.delab ty
     `(($(mkIdent var) : $tSyn))
   | [(var, none)] => do
     `($(mkIdent var))
@@ -33,7 +40,7 @@ def mkTuple (components : List (Name × Option Expr)) : MetaM (TSyntax `term) :=
     let tail ← aux lctx xs
     match oty with
     | some type =>
-      let tSyn ← withOptions setDelaboratorOptions (delabExprInLocalContext lctx type)
+      let tSyn ← PrettyPrinter.delab type
       `( (($(mkIdent var):term : $tSyn), $tail:term ) )
     | none =>
       `( ($(mkIdent var):term, $tail:term))
@@ -85,7 +92,7 @@ def mkDoElemMatchExpr (scrutinee : TSyntax `term) (cases : TSyntaxArray ``Term.m
 /-- Converts a `Literal`, the datatype used to store `Nat` and `String` literals in `Lean.Expr` into the corresponding literal `TSyntax`.
     Note, the `Nat` literal will be wrapped in an `OfNat.ofNat` call.
 -/
-def mkLiteral (l : Literal) : MetaM (TSyntax `term) :=
+public def mkLiteral (l : Literal) : MetaM (TSyntax `term) :=
   match l with
   | .natVal n => `($(Syntax.mkNatLit n))
   | .strVal s => `($(Syntax.mkStrLit s))

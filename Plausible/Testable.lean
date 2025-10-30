@@ -3,9 +3,12 @@ Copyright (c) 2022 Henrik Böving. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Henrik Böving, Simon Hudon
 -/
-import Lean.Elab.Tactic.Config
-import Plausible.Sampleable
-import Batteries
+module
+
+public meta import Lean.Elab.Tactic.Config
+public meta import Plausible.Sampleable
+
+public meta section
 
 
 /-!
@@ -167,7 +170,7 @@ instance (priority := low) : PrintableProp p where
 class Testable (p : Prop) where
   run (cfg : Configuration) (minimize : Bool) : Gen (TestResult p)
 
-def NamedBinder (_n : String) (p : Prop) : Prop := p
+@[expose] def NamedBinder (_n : String) (p : Prop) : Prop := p
 
 namespace TestResult
 
@@ -617,7 +620,6 @@ def Testable.check (p : Prop) (cfg : Configuration := {})
 --   Configuration.verbose
 -- #eval Testable.check (∀ (x : Nat) (h : 10 < x), 5 < x) Configuration.verbose
 
-@[nolint docBlame]
 macro tk:"#test " e:term : command => `(command| #eval%$tk Testable.check $e)
 
 -- #test ∀ (x : Nat) (h : 5 < x), 10 < x

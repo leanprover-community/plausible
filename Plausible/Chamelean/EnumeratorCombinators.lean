@@ -1,7 +1,10 @@
-import Plausible.Chamelean.Enumerators
-import Plausible.Chamelean.LazyList
-import Plausible.Gen
-import Plausible.ArbitraryFueled
+
+module
+
+public meta import Plausible.Chamelean.Enumerators
+public import Plausible.Chamelean.LazyList
+public import Plausible.Gen
+public import Plausible.ArbitraryFueled
 
 open LazyList Plausible
 
@@ -9,6 +12,8 @@ open LazyList Plausible
 -- https://github.com/QuickChick/QuickChick/blob/master/src/Enumerators.v
 
 namespace EnumeratorCombinators
+
+public meta section
 
 /-- `pickDrop xs n` and returns the `n`-th enumerator from the list `xs`,
     and returns the tail of the list from the `n+1`-th element onwards
@@ -81,5 +86,7 @@ def enumerating (e : Enumerator α) (f : α → Except GenError Bool) (size : Na
     - This corresponds to `bind_EC` in the Computing Correctly paper (section 4) -/
 def enumeratingOpt (e : ExceptT GenError Enumerator α) (f : α → Except GenError Bool) (size : Nat) : Except GenError Bool :=
   lazyListBacktrackOpt (e size) f false
+
+end
 
 end EnumeratorCombinators

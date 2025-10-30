@@ -50,9 +50,6 @@ deriving instance Enum for
   Request, BoolType, CedarType, EntitySchemaEntry, ActionSchemaEntry, Schema,
   RequestType, Environment, PathSet
 
-deriving instance BEq for
-  EntityName
-
 instance {α : Type} {a : α} [Repr α] [ArbitraryFueled α] [DecidableEq α] : ArbitrarySizedSuchThat α (fun b => a ≠ b) where
   arbitrarySizedST s := do
     let b ← ArbitraryFueled.arbitraryFueled s

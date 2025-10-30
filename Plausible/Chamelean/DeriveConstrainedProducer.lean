@@ -1,23 +1,3 @@
-import Lean.Expr
-import Lean.LocalContext
-
-import Plausible.Chamelean.UnificationMonad
-import Plausible.Chamelean.Schedules
-import Plausible.Chamelean.DeriveSchedules
-import Plausible.Chamelean.MExp
-import Plausible.Chamelean.MakeConstrainedProducerInstance
-import Plausible.DeriveArbitrary
-import Plausible.Chamelean.TSyntaxCombinators
-import Plausible.Chamelean.Utils
-import Plausible.Chamelean.Debug
-import Plausible.Arbitrary
-
-import Lean.Elab.Command
-import Lean.Meta.Basic
-
-open Lean Elab Command Meta Term Parser
-open Idents Schedules
-
 
 ----------------------------------------------------------------------------------------------------------------------------------
 -- Adapted from "Generating Good Generators for Inductive Relations" (POPL '18) & "Testing Theorems, Fully Automatically" (2025)
@@ -25,6 +5,30 @@ open Idents Schedules
 -- https://github.com/QuickChick/QuickChick/blob/internal-rewrite/plugin/newGenericLib.ml
 -- https://github.com/QuickChick/QuickChick/blob/internal-rewrite/plugin/newUnifyQC.ml.cppo
 ----------------------------------------------------------------------------------------------------------------------------------
+
+module
+
+import Lean.Expr
+import Lean.LocalContext
+
+public meta import Plausible.Chamelean.UnificationMonad
+public meta import Plausible.Chamelean.Schedules
+public meta import Plausible.Chamelean.DeriveSchedules
+public meta import Plausible.Chamelean.MExp
+public meta import Plausible.Chamelean.MakeConstrainedProducerInstance
+public meta import Plausible.DeriveArbitrary
+public meta import Plausible.Chamelean.TSyntaxCombinators
+public meta import Plausible.Chamelean.Utils
+public meta import Plausible.Chamelean.Debug
+public meta import Plausible.Arbitrary
+
+import Lean.Elab.Command
+import Lean.Meta.Basic
+
+open Lean Elab Command Meta Term Parser
+open Idents Schedules UnificationMonad TSyntaxCombinators
+
+meta section
 
 /-- Creates the initial constraint map where all inputs are `Fixed`, while the output & all universally-quantified variables are `Undef`.
     - `forAllVariables` is a list of (variable name, variable type) pairs -/
@@ -332,7 +336,7 @@ def rewriteFunctionCallsInConclusion
       + Note: when `deriveSort == .Generator / .Enumerator`, it is the caller's responsibility to ensure that
         `unknowns == inputNames ∪ { outputName }`, i.e. `unknowns` contains all args to the inductive relation
         listed in order, which coincides with `inputNames ∪ { outputName }` -/
-def getScheduleForInductiveRelationConstructor
+public def getScheduleForInductiveRelationConstructor
   (inductiveName : Name) (ctorName : Name) (inputNames : List Name)
   (deriveSort : DeriveSort) (outputNameTypeOption : Option (Name × Expr)) (unknownsArray : Array Unknown) : UnifyM Schedule := do
   trace[plausible.deriving.arbitrary] "Schedule requested for inductive {inductiveName}'s constructor, {ctorName} with inputs: {inputNames} and outputs: {unknownsArray}"
@@ -738,7 +742,7 @@ syntax (name := generator_deriver) "derive_generator" term : command
 /-- Elaborator for the `derive_generator` command which derives a constrained generator
     using generator schedules from Testing Theorems & the unification algorithm from Generating Good Generators -/
 @[command_elab generator_deriver]
-def elabDeriveGenerator : CommandElab := fun stx => do
+public def elabDeriveGenerator : CommandElab := fun stx => do
   match stx with
   | `(derive_generator $descr:term) => do
     -- Derive an instance of the `ArbitrarySuchThat` typeclass
@@ -760,7 +764,7 @@ syntax (name := enumerator_deriver) "derive_enumerator" term : command
 /-- Elaborator for the `derive_generator` command which derives a constrained generator
     using generator schedules from Testing Theorems & the unification algorithm from Generating Good Generators -/
 @[command_elab enumerator_deriver]
-def elabDeriveScheduledEnumerator : CommandElab := fun stx => do
+public def elabDeriveScheduledEnumerator : CommandElab := fun stx => do
   match stx with
   | `(derive_enumerator $descr:term) => do
     -- Derive an instance of the `Enumerate` typeclass

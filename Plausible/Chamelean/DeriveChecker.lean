@@ -1,15 +1,18 @@
+
+module
+
 import Lean
 
-import Plausible.Chamelean.MakeConstrainedProducerInstance
-import Plausible.Chamelean.DeriveConstrainedProducer
-import Plausible.Chamelean.Idents
-import Plausible.Chamelean.DecOpt
-import Plausible.Chamelean.UnificationMonad
+public import Plausible.Chamelean.MakeConstrainedProducerInstance
+public import Plausible.Chamelean.DeriveConstrainedProducer
+public import Plausible.Chamelean.Idents
+public import Plausible.Chamelean.DecOpt
+public import Plausible.Chamelean.UnificationMonad
 
 open Lean Std Elab Command Meta Term Parser
-open Idents Schedules
+open Idents Schedules UnificationMonad TSyntaxCombinators
 
-
+meta section
 
 /-- Unifies each argument in the conclusion of an inductive relation with the top-level arguments to the relation
     (using the unification algorithm from Generating Good Generations),
@@ -210,7 +213,7 @@ syntax (name := checker_deriver) "derive_checker" term : command
 
 /-- Command elaborator that produces the function header for the checker -/
 @[command_elab checker_deriver]
-def elabDeriveScheduledChecker : CommandElab := fun stx => do
+public def elabDeriveScheduledChecker : CommandElab := fun stx => do
   match stx with
   | `(derive_checker $indProp:term) => do
 
