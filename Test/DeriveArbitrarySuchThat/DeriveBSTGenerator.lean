@@ -13,12 +13,12 @@ open ArbitrarySizedSuchThat
 set_option guard_msgs.diff true
 
 #guard_msgs(drop info, drop warning) in
-#derive_generator (fun (x : Nat) => Between lo x hi)
+derive_generator (fun lo hi => ∃ (x : Nat), Between lo x hi)
 
 deriving instance Arbitrary for BinaryTree
 
 #guard_msgs(drop info, drop warning) in
-#derive_generator (fun (t : BinaryTree) => BST lo hi t)
+derive_generator (fun lo hi => ∃ (t : BinaryTree), BST lo hi t)
 
 
 /-- Inserts an element into a tree, respecting the BST invariants -/
@@ -61,4 +61,6 @@ def runTests (numTrials : Nat) (useBuggyVersion : Bool := false) : IO Unit := do
   IO.println s!"Chamelean: finished {numTrials} tests, {numSucceeded} passed"
 
 -- Uncomment this to run the aforementioned test harness
+-- Sadly this cannot be made a #guard_msg since the counter-example is non-deterministic
+
 -- #eval runTests (numTrials := 100) (useBuggyVersion := true)

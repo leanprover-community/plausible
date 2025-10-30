@@ -12,16 +12,16 @@ open ArbitrarySizedSuchThat
 set_option guard_msgs.diff true
 
 #guard_msgs(drop info, drop warning) in
-#derive_generator (fun (x : Nat) => lookup Γ x τ)
+derive_generator (fun Γ τ => ∃ (x : Nat), lookup Γ x τ)
 
 #guard_msgs(drop info, drop warning) in
-#derive_generator (fun (τ : type) => lookup Γ x τ)
+derive_generator (fun Γ x => ∃ (τ : type), lookup Γ x τ)
 
 #guard_msgs(drop info, drop warning) in
-#derive_generator (fun (t : type) => typing G e t)
+derive_generator (fun G e => ∃ (t : type), typing G e t)
 
 #guard_msgs(drop info, drop warning) in
-#derive_generator (fun (e : term) => typing G e t)
+derive_generator (fun G t => ∃ (e : term), typing G e t)
 
 -- To sample from this generator and print out 10 successful examples using the `Repr`
 -- instance for `term`, we can run the following:

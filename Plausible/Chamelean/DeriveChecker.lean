@@ -37,7 +37,7 @@ def getCheckerScheduleForInductiveConstructor (inductiveName : Name) (ctorName :
     - Note: this function is identical to `mkTopLevelChecker`, except it doesn't take in a `NameMap` argument
     - TODO: refactor to avoid code duplication -/
 def mkDecOptInstance (baseCheckers : TSyntax `term) (inductiveCheckers : TSyntax `term)
-  (inductiveStx : TSyntax `term) (args : TSyntaxArray `term) (topLevelLocalCtx : LocalContext) : CommandElabM (TSyntax `command) := do
+  (inductiveName : Name) (args : TSyntaxArray `term) (topLevelLocalCtx : LocalContext) : TermElabM (TSyntax `command) := do
 
   -- Produce a fresh name for the `size` argument for the lambda
   -- at the end of the checker function, as well as the `aux_dec` inner helper function
@@ -45,8 +45,6 @@ def mkDecOptInstance (baseCheckers : TSyntax `term) (inductiveCheckers : TSyntax
   let freshSize' := mkFreshAccessibleIdent topLevelLocalCtx `size'
   let auxDecIdent := mkFreshAccessibleIdent topLevelLocalCtx `aux_dec
   let checkerType ← `($exceptTypeConstructor $genErrorType $boolIdent)
-
-  let inductiveName := inductiveStx.raw.getId
 
   -- Create the cases for the pattern-match on the size argument
   let mut caseExprs := #[]
@@ -60,7 +58,7 @@ def mkDecOptInstance (baseCheckers : TSyntax `term) (inductiveCheckers : TSyntax
   -- (former is the generator size, latter is the size argument with which to invoke other auxiliary generators/checkers)
   let initSizeParam ← `(Term.letIdBinder| ($initSizeIdent : $natIdent))
   let sizeParam ← `(Term.letIdBinder| ($sizeIdent : $natIdent))
-  let matchExpr ← liftTermElabM $ mkMatchExpr sizeIdent caseExprs
+  let matchExpr ← mkMatchExpr sizeIdent caseExprs
 
   -- Add parameters for each argument to the inductive relation
   let paramInfo ← analyzeInductiveArgs inductiveName args
@@ -81,31 +79,35 @@ def mkDecOptInstance (baseCheckers : TSyntax `term) (inductiveCheckers : TSyntax
     innerParams := innerParams.push innerParam
 
   -- Produces an instance of the `DecOpt` typeclass containing the definition for the derived generator
-  `(instance : $decOptTypeclass ($inductiveStx $args*) where
+  `(instance : $decOptTypeclass ($(mkIdent inductiveName) $args*) where
       $unqualifiedDecOptFn:ident :=
         let rec $auxDecIdent:ident $innerParams* : $checkerType :=
           $matchExpr
         fun $freshSizeIdent => $auxDecIdent $freshSizeIdent $freshSizeIdent $outerParams*)
 
 
-
-/-- Derives a checker which checks the `inductiveProp` (an inductive relation, represented as a `TSyntax term`)
-    using the unification algorithm from Generating Good Generators and the schedules discuseed in Testing Theorems -/
-def deriveScheduledChecker (inductiveProp : TSyntax `term) : CommandElabM (TSyntax `command) := do
+def deriveScheduledChecker' (_args : Array Expr)
+    (constrInd : Name)
+    (constrArgs : Array Expr) : TermElabM (TSyntax `command) := do
   -- Parse `inductiveProp` for an application of the inductive relation
-  let (inductiveSyntax, argIdents) ← parseInductiveApp inductiveProp
-  let inductiveName := inductiveSyntax.getId
+
+  let inductiveName := constrInd
 
   -- Obtain Lean's `InductiveVal` data structure, which contains metadata about the inductive relation
   let inductiveVal ← getConstInfoInduct inductiveName
 
   -- Determine the type for each argument to the inductive
-  let inductiveTypeComponents ← liftTermElabM $ getComponentsOfArrowType inductiveVal.type
+  let inductiveTypeComponents ← getComponentsOfArrowType inductiveVal.type
 
   -- To obtain the type of each arg to the inductive,
   -- we pop the last element (`Prop`) from `inductiveTypeComponents`
   let argTypes := inductiveTypeComponents.pop
-  let argNames := (fun ident => ident.getId) <$> argIdents
+  -- For now we fail if any argument is not a variable
+  let argNames ← constrArgs.mapM
+    (fun ident : Expr =>
+      if ident.isFVar then
+        ident.fvarId!.getUserName
+      else throwError m!"{ident} is expected to be a variable.")
   let argNamesTypes := argNames.zip argTypes
 
   -- Add the name & type of each argument to the inductive relation to the `LocalContext`
@@ -113,7 +115,7 @@ def deriveScheduledChecker (inductiveProp : TSyntax `term) : CommandElabM (TSynt
   -- that are invoked when `size = 0` and `size > 0` respectively),
   -- and obtain freshened versions of the output variable / arguments (`freshenedOutputName`, `freshArgIdents`)
   let (baseCheckers, inductiveCheckers, freshArgIdents, localCtx) ←
-    liftTermElabM $ withLocalDeclsDND argNamesTypes (fun _ => do
+    withLocalDeclsDND argNamesTypes (fun _ => do
       let mut localCtx ← getLCtx
       let mut freshUnknowns := #[]
 
@@ -176,25 +178,44 @@ def deriveScheduledChecker (inductiveProp : TSyntax `term) : CommandElabM (TSynt
   mkDecOptInstance
     baseCheckers
     inductiveCheckers
-    inductiveSyntax
+    constrInd
     freshArgIdents
     localCtx
+
+private def withParsedDerivingArgs (input : Expr)
+  (action :
+    (args : Array Expr) →
+    (constrInd : Name) → (constrArgs : Array Expr) → TermElabM α) : TermElabM α :=
+  lambdaTelescope input <|
+  fun args body => do
+  let body ← whnf body
+  body.withApp <|
+  fun ind indArgs => do
+  if !ind.isConst then throwError m!"Error in parsing constraint: {ind} is expected to be a constant."
+  let indName := ind.constName!
+  action args indName indArgs
+
+/-- Derives a checker which checks the `inductiveProp` (an inductive relation, represented as a `TSyntax term`)
+    using the unification algorithm from Generating Good Generators and the schedules discuseed in Testing Theorems -/
+def deriveScheduledChecker (inductiveProp : TSyntax `term) : TermElabM (TSyntax `command) := do
+  let elabTm ← elabTerm inductiveProp .none
+  withParsedDerivingArgs elabTm deriveScheduledChecker'
 
 ----------------------------------------------------------------------
 -- NEW Command elaborator driver
 -----------------------------------------------------------------------
 
-/-- Command which derives a checker using the new schedule and unificaiton-based algorithm -/
-syntax (name := derive_checker) "#derive_checker" "(" term ")" : command
+/-- Command which derives a checker using the new schedule and unification-based algorithm -/
+syntax (name := checker_deriver) "derive_checker" term : command
 
 /-- Command elaborator that produces the function header for the checker -/
-@[command_elab derive_checker]
+@[command_elab checker_deriver]
 def elabDeriveScheduledChecker : CommandElab := fun stx => do
   match stx with
-  | `(#derive_checker ( $indProp:term )) => do
+  | `(derive_checker $indProp:term) => do
 
     -- Produce an instance of the `DecOpt` typeclass corresponding to the inductive proposition `indProp`
-    let typeclassInstance ← deriveScheduledChecker indProp
+    let typeclassInstance ← liftTermElabM <| deriveScheduledChecker indProp
 
     -- Pretty-print the derived checker
     let genFormat ← liftCoreM (PrettyPrinter.ppCommand typeclassInstance)

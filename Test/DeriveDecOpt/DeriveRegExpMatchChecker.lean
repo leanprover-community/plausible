@@ -63,4 +63,4 @@ info: Try this checker: instance : DecOpt (ExpMatch s r0) where
     fun size => aux_dec size size s r0
 -/
 -- #guard_msgs(drop info, drop warning) in
--- #derive_checker (ExpMatch s r0)
+-- derive_checker (fun s r0 => ExpMatch s r0)

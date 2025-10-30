@@ -28,9 +28,9 @@ deriving instance Enum for type, term
 namespace CommandElaboratorTest
 
 #guard_msgs(drop info, drop warning) in
-#derive_enum type
+derive_enum type
 
 #guard_msgs(drop info, drop warning) in
-#derive_enum term
+derive_enum term
 
 end CommandElaboratorTest

@@ -83,233 +83,233 @@ deriving instance DecidableEq for PathSet
 --------------------------------------------------
 
 #guard_msgs(drop info, drop warning) in
-#derive_checker (Cedar.RecordExpr ce)
+derive_checker (fun ce => Cedar.RecordExpr ce)
 
 #guard_msgs(drop info, drop warning) in
-#derive_generator (fun (ce : CedarExpr) => Cedar.RecordExpr ce)
+derive_generator ∃ (ce : CedarExpr), Cedar.RecordExpr ce
 
 #guard_msgs(drop info, drop warning) in
-#derive_checker (Cedar.DefinedName · ·)
+derive_checker (Cedar.DefinedName · ·)
 
 #guard_msgs(drop info, drop warning) in
-#derive_checker (Cedar.WfCedarType n r)
+derive_checker (fun n r => Cedar.WfCedarType n r)
 
 #guard_msgs(drop info, drop warning) in
-#derive_generator (fun (ns_1_1 : List EntityName) => Cedar.DefinedName ns_1_1 n)
+derive_generator fun n => ∃ (ns_1_1 : List EntityName), Cedar.DefinedName ns_1_1 n
 
 #guard_msgs(drop info, drop warning) in
-#derive_generator (fun (ns_1 : _) => Cedar.WfCedarType ns_1 r)
+derive_generator fun r => ∃ ns_1, Cedar.WfCedarType ns_1 r
 
 #guard_msgs(drop info, drop warning) in
-#derive_generator (fun (ns_1 : List EntityName) => Cedar.WfRecordType ns_1 r)
+derive_generator fun r => ∃ (ns_1 : List EntityName), Cedar.WfRecordType ns_1 r
 
 #guard_msgs(drop info, drop warning) in
-#derive_checker (Cedar.WfRecordType n r)
+derive_checker (fun n r => Cedar.WfRecordType n r)
 
 #guard_msgs(drop info, drop warning) in
-#derive_checker (Cedar.BindAttrType ns TE t)
+derive_checker fun ns TE t => Cedar.BindAttrType ns TE t
 
 #guard_msgs(drop info, drop warning) in
-#derive_generator (fun (ns : _) => Cedar.BindAttrType ns TE t_1)
+derive_generator fun TE t_1 => ∃ (ns : _), Cedar.BindAttrType ns TE t_1
 
 #guard_msgs(drop info, drop warning) in
-#derive_generator (fun (E : _) => Cedar.LookupEntityAttr E (fn, b) t_1_1)
+derive_generator (fun p t_1_1 => ∃ E, Cedar.LookupEntityAttr E p t_1_1)
 
 #guard_msgs(drop info, drop warning) in
-#derive_generator (fun (ets : _) => Cedar.GetEntityAttr ets n t_1)
+derive_generator (fun n t_1 => ∃ (ets : _), Cedar.GetEntityAttr ets n t_1)
 
 #guard_msgs(drop info, drop warning) in
-#derive_checker (Cedar.SetExpr ce)
+derive_checker (fun ce => Cedar.SetExpr ce)
 
 #guard_msgs(drop info, drop warning) in
-#derive_generator (fun (ce : CedarExpr) => Cedar.SetExpr ce)
+derive_generator ∃ (ce : CedarExpr), Cedar.SetExpr ce
 
 set_option maxHeartbeats 2000000
 
 #guard_msgs(drop info, drop warning) in
-#derive_checker (Cedar.SetEntityValues ce)
+derive_checker (fun ce => Cedar.SetEntityValues ce)
 
 #guard_msgs(drop info, drop warning) in
-#derive_generator (fun (ce : CedarExpr) => Cedar.SetEntityValues ce)
+derive_generator ∃ (ce : CedarExpr), Cedar.SetEntityValues ce
 
 #guard_msgs(drop info, drop warning) in
-#derive_generator (fun (rs_1_1 : _) => Cedar.ActionToRequestTypes uid_1 p rs c l_1_1 rs_1_1)
+derive_generator (fun uid_1 p rs c l_1_1 => ∃ (rs_1_1 : _), Cedar.ActionToRequestTypes uid_1 p rs c l_1_1 rs_1_1)
 
 #guard_msgs(drop info, drop warning) in
-#derive_checker (Cedar.DefinedName ns n)
+derive_checker (fun ns n => Cedar.DefinedName ns n)
 
 #guard_msgs(drop info, drop warning) in
-#derive_generator (fun (n : EntityName) => Cedar.DefinedName ns n)
+derive_generator (fun ns => ∃ (n : EntityName), Cedar.DefinedName ns n)
 
 --------------------------------------------------
 -- Checker & Generator for `DefinedNames` relation
 --------------------------------------------------
 
 #guard_msgs(drop info, drop warning) in
-#derive_checker (Cedar.DefinedNames ns ns0)
+derive_checker (fun ns ns0 => Cedar.DefinedNames ns ns0)
 
 #guard_msgs(drop info, drop warning) in
-#derive_generator (fun (ns0 : List EntityName) => Cedar.DefinedNames ns ns0)
+derive_generator (fun ns => ∃ (ns0 : List EntityName), Cedar.DefinedNames ns ns0)
 
 --------------------------------------------------
 -- Checker & Generator for well-formed Cedar types
 --------------------------------------------------
 
 #guard_msgs(drop info, drop warning) in
-#derive_checker (Cedar.WfCedarType ns ct)
+derive_checker (fun ns ct => Cedar.WfCedarType ns ct)
 
 #guard_msgs(drop info, drop warning) in
-#derive_generator (fun (ct : CedarType) => Cedar.WfCedarType ns ct)
+derive_generator (fun ns => ∃ (ct : CedarType), Cedar.WfCedarType ns ct)
 
 ----------------------------------------------------
 -- Checker & Generator for well-formed record types
 ----------------------------------------------------
 
 #guard_msgs(drop info, drop warning) in
-#derive_checker (Cedar.WfRecordType ns rt)
+derive_checker (fun ns rt => Cedar.WfRecordType ns rt)
 
 #guard_msgs(drop info, drop warning) in
-#derive_generator (fun (rt : CedarType) => Cedar.WfRecordType ns rt)
+derive_generator (fun ns => ∃ (rt : CedarType), Cedar.WfRecordType ns rt)
 
 ----------------------------------------------------
 -- Checker & Generator for well-formed attributes
 ----------------------------------------------------
 
 #guard_msgs(drop info, drop warning) in
-#derive_checker (Cedar.WfAttrs ns attrs)
+derive_checker (fun ns attrs => Cedar.WfAttrs ns attrs)
 
 #guard_msgs(drop info, drop warning) in
-#derive_generator (fun (attrs : List (String × Bool × CedarType)) => Cedar.WfAttrs ns attrs)
+derive_generator (fun ns => ∃ (attrs : List (String × Bool × CedarType)), Cedar.WfAttrs ns attrs)
 
 ---------------------------------------------------------------------
 -- Checker & Generator for well-formed `EntitySchemaEntry`(ies)
 ---------------------------------------------------------------------
 
 #guard_msgs(drop info, drop warning) in
-#derive_checker (Cedar.WfET ns et)
+derive_checker (fun ns et => Cedar.WfET ns et)
 
 #guard_msgs(drop info, drop warning) in
-#derive_generator (fun (et : EntitySchemaEntry) => Cedar.WfET ns et)
+derive_generator (fun ns => ∃ (et : EntitySchemaEntry), Cedar.WfET ns et)
 
 #guard_msgs(drop info, drop warning) in
-#derive_checker (Cedar.WfETS ns ns0 ets)
+derive_checker (fun ns ns0 ets => Cedar.WfETS ns ns0 ets)
 
 #guard_msgs(drop info, drop warning) in
-#derive_generator (fun (ets : List (EntityName × EntitySchemaEntry)) => Cedar.WfETS ns ns0 ets)
+derive_generator (fun ns ns0 => ∃ (ets : List (EntityName × EntitySchemaEntry)), Cedar.WfETS ns ns0 ets)
 
 ---------------------------------------------------------------------
 -- Checker & Generator for well-formed `ActionSchemaEntry`(ies)
 ---------------------------------------------------------------------
 
 #guard_msgs(drop info, drop warning) in
-#derive_checker (Cedar.WfACT ns act)
+derive_checker (fun ns act => Cedar.WfACT ns act)
 
 #guard_msgs(drop info, drop warning) in
-#derive_generator (fun (act : EntityUID × ActionSchemaEntry) => Cedar.WfACT ns act)
+derive_generator (fun ns => ∃ (act : EntityUID × ActionSchemaEntry), Cedar.WfACT ns act)
 
 #guard_msgs(drop info, drop warning) in
-#derive_checker (Cedar.WfACTS ns act)
+derive_checker (fun ns act => Cedar.WfACTS ns act)
 
 #guard_msgs(drop info, drop warning) in
-#derive_generator (fun (act : List (EntityUID × ActionSchemaEntry)) => Cedar.WfACTS ns act)
+derive_generator (fun ns => ∃ (act : List (EntityUID × ActionSchemaEntry)), Cedar.WfACTS ns act)
 
 ------------------------------------------------------------
 -- Checker & Generator for well-formed schemas
 ------------------------------------------------------------
 
 #guard_msgs(drop info, drop warning) in
-#derive_checker (Cedar.WfSchema ns s)
+derive_checker (fun ns s => Cedar.WfSchema ns s)
 
 #guard_msgs(drop info, drop warning) in
-#derive_generator (fun (s : Schema) => Cedar.WfSchema ns s)
+derive_generator (fun ns => ∃ (s : Schema), Cedar.WfSchema ns s)
 
 ------------------------------------------------------------
 -- Checker & Generator for defined entities
 ------------------------------------------------------------
 
 #guard_msgs(drop info, drop warning) in
-#derive_checker (Cedar.DefinedEntity ets n)
+derive_checker (fun ets n => Cedar.DefinedEntity ets n)
 
 #guard_msgs(drop info, drop warning) in
-#derive_generator (fun (n : EntityName) => Cedar.DefinedEntity ets n)
+derive_generator (fun ets => ∃ (n : EntityName), Cedar.DefinedEntity ets n)
 
 #guard_msgs(drop info, drop warning) in
-#derive_checker (Cedar.DefinedEntities ets n)
+derive_checker (fun ets n => Cedar.DefinedEntities ets n)
 
 #guard_msgs(drop info, drop warning) in
-#derive_generator (fun (n : List EntityName) => Cedar.DefinedEntities ets n)
+derive_generator (fun ets => ∃ (n : List EntityName), Cedar.DefinedEntities ets n)
 
 ---------------------------------------------
 -- Schema: LookupEntityAttr / GetEntityAttr
 ---------------------------------------------
 
 #guard_msgs(drop info, drop warning) in
-#derive_checker (Cedar.LookupEntityAttr l fnb t)
+derive_checker (fun l fnb t => Cedar.LookupEntityAttr l fnb t)
 
 #guard_msgs(drop info, drop warning) in
-#derive_generator (fun (fnb : (String × Bool)) => Cedar.LookupEntityAttr l fnb t)
+derive_generator (fun l t => ∃ (fnb : (String × Bool)), Cedar.LookupEntityAttr l fnb t)
 
 #guard_msgs(drop info, drop warning) in
-#derive_generator (fun (nfn : (EntityName × String × Bool)) => Cedar.GetEntityAttr ets nfn t)
+derive_generator (fun ets t => ∃ (nfn : (EntityName × String × Bool)), Cedar.GetEntityAttr ets nfn t)
 
 #guard_msgs(drop info, drop warning) in
-#derive_checker (Cedar.ReqContextToCedarType c t)
+derive_checker (fun c t => Cedar.ReqContextToCedarType c t)
 
 #guard_msgs(drop info, drop warning) in
-#derive_generator (fun (t : CedarType) => Cedar.ReqContextToCedarType c t)
+derive_generator (fun c => ∃ (t : CedarType), Cedar.ReqContextToCedarType c t)
 
 #guard_msgs(drop info, drop warning) in
-#derive_generator (fun (reqs : List RequestType) => Cedar.ActionToRequestTypes e n ns l rs reqs)
+derive_generator (fun e n ns l rs => ∃ (reqs : List RequestType), Cedar.ActionToRequestTypes e n ns l rs reqs)
 
 #guard_msgs(drop info, drop warning) in
-#derive_generator (fun (reqs : List RequestType) => Cedar.ActionSchemaEntryToRequestTypes e ae ls reqs)
+derive_generator (fun e ae ls => ∃ (reqs : List RequestType), Cedar.ActionSchemaEntryToRequestTypes e ae ls reqs)
 
 #guard_msgs(drop info, drop warning) in
-#derive_generator (fun (reqs : List RequestType) => Cedar.ActionSchemaToRequestTypes acts ls reqs)
+derive_generator (fun acts ls => ∃ (reqs : List RequestType), Cedar.ActionSchemaToRequestTypes acts ls reqs)
 
 #guard_msgs(drop info, drop warning) in
-#derive_generator (fun (es : List Environment) => Cedar.SchemaToEnvironments s l es)
+derive_generator (fun s l => ∃ (es : List Environment), Cedar.SchemaToEnvironments s l es)
 
 ---------------------------------------
 -- Checker & Generator for RecordTypes
 ---------------------------------------
 
 #guard_msgs(drop info, drop warning) in
-#derive_checker (Cedar.RecordType ct)
+derive_checker (fun ct => Cedar.RecordType ct)
 
 #guard_msgs(drop info, drop warning) in
-#derive_generator (fun (ct : CedarType) => Cedar.RecordType ct)
+derive_generator ∃ (ct : CedarType), Cedar.RecordType ct
 
 --------------------
 -- Subtyping & Typing
 --------------------
 #guard_msgs(drop info, drop warning) in
-#derive_checker (Cedar.SubType t1 t2)
+derive_checker (fun t1 t2 => Cedar.SubType t1 t2)
 
 #guard_msgs(drop info, drop warning) in
-#derive_generator (fun (t1 : CedarType) => Cedar.SubType t1 t2)
+derive_generator (fun t2 => ∃ (t1 : CedarType), Cedar.SubType t1 t2)
 
 #guard_msgs(drop info, drop warning) in
-#derive_generator (fun (p : Prim) => Cedar.HasTypePrim v p t)
+derive_generator (fun v t => ∃ (p : Prim), Cedar.HasTypePrim v p t)
 
 #guard_msgs(drop info, drop warning) in
-#derive_generator (fun (t : CedarType) => Cedar.HasTypeVar v x t)
+derive_generator (fun v x => ∃ (t : CedarType), Cedar.HasTypeVar v x t)
 
 #guard_msgs(drop info, drop warning) in
-#derive_generator (fun (x : Var) => Cedar.HasTypeVar v x t)
+derive_generator (fun v t => ∃ (x : Var), Cedar.HasTypeVar v x t)
 
 #guard_msgs(drop info, drop warning) in
-#derive_checker (Cedar.BindAttrType ns tef t)
+derive_checker (fun ns tef t => Cedar.BindAttrType ns tef t)
 
 #guard_msgs(drop info, drop warning) in
-#derive_generator (fun (tef : (CedarType × String × Bool)) => Cedar.BindAttrType ns tef t)
+derive_generator (fun ns t => ∃ (tef : (CedarType × String × Bool)), Cedar.BindAttrType ns tef t)
 
 #guard_msgs(drop info) in
-#derive_generator (fun (T : _) => Cedar.BindAttrType ns (TE, F, true) T)
+derive_generator (fun ns p => ∃ (T : _), Cedar.BindAttrType ns p T)
 
 ------------------------------------------------------------
 -- Generator for well-typed Cedar expressions
 ------------------------------------------------------------
 
 #guard_msgs(drop info, drop warning) in
-#derive_generator (fun (ex : (CedarExpr × PathSet)) => Cedar.HasType a v ex t)
+derive_generator (fun a v t => ∃ (ex : (CedarExpr × PathSet)), Cedar.HasType a v ex t)

@@ -28,7 +28,9 @@ open Idents Schedules
 
 /-- Creates the initial constraint map where all inputs are `Fixed`, while the output & all universally-quantified variables are `Undef`.
     - `forAllVariables` is a list of (variable name, variable type) pairs -/
-def mkInitialUnknownMap (inputNames: List Name) (outputName : Name) (outputType : Expr) (forAllVariables : List (Name × Expr)) : UnknownMap :=
+def mkInitialUnknownMap (inputNames: List Name)
+  (outputName : Name) (outputType : Expr)
+  (forAllVariables : List (Name × Expr)) : UnknownMap :=
   let inputConstraints := inputNames.zip (List.replicate inputNames.length .Fixed)
   let outputConstraints := [(outputName, .Undef outputType)]
   let filteredForAllVariables := forAllVariables.filter (fun (x, _) => x ∉ inputNames)
@@ -41,7 +43,10 @@ def mkInitialUnknownMap (inputNames: List Name) (outputName : Name) (outputType 
     - `outputName`, `outputType`: name & type of the output (variable to be produced)
   - `forAllVariables`: the names & types for universally-quantified variables in the constructor's type
     - `hypotheses`: the hypotheses for the constructor (represented as a constructor name applied to some list of arguments) -/
-def mkProducerInitialUnifyState (inputNames : List Name) (outputName : Name) (outputType : Expr) (forAllVariables : List (Name × Expr))
+def mkProducerInitialUnifyState (inputNames : List Name)
+  (outputName : Name)
+  (outputType : Expr)
+  (forAllVariables : List (Name × Expr))
   (hypotheses : List (Name × List ConstructorExpr)) : UnifyState :=
   let forAllVarNames := Prod.fst <$> forAllVariables
   let constraints := mkInitialUnknownMap inputNames outputName outputType forAllVariables
@@ -63,7 +68,9 @@ def mkProducerInitialUnifyState (inputNames : List Name) (outputName : Name) (ou
 
     Note that this function is the same as `mkProducerInitialUnifyState`, except it doesn't take in the name & type of the output variable,
     since checkers don't need to produce values (they just need to return an `Option Bool`). -/
-def mkCheckerInitialUnifyState (inputNames : List Name) (forAllVariables : List (Name × Expr)) (hypotheses : List (Name × List ConstructorExpr)) : UnifyState :=
+def mkCheckerInitialUnifyState (inputNames : List Name)
+  (forAllVariables : List (Name × Expr))
+  (hypotheses : List (Name × List ConstructorExpr)) : UnifyState :=
   let forAllVarNames := Prod.fst <$> forAllVariables
   let inputConstraints := inputNames.zip (List.replicate inputNames.length .Fixed)
   let filteredForAllVariables := forAllVariables.filter (fun (x, _) => x ∉ inputNames)
@@ -219,7 +226,10 @@ def convertRangeToCtorAppForm (r : Range) : UnifyM (Name × List ConstructorExpr
     - The `ctorNameOpt` argument is an (optional) constructor name for the produced value
       + This is `none` for checkers/theorem schedules as they don't produce constructor applications like generators/enumerators.
     - Note: callers should supply `none` as the `ctorNameOpt` argument if `deriveSort := .Theorem`  or `.Checker` -/
-def getScheduleSort (conclusion : HypothesisExpr) (outputVars : List Unknown) (ctorNameOpt : Option Name) (deriveSort : DeriveSort) (returnOption : Bool) : UnifyM ScheduleSort :=
+def getScheduleSort (conclusion : HypothesisExpr)
+  (outputVars : List Unknown)
+  (ctorNameOpt : Option Name)
+  (deriveSort : DeriveSort) (returnOption : Bool) : UnifyM ScheduleSort :=
   match deriveSort with
   | .Checker => return .CheckerSchedule
   | .Theorem => return (.TheoremSchedule conclusion (typeClassUsed := true))
@@ -248,7 +258,10 @@ def getScheduleSort (conclusion : HypothesisExpr) (outputVars : List Unknown) (c
     The updated hypotheses, conclusion, a list of the names & types of the fresh variables produced, and new `LocalContext` are subsequently returned.
     - Note: it is the caller's responsibility to check that `conclusion` does indeed contain
       a non-trivial function application (e.g. by using `containsNonTrivialFuncApp`) -/
-def rewriteFunctionCallsInConclusion (hypotheses : Array Expr) (conclusion : Expr) (inductiveRelationName : Name) (localCtx : LocalContext) : UnifyM (Array Expr × Expr × List (Name × Expr) × LocalContext) := do
+def rewriteFunctionCallsInConclusion
+  (hypotheses : Array Expr) (conclusion : Expr)
+  (inductiveRelationName : Name) (localCtx : LocalContext) :
+  UnifyM (Array Expr × Expr × List (Name × Expr) × LocalContext) := do
   -- Find all sub-terms which are non-trivial function applications
   let funcAppExprs ← conclusion.foldlM (init := []) (fun acc subExpr => do
     if (← containsNonTrivialFuncApp subExpr inductiveRelationName)
@@ -524,7 +537,8 @@ def getScheduleForInductiveRelationConstructor
     - An array of `unknowns` (the arguments to the inductive relation)
       + Note: `unknowns == inputNames ∪ { outputName }`, i.e. `unknowns` contains all args to the inductive relation
         listed in order, which coincides with `inputNames ∪ { outputName }` -/
-def getProducerScheduleForInductiveConstructor (inductiveName : Name) (ctorName : Name) (outputName : Name) (outputType : Expr) (inputNames : List Name)
+def getProducerScheduleForInductiveConstructor
+  (inductiveName : Name) (ctorName : Name) (outputName : Name) (outputType : Expr) (inputNames : List Name)
   (unknowns : Array Unknown) (deriveSort : DeriveSort) : UnifyM Schedule :=
   getScheduleForInductiveRelationConstructor inductiveName ctorName inputNames deriveSort (some (outputName, outputType)) unknowns
 
@@ -532,24 +546,28 @@ def getProducerScheduleForInductiveConstructor (inductiveName : Name) (ctorName 
 /-- Produces an instance of a typeclass for a constrained producer (either `ArbitrarySizedSuchThat` or `EnumSizedSuchThat`).
     The arguments to this function are:
 
-    - `outputVar` and `outputTypeSyntax` are the name & type of the value to be generated,
-    - `constrainingProp` is the proposition constraining the generated values need to satisfy
+    - `outputVar` and `outputType` are the name & type of the value to be generated,
+    - `constrainingInductive` is the inductive predicate constraining the generated values need to satisfy
+    - `constrArgs` are the arguments of the inductive predicate
     - `deriveSort` is the sort of function we are deriving (either `.Generator` or `.Enumerator`) -/
-def deriveConstrainedProducer (outputVar : Ident) (outputTypeSyntax : TSyntax `term) (constrainingProp : TSyntax `term) (deriveSort : DeriveSort) : CommandElabM (TSyntax `command) := do
+def deriveConstrainedProducer
+  (_args : Array Expr)
+  (outputVar : Expr)
+  (outputType : Expr)
+  (constrainingInductive : Name)
+  (constrArgs : Array Expr)
+  (deriveSort : DeriveSort) : TermElabM (TSyntax `command) := do
   -- Determine what sort of producer we're deriving (a `Generator` or an `Enumerator`)
   let producerSort := convertDeriveSortToProducerSort deriveSort
 
-  -- Parse the body of the lambda for an application of the inductive relation
-  let (inductiveSyntax, argIdents) ← parseInductiveApp constrainingProp
-  let inductiveName := inductiveSyntax.getId
+  let inductiveName := constrainingInductive
 
   -- Figure out the name and type of the value we wish to generate (the "output")
-  let outputName := outputVar.getId
-  let outputType ← liftTermElabM $ elabTerm outputTypeSyntax none
+  let outputName := outputVar.fvarId!
 
   -- Find the index of the argument in the inductive application for the value we wish to generate
   -- (i.e. find `i` s.t. `argIdents[i] == outputName`)
-  let outputIdxOpt := findTargetVarIndex outputName argIdents
+  let outputIdxOpt := findTargetVarIndex outputName constrArgs
   if let .none := outputIdxOpt then
     throwError "cannot find index of value to be generated"
   let outputIdx := Option.get! outputIdxOpt
@@ -558,20 +576,26 @@ def deriveConstrainedProducer (outputVar : Ident) (outputTypeSyntax : TSyntax `t
   let inductiveVal ← getConstInfoInduct inductiveName
 
   -- Determine the type for each argument to the inductive
-  let inductiveTypeComponents ← liftTermElabM $ getComponentsOfArrowType inductiveVal.type
+  let inductiveTypeComponents ← getComponentsOfArrowType inductiveVal.type
 
   -- To obtain the type of each arg to the inductive,
   -- we pop the last element (`Prop`) from `inductiveTypeComponents`
   let argTypes := inductiveTypeComponents.pop
-  let argNames := (fun ident => ident.getId) <$> argIdents
+
+  -- For now we fail if any argument is not a variable
+  let argNames ← constrArgs.mapM
+    (fun ident : Expr =>
+      if ident.isFVar then
+        ident.fvarId!.getUserName
+      else throwError m!"{ident} is expected to be a variable.")
   let argNamesTypes := argNames.zip argTypes
 
-  -- Add the name & type of each argument to the inductive relation to the `LocalContext`
+  -- Add the name & type of each argument of the inductive relation to the `LocalContext`
   -- Then, derive `baseProducers` & `inductiveProducers` (the code for the sub-producers
   -- that are invoked when `size = 0` and `size > 0` respectively),
   -- and obtain freshened versions of the output variable / arguments (`freshenedOutputName`, `freshArgIdents`)
   let (baseProducers, inductiveProducers, freshenedOutputName, freshArgIdents, localCtx) ←
-    liftTermElabM $ withLocalDeclsDND argNamesTypes (fun _ => do
+    withLocalDeclsDND argNamesTypes (fun _ => do
       let mut localCtx ← getLCtx
       let mut freshUnknowns := #[]
 
@@ -655,37 +679,70 @@ def deriveConstrainedProducer (outputVar : Ident) (outputTypeSyntax : TSyntax `t
   mkConstrainedProducerTypeClassInstance
     baseProducers
     inductiveProducers
-    inductiveSyntax
+    constrainingInductive
     freshArgIdents
     freshenedOutputName
-    outputTypeSyntax
+    outputType
     producerSort
     localCtx
 
 
+private def deriveArbitrarySuchThatInstance'
+  (args : Array Expr)
+  (outputVar : Expr)
+  (outputType : Expr)
+  (constrainingInductive : Name)
+  (constrArgs : Array Expr) :
+  TermElabM (TSyntax `command) := do
+  deriveConstrainedProducer args outputVar outputType constrainingInductive constrArgs (deriveSort := .Generator)
+
+private def withParsedDerivingArgs (input : Expr)
+  (action :
+    (args : Array Expr) → (out : Expr) → (outTy : Expr) →
+    (constrInd : Name) → (constrArgs : Array Expr) → TermElabM α) : TermElabM α :=
+  lambdaTelescope input <|
+  fun args body => do
+  let .some (outTy, body) := body.app2? ``Exists | throwError m!"Error in parsing constraint: {body} is not of the form ∃ x, P."
+  let body ← whnf body
+  lambdaTelescope body <|
+  fun outVars body =>
+  body.withApp <|
+  fun ind indArgs => do
+  if outVars.size ≠ 1 then throwError m!"Error in parsing constraint: Expected a single output variable, got {outVars}."
+  let out := outVars[0]!
+  if !ind.isConst then throwError m!"Error in parsing constraint: {ind} is expected to be a constant."
+  let indName := ind.constName!
+  action args out outTy indName indArgs
+
 /-- Derives an instance of the `ArbitrarySuchThat` typeclass,
     where `outputVar` and `outputTypeSyntax` are the name & type of the value to be generated,
     and `constrainingProp` is a proposition which generated values need to satisfy -/
-def deriveArbitrarySuchThatInstance (outputVar : Ident) (outputTypeSyntax : TSyntax `term) (constrainingProp : TSyntax `term) : CommandElabM (TSyntax `command) :=
-  deriveConstrainedProducer outputVar outputTypeSyntax constrainingProp (deriveSort := .Generator)
+def deriveArbitrarySuchThatInstance (tm : Term) : TermElabM Command := do
+  let e ← elabTerm tm .none
+  withParsedDerivingArgs e deriveArbitrarySuchThatInstance'
+
+def deriveEnumSuchThatInstance' (args : Array Expr) (outputVar : Expr) (outputType : Expr)
+  (constrainingProp : Name) (constrArgs : Array Expr) : TermElabM (TSyntax `command) :=
+  deriveConstrainedProducer args outputVar outputType constrainingProp constrArgs (deriveSort := .Enumerator)
 
 /-- Derives an instance of the `EnumSuchThat` typeclass,
     where `outputVar` and `outputTypeSyntax` are the name & type of the value to be generated,
     and `constrainingProp` is a proposition which generated values need to satisfy -/
-def deriveEnumSuchThatInstance (outputVar : Ident) (outputTypeSyntax : TSyntax `term) (constrainingProp : TSyntax `term) : CommandElabM (TSyntax `command) :=
-  deriveConstrainedProducer outputVar outputTypeSyntax constrainingProp (deriveSort := .Enumerator)
+def deriveEnumSuchThatInstance (tm : Term) : TermElabM Command := do
+  let e ← elabTerm tm .none
+  withParsedDerivingArgs e deriveEnumSuchThatInstance'
 
 /-- Command for deriving a constrained generator for an inductive relation -/
-syntax (name := derive_generator) "#derive_generator" "(" "fun" "(" ident ":" term ")" "=>" term ")" : command
+syntax (name := generator_deriver) "derive_generator" term : command
 
-/-- Elaborator for the `#derive_generator` command which derives a constrained generator
+/-- Elaborator for the `derive_generator` command which derives a constrained generator
     using generator schedules from Testing Theorems & the unification algorithm from Generating Good Generators -/
-@[command_elab derive_generator]
+@[command_elab generator_deriver]
 def elabDeriveGenerator : CommandElab := fun stx => do
   match stx with
-  | `(#derive_generator ( fun ( $var:ident : $outputTypeSyntax:term ) => $body:term )) => do
+  | `(derive_generator $descr:term) => do
     -- Derive an instance of the `ArbitrarySuchThat` typeclass
-    let typeClassInstance ← deriveArbitrarySuchThatInstance var outputTypeSyntax body
+    let typeClassInstance ← liftTermElabM <| deriveArbitrarySuchThatInstance descr
 
     -- Pretty-print the derived generator
     let genFormat ← liftCoreM (PrettyPrinter.ppCommand typeClassInstance)
@@ -698,16 +755,16 @@ def elabDeriveGenerator : CommandElab := fun stx => do
   | _ => throwUnsupportedSyntax
 
 /-- Command for deriving a constrained generator for an inductive relation -/
-syntax (name := derive_enumerator) "#derive_enumerator" "(" "fun" "(" ident ":" term ")" "=>" term ")" : command
+syntax (name := enumerator_deriver) "derive_enumerator" term : command
 
-/-- Elaborator for the `#derive_generator` command which derives a constrained generator
+/-- Elaborator for the `derive_generator` command which derives a constrained generator
     using generator schedules from Testing Theorems & the unification algorithm from Generating Good Generators -/
-@[command_elab derive_enumerator]
+@[command_elab enumerator_deriver]
 def elabDeriveScheduledEnumerator : CommandElab := fun stx => do
   match stx with
-  | `(#derive_enumerator ( fun ( $var:ident : $outputTypeSyntax:term ) => $body:term )) => do
-    -- Derive an instance of the `ArbitrarySuchThat` typeclass
-    let typeClassInstance ← deriveEnumSuchThatInstance var outputTypeSyntax body
+  | `(derive_enumerator $descr:term) => do
+    -- Derive an instance of the `Enumerate` typeclass
+    let typeClassInstance ← liftTermElabM <| deriveEnumSuchThatInstance descr
 
     -- Pretty-print the derived generator
     let genFormat ← liftCoreM (PrettyPrinter.ppCommand typeClassInstance)

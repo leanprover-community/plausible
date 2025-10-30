@@ -21,6 +21,6 @@ deriving instance Enum for BinaryTree
 namespace CommandElaboratorTest
 
 #guard_msgs(drop info, drop warning) in
-#derive_enum BinaryTree
+derive_enum BinaryTree
 
 end CommandElaboratorTest

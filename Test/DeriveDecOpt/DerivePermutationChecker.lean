@@ -5,7 +5,7 @@ import Test.DeriveEnumSuchThat.DerivePermutationEnumerator
 
 
 #guard_msgs(drop info, drop warning) in
-#derive_checker (Permutation l l')
+derive_checker (fun l l' => Permutation l l')
 
 
 -- Example: to run the derived checker, you can uncomment the following

@@ -15,7 +15,7 @@ inductive GoodTree : Nat → Nat → BinaryTree → Prop where
   | GoodLeaf : ∀ n, GoodTree n n .Leaf
 
 #guard_msgs(drop info, drop warning) in
-#derive_generator (fun (t : BinaryTree) => GoodTree in1 in2 t)
+derive_generator (fun in1 in2 => ∃ (t : BinaryTree), GoodTree in1 in2 t)
 
 
 /-- `SameHead xs ys` means the lists `xs` and `ys` have the same head
@@ -25,4 +25,4 @@ inductive SameHead : List Nat → List Nat → Prop where
 | HeadMatch : ∀ x xs ys, SameHead (x::xs) (x::ys)
 
 #guard_msgs(drop info, drop warning) in
-#derive_generator (fun (xs : List Nat) => SameHead xs ys)
+derive_generator (fun ys => ∃ (xs : List Nat), SameHead xs ys)

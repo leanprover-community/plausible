@@ -19,7 +19,7 @@ end
     manually add a dummy instance of `ArbitrarySizedSuchThat` for one of the relations, since Lean doesn't support
     mutually recursively typeclass instances currently.
 
-    Note that the instance of `ArbitrarySizedSuchThat` for `Odd` below (produced by `#derive_generator`)
+    Note that the instance of `ArbitrarySizedSuchThat` for `Odd` below (produced by `derive_generator`)
     will shadow this one -- it takes precedence over this dummy instance.
 
 
@@ -28,7 +28,7 @@ instance : ArbitrarySizedSuchThat Nat (fun n => Odd n) where
   arbitrarySizedST (_ : Nat) := return 1
 
 #guard_msgs(drop info, drop warning) in
-#derive_generator (fun (n : Nat) => Even n)
+derive_generator ∃ (n : Nat), Even n
 
 #guard_msgs(drop info, drop warning) in
-#derive_generator (fun (n : Nat) => Odd n)
+derive_generator ∃ (n : Nat), Odd n

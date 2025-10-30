@@ -20,6 +20,6 @@ deriving instance Enum for Foo
 namespace CommandElaboratorTest
 
 #guard_msgs(drop info, drop warning) in
-#derive_enum Foo
+derive_enum Foo
 
 end CommandElaboratorTest

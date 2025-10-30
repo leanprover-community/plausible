@@ -141,13 +141,13 @@ def mkEnumSizedInstance (targetTypeName : Name) : CommandElabM (TSyntax `command
           $matchExpr
       fun $freshSizeIdent => $auxEnumFn $freshSizeIdent)
 
-syntax (name := derive_enum) "#derive_enum" term : command
+syntax (name := enum_deriver) "derive_enum" term : command
 
 /-- Command elaborator which derives an instance of the `EnumSized` typeclass -/
-@[command_elab derive_enum]
+@[command_elab enum_deriver]
 def elabDeriveEnum : CommandElab := fun stx => do
   match stx with
-  | `(#derive_enum $targetTypeTerm:term) => do
+  | `(derive_enum $targetTypeTerm:term) => do
 
     -- TODO: figure out how to support parameterized types
     let targetTypeIdent ←

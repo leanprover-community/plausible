@@ -20,6 +20,6 @@ set_option guard_msgs.diff true
 namespace CommandElaboratorTest
 
 #guard_msgs(drop info, drop warning) in
-#derive_enum Value
+derive_enum Value
 
 end CommandElaboratorTest

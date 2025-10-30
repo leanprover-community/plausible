@@ -50,11 +50,11 @@ We provide two commands for deriving constrained generators/enumerators. For exa
 support we want to derive constrained producers of `Tree`s satisfying some inductive relation `balanced n t` (height-`n` trees that are `balanced`. To do so, the user would write:
 
 ```lean
--- `#derive_generator` & `#derive_enumerator` derive constrained generators/enumerators 
+-- `derive_generator` & `derive_enumerator` derive constrained generators/enumerators 
 -- for `Tree`s that are balanced at some height `n`,
 -- where `balanced n t` is a user-defined inductive relation
-#derive_generator (fun (t : Tree) => balanced n t) 
-#derive_enumerator (fun (t : Tree) => balanced n t)
+derive_generator (fun n => ∃ t, balanced n t) 
+derive_enumerator (fun n => ∃ t, balanced n t)
 ```
 To sample from the derived producer, users invoke `runSizedGen` / `runSizedEnum` & specify the right 
 instance of the `ArbitrarySizedSuchThat` / `EnumSizedSuchThat` typeclass (along with some `Nat` to act as the generator size):
@@ -68,25 +68,25 @@ instance of the `ArbitrarySizedSuchThat` / `EnumSizedSuchThat` typeclass (along 
 #eval runSizedEnum (EnumSizedSuchThat.enumSizedST (fun t => balanced 5 t)) 3
 ```
 
-Some extra details about the grammar of the lambda-abstraction that is passed to `#derive_generator` / `#derive_enumerator`:
+Some extra details about the grammar of the lambda-abstraction that is passed to `derive_generator` / `derive_enumerator`:
 
 Specifically: in the command
 ```lean
-#derive_generator (fun (x : t) => P x1 ... x .... xn)
+derive_generator (fun x1 ... xn => ∃ x, P x1 ... x ... xn)
 ```
-`P` must be an inductively defined relation, `x` is the value to be generated (the type annotation on `x` is required), and `x1 ... xn` are (implicitly universally quantified) variable names. Following QuickChick, we expect `x1, ..., xn` to be variable names (we don't support literals in the position of the `xi` currently). 
+`P` must be an inductively defined relation, `x` is the value to be generated (bound by `∃`), and `x1 ... xn` are variable names bound by the `fun`. Following QuickChick, we expect `x1, ..., xn` to be variable names (we don't support literals in the position of the `xi` currently). 
 
 **3. Deriving checkers (partial decision procedures)** (for inductive relations)                                 
 A checker for an inductively-defined `Prop` is a `Nat -> Option Bool` function, which 
 takes a `Nat` argument as fuel and returns `none` if it can't decide whether the `Prop` holds (e.g. it runs out of fuel),
 and otherwise returns `some true/some false` depending on whether the `Prop` holds.
 
-We provide a command elaborator which elaborates the `#derive_checker` command:
+We provide a command elaborator which elaborates the `derive_checker` command:
 
 ```lean
--- `#derive_checker` derives a checker which determines whether `Tree`s `t` 
+-- `derive_checker` derives a checker which determines whether `Tree`s `t` 
 -- satisfy the `balanced` inductive relation mentioned above 
-#derive_checker (balanced n t)
+derive_checker (fun n t => balanced n t)
 ```
 
 ## Repo overview
@@ -135,7 +135,7 @@ We provide a command elaborator which elaborates the `#derive_checker` command:
 
 ### Tests
 **Overview of snapshot test corpus**:
-- The [`Test`](./Test/) subdirectory contains [snapshot tests](https://www.cs.cornell.edu/~asampson/blog/turnt.html) (aka [expect tests](https://blog.janestreet.com/the-joy-of-expect-tests/)) for the `#derive_generator` & `#derive_arbitrary` command elaborators. 
+- The [`Test`](./Test/) subdirectory contains [snapshot tests](https://www.cs.cornell.edu/~asampson/blog/turnt.html) (aka [expect tests](https://blog.janestreet.com/the-joy-of-expect-tests/)) for the `derive_generator` & `derive_arbitrary` command elaborators. 
 - Run `lake test` to check that the derived generators in [`Test`](./Test/) typecheck, and that the code for the derived generators match the expected output.
 - See [`DeriveBSTGenerator.lean`](./Test/DeriveArbitrarySuchThat/DeriveBSTGenerator.lean) & [`DeriveBalancedTreeGenerator.lean`](./Test/DeriveArbitrarySuchThat/DeriveBalancedTreeGenerator.lean) for examples of snapshot tests. Follow the template in these two files to add new snapshot test file, and remember to import the new test file in [`Test.lean`](./Test.lean) afterwards.
 
@@ -148,7 +148,7 @@ We provide a command elaborator which elaborates the `#derive_checker` command:
 - [`CedarCheckerGenerators.lean`](./Test/CedarExample/CedarCheckerGenerators.lean): Snapshot tests for derived checkers & generators for Cedar terms / types / schemas 
 - [`CedarWellTypedTermGenerator.lean`](./Test/CedarExample/CedarWellTypedTermGenerator.lean): Example generator for well-typed Cedar expressions
 
-**Tests for Unconstrained Generators (`#derive_arbitrary`)**:
+**Tests for Unconstrained Generators (`derive_arbitrary`)**:
 - [`BitVecStructureTest.lean`](./Test/DeriveArbitrary/BitVecStructureTest.lean): Tests for structures with dependently-typed `BitVec` arguments
 - [`DeriveNKIBinopGenerator.lean`](./Test/DeriveArbitrary/DeriveNKIBinopGenerator.lean): Derived generator for NKI binary operators (logical, comparison, arithmetic, bitwise)
 - [`DeriveNKIValueGenerator.lean`](./Test/DeriveArbitrary/DeriveNKIValueGenerator.lean): Derived generator for NKI value types (none, bool, int, string, tensor, etc.)
@@ -160,7 +160,7 @@ We provide a command elaborator which elaborates the `#derive_checker` command:
 - [`ParameterizedTypeTest.lean`](./Test/DeriveArbitrary/ParameterizedTypeTest.lean): Derived generator for parameterized types (polymorphic `MyList`)
 - [`StructureTest.lean`](./Test/DeriveArbitrary/StructureTest.lean): Derived generator for structures with named fields
 
-**Tests for Constrained Generators (`#derive_generator`)**:
+**Tests for Constrained Generators (`derive_generator`)**:
 - [`DeriveBSTGenerator.lean`](./Test/DeriveArbitrarySuchThat/DeriveBSTGenerator.lean): Derived generator for Binary Search Trees (with a BST insertion property-based test)
 - [`DeriveBalancedTreeGenerator.lean`](./Test/DeriveArbitrarySuchThat/DeriveBalancedTreeGenerator.lean): Derived generator for balanced binary trees
 - [`DerivePermutationGenerator.lean`](./Test/DeriveArbitrarySuchThat/DerivePermutationGenerator.lean): Derived generator for list permutations
@@ -171,7 +171,7 @@ We provide a command elaborator which elaborates the `#derive_checker` command:
 - [`NonLinearPatternsTest.lean`](./Test/DeriveArbitrarySuchThat/NonLinearPatternsTest.lean): Tests for relations with non-linear patterns (repeated variables)
 - [`SimultaneousMatchingTests.lean`](./Test/DeriveArbitrarySuchThat/SimultaneousMatchingTests.lean): Tests for relations with simultaneous pattern matching on multiple inputs
 
-**Tests for Checkers (`#derive_checker`)**:
+**Tests for Checkers (`derive_checker`)**:
 - [`DeriveBSTChecker.lean`](./Test/DeriveDecOpt/DeriveBSTChecker.lean): derived checker for BSTs
 - [`DeriveBalancedTreeChecker.lean`](./Test/DeriveDecOpt/DeriveBalancedTreeChecker.lean): derived checker for balanced trees
 - [`DerivePermutationChecker.lean`](./Test/DeriveDecOpt/DerivePermutationChecker.lean): derived checker for list permutations
@@ -182,7 +182,7 @@ We provide a command elaborator which elaborates the `#derive_checker` command:
 - [`NonLinearPatternsTest.lean`](./Test/DeriveDecOpt/NonLinearPatternsTest.lean): Tests for derived checker with non-linear patterns
 - [`SimultaneousMatchingTests.lean`](./Test/DeriveDecOpt/SimultaneousMatchingTests.lean): Derived checker for inductive relations which require matching on multiple inputs
 
-**Tests for Unconstrained Enumerators (`#derive_enum`)**:
+**Tests for Unconstrained Enumerators (`derive_enum`)**:
 - [`BitVecStructureTest.lean`](./Test/DeriveEnum/BitVecStructureTest.lean): Derived enumerators for structures with `BitVec` arguments
 - [`DeriveNKIBinopEnumerator.lean`](./Test/DeriveEnum/DeriveNKIBinopEnumerator.lean): Derived enumerators for binary operators in the [NKI language](https://github.com/leanprover/KLR/blob/main/KLR/NKI/Basic.lean)
 - [`DeriveNKIValueEnumerator.lean`](./Test/DeriveEnum/DeriveNKIValueEnumerator.lean): Derived enumerators for value types in the [NKI language](https://github.com/leanprover/KLR/blob/main/KLR/NKI/Basic.lean)
@@ -191,7 +191,7 @@ We provide a command elaborator which elaborates the `#derive_checker` command:
 - [`DeriveTreeEnumerator.lean`](./Test/DeriveEnum/DeriveTreeEnumerator.lean): Derived enumerators for binary trees
 - [`StructureTest.lean`](./Test/DeriveEnum/StructureTest.lean): Derived enumerators for structures with named fields
 
-**Tests for Constrained Enumerators (`#derive_enumerator`)**:
+**Tests for Constrained Enumerators (`derive_enumerator`)**:
 - [`DeriveBSTEnumerator.lean`](./Test/DeriveEnumSuchThat/DeriveBSTEnumerator.lean): Derived enumerators for Binary Search Trees
 - [`DeriveBalancedTreeEnumerator.lean`](./Test/DeriveEnumSuchThat/DeriveBalancedTreeEnumerator.lean): Derived enumerators for balanced trees
 - [`DerivePermutationEnumerator.lean`](./Test/DeriveEnumSuchThat/DerivePermutationEnumerator.lean): Derived enumerators for permutations

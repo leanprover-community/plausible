@@ -20,4 +20,4 @@ inductive balancedTree : Nat → BinaryTree → Prop where
     balancedTree (.succ n) (BinaryTree.Node x l r)
 
 #guard_msgs(drop info, drop warning) in
-#derive_generator (fun (t : BinaryTree) => balancedTree n t)
+derive_generator (fun n => ∃ (t : BinaryTree), balancedTree n t)

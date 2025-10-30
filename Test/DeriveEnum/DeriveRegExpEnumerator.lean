@@ -20,6 +20,6 @@ deriving instance Enum for RegExp
 namespace CommandElaboratorTest
 
 #guard_msgs(drop info, drop warning) in
-#derive_enum RegExp
+derive_enum RegExp
 
 end CommandElaboratorTest

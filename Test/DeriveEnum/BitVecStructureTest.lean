@@ -20,6 +20,6 @@ deriving instance Enum for DummyInductive
 namespace CommandElaboratorTest
 
 #guard_msgs(drop info, drop warning) in
-#derive_enum DummyInductive
+derive_enum DummyInductive
 
 end CommandElaboratorTest

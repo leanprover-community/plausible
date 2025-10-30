@@ -46,10 +46,10 @@ error: failed to synthesize
 Hint: Additional diagnostic information may be available using the `set_option diagnostics true` command.
 -/
 #guard_msgs(error, drop info, drop warning) in
-#derive_generator (fun (n : Nat) => TypeBoxPred n)
+derive_generator ∃ (n : Nat), TypeBoxPred n
 
 #guard_msgs(error, drop info, drop warning) in
-#derive_generator (fun (n : _) => TypeBoxPredS n)
+derive_generator ∃ (n : _), TypeBoxPredS n
 
 #guard_msgs(drop error, drop warning, drop info) in
-#derive_generator (fun (n : Nat) => TypeBoxPred' n)
+derive_generator ∃ (n : Nat), TypeBoxPred' n

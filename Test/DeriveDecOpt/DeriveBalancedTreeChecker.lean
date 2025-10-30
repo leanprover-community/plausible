@@ -8,4 +8,4 @@ open DecOpt
 set_option guard_msgs.diff true
 
 #guard_msgs(drop info, drop warning) in
-#derive_checker (balancedTree n t)
+derive_checker (fun n t => balancedTree n t)

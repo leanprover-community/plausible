@@ -12,7 +12,8 @@ open Lean Elab Command Meta Term Parser Std
 open Idents Schedules
 
 /-- Extracts the name of the induction relation and its arguments -/
-def parseInductiveApp (body : Term) : CommandElabM (TSyntax `ident × TSyntaxArray `ident) := do
+def parseInductiveApp (body : Term) :
+  TermElabM (TSyntax `ident × TSyntaxArray `ident) := do
   match body with
   | `($indRel:ident $args:ident*) => do
     return (indRel, args)
@@ -24,7 +25,7 @@ def parseInductiveApp (body : Term) : CommandElabM (TSyntax `ident × TSyntaxArr
     argument with its expected type, returning an array of
     (parameter name, type expression) pairs -/
 def analyzeInductiveArgs (inductiveName : Name) (args : Array Term) :
-  CommandElabM (Array (Name × TSyntax `term)) := do
+  TermElabM (Array (Name × TSyntax `term)) := do
 
   -- Extract the no. of parameters & indices for the inductive
   let inductInfo ← getConstInfoInduct inductiveName
@@ -38,11 +39,11 @@ def analyzeInductiveArgs (inductiveName : Name) (args : Array Term) :
   -- Extract the type of the inductive relation
   let inductType := inductInfo.type
 
-  liftTermElabM $
-    forallTelescope inductType (fun xs _ => do
-      let mut paramInfo : Array (Name × TSyntax `term) := #[]
 
-      for i in [:args.size] do
+  forallTelescope inductType (fun xs _ => do
+    let mut paramInfo : Array (Name × TSyntax `term) := #[]
+
+    for i in [:args.size] do
         -- Match each argument with its expected type
         let arg := args[i]!
         let paramFVar := xs[i]!
@@ -61,34 +62,38 @@ def analyzeInductiveArgs (inductiveName : Name) (args : Array Term) :
 
 /-- Finds the index of the argument in the inductive application for the value we wish to generate
     (i.e. finds `i` s.t. `args[i] == targetVar`) -/
-def findTargetVarIndex (targetVar : Name) (args : TSyntaxArray `term) : Option Nat :=
-  Array.findIdx? (fun arg => arg.getId == targetVar) (TSyntaxArray.raw args)
+def findTargetVarIndex (targetVar : FVarId) (args : Array Expr) : (Option Nat) := do
+  for i in [:args.size] do
+    let arg := args[i]!
+    if arg.isFVar then
+      let varName := arg.fvarId!
+      if varName == targetVar then
+        return i
+  none
 
 /-- Produces an instance of the `ArbitrarySizedSuchThat` / `EnumSizedSuchThat` typeclass containing the definition for a constrained generator.
     The arguments to this function are:
     - a list of `baseGenerators` (each represented as a Lean term), to be invoked when `size == 0`
     - a list of `inductiveGenerators`, to be invoked when `size > 0`
-    - the name of the inductive relation (`inductiveStx`)
+    - the name of the inductive relation (`inductiveName`)
     - the arguments (`args`) to the inductive relation
-    - the name and type for the value we wish to generate (`targetVar`, `targetTypeSyntax`)
-    - the `producerType`, which determines what typeclass is to be produced
-      + If `producerType = .Generator`, an `ArbitrarySizedSuchThat` instance is produced
-      + If `producerType = .Enumerator`, an `EnumSizedSuchThat` instance is produced
+    - the name and type for the value we wish to generate (`targetVar`, `targetType`)
+    - the `producerSort`, which determines what typeclass is to be produced
+      + If `producerSort = .Generator`, an `ArbitrarySizedSuchThat` instance is produced
+      + If `producerSort = .Enumerator`, an `EnumSizedSuchThat` instance is produced
     - The `LocalContext` associated with the top-level inductive relation (`topLevelLocalCtx`) -/
 def mkConstrainedProducerTypeClassInstance
   (baseGenerators : TSyntax `term)
   (inductiveGenerators : TSyntax `term)
-  (inductiveStx : TSyntax `term)
+  (inductiveName : Name)
   (args : TSyntaxArray `term) (targetVar : Name)
-  (targetTypeSyntax : TSyntax `term)
+  (targetType : Expr)
   (producerSort : ProducerSort)
-  (topLevelLocalCtx : LocalContext) : CommandElabM (TSyntax `command) := do
+  (topLevelLocalCtx : LocalContext) : TermElabM (TSyntax `command) := do
     -- Produce a fresh name for the `size` argument for the lambda
     -- at the end of the generator function, as well as the `aux_arb` inner helper function
     let freshSizeIdent := mkFreshAccessibleIdent topLevelLocalCtx `size
     let freshSize' := mkFreshAccessibleIdent topLevelLocalCtx `size'
-
-    let inductiveName := inductiveStx.raw.getId
 
     -- The (backtracking) combinator to be invoked
     -- (`GeneratorCombinators.backtrack` for generators, `EnumeratorCombinators.enumerate` for enumerators)
@@ -109,7 +114,7 @@ def mkConstrainedProducerTypeClassInstance
     -- (former is the generator size, latter is the size argument with which to invoke other auxiliary producers/checkers)
     let initSizeParam ← `(Term.letIdBinder| ($initSizeIdent : $natIdent))
     let sizeParam ← `(Term.letIdBinder| ($sizeIdent : $natIdent))
-    let matchExpr ← liftTermElabM $ mkMatchExpr sizeIdent caseExprs
+    let matchExpr ← mkMatchExpr sizeIdent caseExprs
 
     -- Add parameters for each argument to the inductive relation
     -- (except the target variable, which we'll filter out later)
@@ -153,6 +158,10 @@ def mkConstrainedProducerTypeClassInstance
       | .Generator => mkFreshAccessibleIdent topLevelLocalCtx `aux_arb
       | .Enumerator => mkFreshAccessibleIdent topLevelLocalCtx `aux_enum
 
+    -- Build the syntax for the target type
+    -- Sadly, the delaborator may very well fail to produce a
+    -- syntactically correct term.
+    let targetTypeSyntax ← PrettyPrinter.delab targetType
 
     -- Determine the appropriate type of the final producer
     -- (either `Plausible.Gen α` or `ExceptT GenError Enum α`)
@@ -162,7 +171,7 @@ def mkConstrainedProducerTypeClassInstance
       | .Enumerator => `($exceptTTypeConstructor $genErrorType $enumTypeConstructor $targetTypeSyntax)
 
     -- Produce an instance of the appropriate typeclass containing the definition for the derived producer
-    `(instance : $producerTypeClass $targetTypeSyntax (fun $(mkIdent targetVar) => $inductiveStx $args*) where
+    `(instance : $producerTypeClass $targetTypeSyntax (fun $(mkIdent targetVar) => $(mkIdent inductiveName) $args*) where
         $producerTypeClassFunction:ident :=
           let rec $innerFunctionIdent:ident $innerParams* : $optionTProducerType :=
             $matchExpr

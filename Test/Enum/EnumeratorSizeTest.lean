@@ -21,9 +21,9 @@ combining them into the top level enumerator for an inductive family.
 -/
 
 #guard_msgs(drop info, drop warning) in
-#derive_enumerator (fun (n : _) => onetrue n)
+derive_enumerator ∃ (n : _), onetrue n
 #guard_msgs(drop info, drop warning) in
-#derive_enumerator (fun (n : _) => onetrue' n)
+derive_enumerator ∃ (n : _), onetrue' n
 
 /--
 info: 1

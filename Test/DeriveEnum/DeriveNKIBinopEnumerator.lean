@@ -20,6 +20,6 @@ deriving instance Enum for BinOp
 namespace CommandElaboratorTest
 
 #guard_msgs(drop info, drop warning) in
-#derive_enum BinOp
+derive_enum BinOp
 
 end CommandElaboratorTest

@@ -60,7 +60,7 @@ def r0 : RegExp :=
 -- Generator for strings that match the regexp `re`
 
 #guard_msgs(drop info, drop warning) in
-#derive_generator (fun (s : List Nat) => ExpMatch s re)
+derive_generator (fun re => ∃ (s : List Nat), ExpMatch s re)
 
 -- To sample from this generator and print out 10 successful examples using the `Repr`
 -- instance for `List Nat`, we can run the following:
