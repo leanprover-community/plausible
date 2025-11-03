@@ -1,5 +1,4 @@
 import Lean.Expr
-import Batteries
 import Plausible.Chamelean.Utils
 import Plausible.Chamelean.Schedules
 import Plausible.Chamelean.UnificationMonad

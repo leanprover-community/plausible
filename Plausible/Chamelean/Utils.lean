@@ -1,8 +1,6 @@
 
 import Lean
 
-import Batteries.Data.List.Basic
-
 open Lean Meta LocalContext Std
 
 /-- A variable along with its fully elaborated type.
@@ -215,10 +213,15 @@ def replicateM [Monad m] (n : Nat) (action : m α) : m (List α) :=
     let xs ← replicateM n action
     pure (x :: xs)
 
+
+def traverse [Applicative F] (f : α → F β) : List α → F (List β)
+  | [] => pure []
+  | x :: xs => List.cons <$> f x <*> traverse f xs
+
+
 /-- Converts a list of options to an optional list
     (akin to Haskell's `sequence`) -/
-def List.sequence (xs : List (Option α)) : Option (List α) :=
-  List.traverse id xs
+def sequence (xs : List (Option α)) : Option (List α) := traverse id xs
 
 /-- Helper function for splitting a list of triples into a triple of lists -/
 def splitThreeLists (abcs : List (α × β × γ)) : List α × List β × List γ :=
