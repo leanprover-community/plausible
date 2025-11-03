@@ -232,7 +232,7 @@ instance ULift.shrinkable [Shrinkable α] : Shrinkable (ULift α) where
   shrink u := (shrink u.down).map ULift.up
 
 instance String.shrinkable : Shrinkable String where
-  shrink s := (shrink s.toList).map String.mk
+  shrink s := (shrink s.toList).map String.ofList
 
 instance Array.shrinkable [Shrinkable α] : Shrinkable (Array α) where
   shrink xs := (shrink xs.toList).map Array.mk

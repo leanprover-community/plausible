@@ -158,7 +158,7 @@ instance ULift.Arbitrary [Arbitrary α] : Arbitrary (ULift α) where
   arbitrary := do let x : α ← arbitrary; return ⟨x⟩
 
 instance String.Arbitrary : Arbitrary String where
-  arbitrary := return String.mk (← Gen.listOf arbitrary)
+  arbitrary := return String.ofList (← Gen.listOf arbitrary)
 
 instance Array.Arbitrary [Arbitrary α] : Arbitrary (Array α) := ⟨Gen.arrayOf arbitrary⟩
 
