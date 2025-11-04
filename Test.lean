@@ -13,7 +13,7 @@ import Test.CommonDefinitions.ListRelations
 import Test.CommonDefinitions.Permutation
 import Test.CommonDefinitions.STLCDefinitions
 
--- Tests for `#derive_generator` (derives `ArbitrarySuchThat`)
+-- Tests for `derive_generator` (derives `ArbitrarySuchThat`)
 import Test.DeriveArbitrarySuchThat.DeriveBSTGenerator
 import Test.DeriveArbitrarySuchThat.DeriveBalancedTreeGenerator
 import Test.DeriveArbitrarySuchThat.DeriveRegExpMatchGenerator
@@ -22,6 +22,8 @@ import Test.DeriveArbitrarySuchThat.FunctionCallsTest
 import Test.DeriveArbitrarySuchThat.DerivePermutationGenerator
 import Test.DeriveArbitrarySuchThat.MutuallyRecursiveRelationsTest
 import Test.DeriveArbitrarySuchThat.WithUnfolds
+import Test.DeriveArbitrarySuchThat.Syntax
+import Test.DeriveArbitrarySuchThat.DependentArgs
 
 -- Tests for `deriving Arbitrary`
 import Test.DeriveArbitrary.DeriveTreeGenerator
@@ -50,7 +52,7 @@ import Test.DeriveEnum.DeriveRegExpEnumerator
 import Test.DeriveEnum.StructureTest
 import Test.DeriveEnum.BitVecStructureTest
 
--- Tests for `#derive_checker` (derives `DecOpt`)
+-- Tests for `derive_checker` (derives `DecOpt`)
 import Test.DeriveDecOpt.DeriveBSTChecker
 import Test.DeriveDecOpt.DeriveBalancedTreeChecker
 import Test.DeriveDecOpt.DeriveRegExpMatchChecker
@@ -61,7 +63,7 @@ import Test.DeriveDecOpt.DeriveSTLCChecker
 import Test.DeriveDecOpt.NonLinearPatternsTest
 import Test.DeriveDecOpt.DerivePermutationChecker
 
--- Tests for `#derive_enumerator` (derives `EnumSuchThat`)
+-- Tests for `derive_enumerator` (derives `EnumSuchThat`)
 import Test.DeriveEnumSuchThat.DeriveBSTEnumerator
 import Test.DeriveEnumSuchThat.DeriveBalancedTreeEnumerator
 import Test.DeriveEnumSuchThat.DeriveRegExpMatchEnumerator
