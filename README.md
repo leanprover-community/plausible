@@ -7,7 +7,7 @@ If you are using built in types Plausible is usually able to handle them already
 import Plausible
 
 example (xs ys : Array Nat) : xs.size = ys.size → xs = ys := by
-  /--
+  /-
   ===================
   Found a counter-example!
   xs := #[0]
@@ -51,9 +51,9 @@ instance : SampleableExt MyType :=
 ```
 For more documentation refer to the module docs.
 
-**Deriving Instance for `Arbitrary`** (for algebraic data types)              
+**Deriving Instance for `Arbitrary`** (for algebraic data types)
 Users can write `deriving Arbitrary` after an inductive type definition, i.e.
-```lean 
+```lean
 inductive Foo where
   ...
   deriving Arbitrary
