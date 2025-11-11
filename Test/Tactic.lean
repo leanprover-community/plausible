@@ -159,3 +159,13 @@ theorem ulift_nat (f : ULift.{1} Nat) : f = ⟨0⟩ := by
 #guard_msgs in
 theorem type_u (α : Type u) (l : List α) : l = l ++ l := by
   plausible (config := {quiet := true})
+
+-- https://github.com/leanprover-community/plausible/issues/15
+/--
+info: Unable to find a counter-example
+---
+warning: declaration uses 'sorry'
+-/
+#guard_msgs in
+theorem true_example_with_guard (a : Nat) (ha : 4 ≤ a) : a = a := by
+  plausible
