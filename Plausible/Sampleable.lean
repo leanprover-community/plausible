@@ -42,7 +42,7 @@ the test passes and `Plausible` moves on to trying more examples.
 ### `SampleableExt`
 
 `SampleableExt` can be used in two ways. The first (and most common)
-is to simply generate values of a type directly using the `Gen` monad,
+is to simply generate values of a type directly using the `Gen` monad;
 if this is what you want to do then the way to go is to declare an `Arbitrary`
 instance, and rely on the default `selfContained` instance.
 
@@ -54,7 +54,7 @@ For that purpose, `SampleableExt` provides a proxy representation
 `proxy` that can be printed and shrunken as well
 as interpreted (using `interp`) as an object of the right type. If you
 are using it in the first way, this proxy type will simply be the type
-itself and the `interp` function `id`.
+itself and the `interp` function will be `id`.
 
 ### `Shrinkable`
 
@@ -100,7 +100,7 @@ class Shrinkable (α : Type u) where
   shrink : (x : α) → List α := fun _ => []
 
 /-- `SampleableExt` can be used in two ways. The first (and most common)
-is to simply generate values of a type directly using the `Gen` monad,
+is to simply generate values of a type directly using the `Gen` monad;
 if this is what you want to do then declaring an `Arbitrary` instance is the
 way to go.
 
