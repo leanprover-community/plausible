@@ -748,7 +748,9 @@ def elabDeriveGenerator : CommandElab := fun stx => do
     let genFormat ← liftCoreM (PrettyPrinter.ppCommand typeClassInstance)
 
     -- Display the code for the derived generator to the user
-    logInfo m!"Try this generator: {Format.pretty genFormat}"
+    -- & prompt the user to accept it in the VS Code side panel
+    liftTermElabM $ Tactic.TryThis.addSuggestion stx
+      (Format.pretty genFormat) (header := "Try this generator: ")
 
     elabCommand typeClassInstance
 
@@ -769,8 +771,10 @@ def elabDeriveScheduledEnumerator : CommandElab := fun stx => do
     -- Pretty-print the derived generator
     let genFormat ← liftCoreM (PrettyPrinter.ppCommand typeClassInstance)
 
-    -- Display the code for the derived generator to the user
-    logInfo m!"Try this enumerator: {Format.pretty genFormat}"
+    -- Display the code for the derived enumerator to the user
+    -- & prompt the user to accept it in the VS Code side panel
+    liftTermElabM $ Tactic.TryThis.addSuggestion stx
+      (Format.pretty genFormat) (header := "Try this enumerator: ")
 
     elabCommand typeClassInstance
 
