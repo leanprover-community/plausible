@@ -23,8 +23,8 @@ open Idents Schedules
     - The name of the inductive relation `inductiveName`
     - The constructor name `ctorName`
     - The names of inputs `inputNames` (arguments to the checker, i.e. all arguments to the inductive relation) -/
-def getCheckerScheduleForInductiveConstructor (inductiveName : Name) (ctorName : Name) (inputNames : List Name) : UnifyM Schedule :=
-  getScheduleForInductiveRelationConstructor inductiveName ctorName inputNames (deriveSort := .Checker) none #[]
+def getCheckerScheduleForInductiveConstructor (inductiveName : Name) (ctorName : Name) (inputNames : List Name) (localCtx : LocalContext) : UnifyM Schedule :=
+  getScheduleForInductiveRelationConstructor inductiveName ctorName inputNames (deriveSort := .Checker) none #[] localCtx
 
 
 /-- Produces an instance of the `DecOpt` typeclass containing the definition for the top-level derived checker.
@@ -133,7 +133,7 @@ def deriveScheduledChecker' (_args : Array Expr)
 
       for ctorName in inductiveVal.ctors do
         let scheduleOption ← (UnifyM.runUnifyM
-          (getCheckerScheduleForInductiveConstructor inductiveName ctorName freshUnknowns.toList)
+          (getCheckerScheduleForInductiveConstructor inductiveName ctorName freshUnknowns.toList localCtx)
             emptyUnifyState)
         match scheduleOption with
         | some (schedule, unifyState) =>

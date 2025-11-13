@@ -51,10 +51,10 @@ inductive MExp : Type where
   | MBind (monadSort : MonadSort) (m1 : MExp) (vars : List (Name × Option Expr)) (m2 : MExp)
 
   /-- N-ary function application -/
-  | MApp (f : MExp) (args : List MExp)
+  | MApp (explicit : Explicit) (f : MExp) (args : List MExp)
 
   /-- N-ary constructor application -/
-  | MCtr (c : Name) (args : List MExp)
+  | MCtr (explicit : Explicit) (c : Name) (args : List MExp)
 
   /-- Some constant name (e.g. refers to functions) -/
   | MConst (name : Name)
@@ -67,7 +67,7 @@ inductive MExp : Type where
        | pn => en
        ```
   -/
-  | MMatch (scrutinee : MExp) (cases : List (Pattern × MExp))
+  | MMatch (explicit : Explicit) (scrutinee : MExp) (cases : List (Pattern × MExp))
 
   /-- Refers to a variable identifier -/
   | MId (name : Name)
@@ -84,6 +84,8 @@ inductive MExp : Type where
 
   /-- Signifies running out of fuel -/
   | MOutOfFuel
+
+  | MHole
 
   deriving Repr, Inhabited, BEq
 
@@ -107,17 +109,17 @@ def prodSortToOptionTMonadSort (prodSort : ProducerSort) : MonadSort :=
     where `prop` is the `Prop` constraining the value being enumerated
     and `fuel` is an `MExp` representing the fuel argument to the enumerator -/
 def enumSizedST (prop : MExp) (fuel : MExp) : MExp :=
-  .MApp (.MConst ``EnumSizedSuchThat.enumSizedST) [prop, fuel]
+  .MApp .allExplicit (.MConst ``EnumSizedSuchThat.enumSizedST) [.MHole, prop, .MHole, fuel]
 
 /-- `MExp` representation of `ArbitrarySizedSuchThat.arbitrarySizedST`,
     where `prop` is the `Prop` constraining the value being generated
     and `fuel` is an `MExp` representing the fuel argument to the generator -/
 def arbitrarySizedST (prop : MExp) (fuel : MExp) : MExp :=
-  .MApp (.MConst ``ArbitrarySizedSuchThat.arbitrarySizedST) [prop, fuel]
+  .MApp .allExplicit (.MConst ``ArbitrarySizedSuchThat.arbitrarySizedST) [.MHole, prop, .MHole, fuel]
 
 /-- `ok x` is an `MExp` representing `Except.ok x`. -/
 def ok (x : MExp) : MExp :=
-  .MApp (.MConst ``Except.ok) [x]
+  .MApp .allowImplicit (.MConst ``Except.ok) [x]
 
 /-- `okTrue` is an `MExp` representing `ok true`
     - This expression is often used when deriving checkers, so we define it here as an abbreviation. -/
@@ -147,11 +149,15 @@ def patternTupleOfList (xs : List Pattern) : Pattern :=
   tupleOfList (fun x y => Pattern.CtorPattern ``Prod.mk [x, y]) xs none
 
 /-- Compiles a `Pattern` to a `TSyntax term` -/
-partial def compilePattern (p : Pattern) : MetaM (TSyntax `term) :=
+partial def compilePattern (explicit : Explicit) (p : Pattern) : MetaM (TSyntax `term) :=
   match p with
   | .UnknownPattern u => `($(mkIdent u):ident)
   | .CtorPattern ctorName args => do
-    let compiledArgs ← args.toArray.mapM compilePattern
+    let compiledArgs ← args.toArray.mapM <| compilePattern explicit
+    match explicit with
+    | .allExplicit =>
+    `(@$(mkIdent ctorName):ident $compiledArgs*)
+    | .allowImplicit =>
     `($(mkIdent ctorName):ident $compiledArgs*)
   | .LitPattern l => mkLiteral l
 
@@ -160,28 +166,44 @@ partial def compilePattern (p : Pattern) : MetaM (TSyntax `term) :=
     Specifically, `decOptChecker prop fuel` represents the term
     `DecOpt.decOpt $prop $fuel`. -/
 def decOptChecker (prop : MExp) (fuel : MExp) : MExp :=
-  .MApp (.MConst ``DecOpt.decOpt) [prop, fuel]
+  .MApp .allExplicit (.MConst ``DecOpt.decOpt) [prop, .MHole, fuel]
 
 /-- Converts a `ConstructorExpr` to an `MExp` -/
-partial def constructorExprToMExp (expr : ConstructorExpr) : MExp :=
+partial def constructorExprToMExp (exp : Explicit) (expr : ConstructorExpr) : MExp :=
   match expr with
   | .Unknown u => .MId u
-  | .Ctor c args => .MCtr c (constructorExprToMExp <$> args)
-  | .FuncApp f args => .MApp (.MId f) (constructorExprToMExp <$> args)
+  | .Ctor c args | .TyCtor c args => .MCtr exp c (constructorExprToMExp exp <$> args)
+  | .FuncApp f args => .MApp exp (.MId f) (constructorExprToMExp exp <$> args)
   | .Lit l => .MLit l
 
+partial def mexpToConstructorExpr (m : MExp) : Option ConstructorExpr :=
+  match m with
+  | .MId u => return .Unknown u
+  | .MCtr _explicit c args => do
+    let convertedArgs ← args.mapM mexpToConstructorExpr
+    return .Ctor c convertedArgs
+  | .MApp _explicit (.MId f) args => do
+    let convertedArgs ← args.mapM mexpToConstructorExpr
+    return .FuncApp f convertedArgs
+  | .MLit l => return .Lit l
+  | _ => none
 
 /-- `MExp` representation of a recursive function call,
     where `f` is the function name and `args` are the arguments
     (each represented as a `ConstructorExpr`) -/
 def recCall (f : Name) (args : List ConstructorExpr) : MExp :=
-  .MApp (.MId f) $
-    [.MId `initSize, .MId `size'] ++ (constructorExprToMExp <$> args)
+  .MApp .allowImplicit (.MId f) $
+    [.MId `initSize, .MId `size'] ++ (constructorExprToMExp .allExplicit <$> args)
 
 /-- Converts a `HypothesisExpr` to an `MExp` -/
 def hypothesisExprToMExp (hypExpr : HypothesisExpr) : MExp :=
   let (ctorName, ctorArgs) := hypExpr
-  .MCtr ctorName (constructorExprToMExp <$> ctorArgs)
+  .MCtr .allExplicit ctorName (constructorExprToMExp .allExplicit <$> ctorArgs)
+
+def hypothesisMExpToExpr (m : MExp) : Option Expr := do
+  let .MCtr .allExplicit ctorName args := m | none
+  let cargs ← args.mapM mexpToConstructorExpr
+  return constructorExprToExpr ((.Ctor ctorName cargs))
 
 /-- `Pattern` that represents a wildcard (i.e. `_` on the LHS of a pattern-match) -/
 def wildCardPattern : Pattern :=
@@ -197,7 +219,7 @@ def wildCardPattern : Pattern :=
      ```
 -/
 def matchExceptBool (scrutinee : MExp) (trueBranch : MExp) (falseBranch : MExp) : MExp :=
-  .MMatch scrutinee
+  .MMatch .allowImplicit scrutinee
     [
       (.CtorPattern ``Except.ok [.UnknownPattern ``true], trueBranch),
       (.CtorPattern ``Except.ok [.UnknownPattern ``false], falseBranch),
@@ -231,17 +253,27 @@ def unconstrainedProducer (prodSort : ProducerSort) (ty : TSyntax `term) : Compi
 
 mutual
 
+  partial def delabMexpAsExpr (mexp : MExp) : CompileScheduleM (TSyntax `term) := do
+    let a ← (pure <$> hypothesisMExpToExpr mexp).getD (throwError "hypothesis mexp fails to turn to expr")
+    let lctx ← getLCtx
+    delabExprInLocalContext lctx a
+
   /-- Compiles a `MExp` to a Lean `doElem`, according to the `DeriveSort` provided -/
   partial def mexpToTSyntax (mexp : MExp) (deriveSort : DeriveSort) : CompileScheduleM (TSyntax `term) :=
     match mexp with
+    | .MHole => `(_)
     | .MId v | .MConst v => `($(mkIdent v))
-    | .MApp func args => do
+    | .MApp explicit func args => do
       let f ← mexpToTSyntax func deriveSort
       let compiledArgs ← args.toArray.mapM (fun e => mexpToTSyntax e deriveSort)
-      `($f $compiledArgs*)
-    | .MCtr ctorName args => do
+      match explicit with
+      | .allowImplicit => `($f $compiledArgs*)
+      | .allExplicit => `(@$f $compiledArgs*)
+    | .MCtr explicit ctorName args => do
       let compiledArgs ← args.toArray.mapM (fun e => mexpToTSyntax e deriveSort)
-      `($(mkIdent ctorName) $compiledArgs*)
+      match explicit with
+      | .allowImplicit => `($(mkIdent ctorName) $compiledArgs*)
+      | .allExplicit => `(@$(mkIdent ctorName) $compiledArgs*)
     | .MFun vars body => do
       let compiledBody ← mexpToTSyntax body deriveSort
       match vars with
@@ -318,11 +350,11 @@ mutual
           | .(_) => throwError "Unreachable pattern match: Checkers can only invoke enumerators in this branch"
       | .Theorem, _ => throwError "Theorem DeriveSort not implemented yet"
       | _, _ => throwError m!"Invalid monadic bind for deriveSort {repr deriveSort}"
-    | .MMatch scrutinee cases => do
+    | .MMatch explicit scrutinee cases => do
       -- Compile the scrutinee, the LHS & RHS of each case separately
       let compiledScrutinee ← mexpToTSyntax scrutinee deriveSort
       let compiledCases ← cases.toArray.mapM (fun (pattern, rhs) => do
-        let lhs ← compilePattern pattern
+        let lhs ← compilePattern explicit pattern
         let compiledRHS ← mexpToTSyntax rhs deriveSort
         `(Term.matchAltExpr| | $lhs:term => $compiledRHS))
       `(match $compiledScrutinee:term with $compiledCases:matchAlt*)
@@ -345,7 +377,7 @@ mutual
       let argTyExprs := argTys.map (Option.map ToExpr.toExpr)
       let typedArgs := List.zip args argTyExprs
       let argsTuple ← mkTuple typedArgs
-      let propBody ← mexpToTSyntax prop .Generator
+      let propBody ← delabMexpAsExpr prop
       let typeClassName :=
         match prodSort with
         | .Enumerator => ``EnumSizedSuchThat
@@ -416,8 +448,8 @@ def scheduleStepToMExp (step : ScheduleStep) (defFuel : MExp) (k : MExp) (output
 
     -- TODO: double check if this is right
     pure $ .MBind .Checker checker [] k
-  | .Match scrutinee pattern =>
-    pure $ .MMatch (.MId scrutinee) [(pattern, k), (wildCardPattern, .MFail)]
+  | .Match explicit scrutinee pattern =>
+    pure $ .MMatch explicit (.MId scrutinee) [(pattern, k), (wildCardPattern, .MFail)]
 
 /-- Converts a `Schedule` (a list of `ScheduleStep`s along with a `ScheduleSort`,
     which acts as the conclusion of the schedule) to an `MExp`.
@@ -432,12 +464,12 @@ def scheduleToMExp (schedule : Schedule) (mfuel : MExp) (defFuel : MExp) (recTyp
     match scheduleSort with
     | .ProducerSchedule _ conclusionOutputs =>
       -- Convert all the outputs in the conclusion to `mexp`s
-      let conclusionMExps := constructorExprToMExp <$> conclusionOutputs
+      let conclusionMExps := constructorExprToMExp .allowImplicit <$> conclusionOutputs
       -- If there are multiple outputs, wrap them in a tuple
       match conclusionMExps with
       | [] => panic! "No outputs being returned in producer schedule"
       | [output] => MExp.MRet output
-      | outputs => tupleOfList (fun e1 e2 => .MApp (.MConst ``Prod.mk) [e1, e2]) outputs outputs[0]?
+      | outputs => tupleOfList (fun e1 e2 => .MApp .allowImplicit (.MConst ``Prod.mk) [e1, e2]) outputs outputs[0]?
     | .CheckerSchedule => okTrue
     | .TheoremSchedule conclusion typeClassUsed =>
       -- Create a pattern-match on the result of hte checker

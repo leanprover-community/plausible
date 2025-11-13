@@ -36,7 +36,7 @@ partial def variablesInHypothesisTSyntax (term : TSyntax `term) : MetaM (List Na
 def variablesInConstructorExpr (ctorExpr : ConstructorExpr) : List Name :=
   match ctorExpr with
   | .Unknown u => [u]
-  | .Ctor _ args | .FuncApp _ args => args.flatMap variablesInConstructorExpr
+  | .Ctor _ args | .FuncApp _ args | .TyCtor _ args => args.flatMap variablesInConstructorExpr
   | .Lit _ => []
 
 /-- Given a hypothesis `hyp`, along with `binding` (a list of variables that we are binding with a call to a generator), plus `recCall` (a pair contianing the name of the inductive and a list of output argument indices),
@@ -155,7 +155,7 @@ def outputInputNotUnderSameConstructor (hyp : HypothesisExpr) (outputVars : List
     return List.any vars (. ∈ outputVars) && List.any vars (. ∉ outputVars))
   return result
 
-/-- Determines whether the variables in `outputVars` are constrained by a function application in the hypothesis `hyp`.
+/-- Determines whether the variables in `outputVars` are constrained by a function application or type constructor in the hypothesis `hyp`.
     This function is necessary since we can't output something and then assert that it equals the output of a (non-constructor) function
     (since we don't have access to the function). -/
 partial def outputsNotConstrainedByFunctionApplication (hyp : HypothesisExpr) (outputVars : List Name) : ScheduleM Bool :=
@@ -166,6 +166,7 @@ partial def outputsNotConstrainedByFunctionApplication (hyp : HypothesisExpr) (o
         match arg with
         | .Unknown u => return (b && u ∈ outputVars)
         | .Ctor _ args => args.anyM (check b)
+        | .TyCtor _ args
         | .FuncApp _ args => args.anyM (check true)
         | .Lit _ => return false
 
@@ -220,7 +221,7 @@ def handleConstrainedOutputs (hyp : HypothesisExpr) (outputVars : List TypedVar)
         match patternOfConstructorExpr arg with
         | none => throwError m!"ConstructorExpr {arg} fails to be converted to pattern in handleConstrainedOutputs"
         | some pat =>
-          let newMatch := ScheduleStep.Match newName pat
+          let newMatch := ScheduleStep.Match .allExplicit newName pat
           pure (some newMatch, .Unknown newName, some (.UVar newName))
       else
         pure (none, arg, none)
@@ -230,7 +231,7 @@ def handleConstrainedOutputs (hyp : HypothesisExpr) (outputVars : List TypedVar)
         pure (none, arg, some (.TVar ⟨v,ty⟩))
       | none  =>
         pure (none, arg, none)
-    | .FuncApp _ _ =>
+    | .FuncApp _ _  | .TyCtor _ _ =>
       pure (none, arg, none)
     | .Lit _ =>
       pure (none, arg, none)
@@ -320,15 +321,22 @@ private def collectRepeatedNames (lists : List (List Name)) : List Name :=
 private partial def containsFunctionCall (ctrExpr : ConstructorExpr) : Bool :=
   match ctrExpr with
   | .Unknown _ => false
-  | .Ctor _ args => List.any args (fun x => containsFunctionCall x)
+  | .Ctor _ args | .TyCtor _ args => List.any args (fun x => containsFunctionCall x)
   | .FuncApp _ _ => true
+  | .Lit _ => false
+
+private partial def tyCtorConstrainsVariable (ctrExpr : ConstructorExpr) : Bool :=
+  match ctrExpr with
+  | .Unknown _ => false
+  | .Ctor _ args | .FuncApp _ args => args.any tyCtorConstrainsVariable
+  | .TyCtor _ _ => !(variablesInConstructorExpr ctrExpr).isEmpty
   | .Lit _ => false
 
 private def constructHypothesis (hyp : HypothesisExpr × List (List Name)) : HypothesisExpr × List (List Name) × List Name :=
   let repeatedNames := collectRepeatedNames hyp.snd
   let hypIndices := List.zip hyp.fst.snd hyp.snd
   let (mustBind, allSafe) := hypIndices.partition (fun (ctrExpr, vars) =>
-    containsFunctionCall ctrExpr || (vars.any (List.contains repeatedNames)))
+    containsFunctionCall ctrExpr || tyCtorConstrainsVariable ctrExpr || (vars.any (List.contains repeatedNames)))
   -- Any variables that appear multiple times in a hypothesis will end up in mustBind the same number of times, so we must deduplicate
   -- to avoid instantiating it multiple times.
   (hyp.fst, allSafe.map (fun x => x.snd), (List.eraseDups mustBind).flatMap (fun x => x.snd))
@@ -907,7 +915,7 @@ private def possiblePreSchedules (vars : List TypedVar) (hypotheses : List Hypot
     - `recCall`: a pair contianing the name of the inductive relation and a list of indices for output arguments
       + `recCall` represents what a recursive call to the function being derived looks like
     - `fixedVars`: A list of fixed variables (i.e. inputs to the inductive relation) -/
-def possibleSchedules' (vars : List TypedVar) (hypotheses : List HypothesisExpr) (deriveSort : DeriveSort)
+def possibleSchedules (vars : List TypedVar) (hypotheses : List HypothesisExpr) (deriveSort : DeriveSort)
   (recCall : Name × List Nat) (fixedVars : List Name) : LazyList (MetaM (List ScheduleStep)) := do
   let (typedPreSchedules, scheduleEnv) := possiblePreSchedules vars hypotheses deriveSort recCall fixedVars
   let lazySchedules := typedPreSchedules.mapLazyList ((ReaderT.run . scheduleEnv) ∘ List.flatMapM preScheduleStepToScheduleStep)
@@ -923,7 +931,7 @@ def possibleSchedules' (vars : List TypedVar) (hypotheses : List HypothesisExpr)
     - `recCall`: a pair contianing the name of the inductive relation and a list of indices for output arguments
       + `recCall` represents what a recursive call to the function being derived looks like
     - `fixedVars`: A list of fixed variables (i.e. inputs to the inductive relation) -/
-def possibleSchedules (vars : List TypedVar) (hypotheses : List HypothesisExpr) (deriveSort : DeriveSort)
+def possibleSchedules' (vars : List TypedVar) (hypotheses : List HypothesisExpr) (deriveSort : DeriveSort)
   (recCall : Name × List Nat) (fixedVars : List Name) : LazyList (MetaM (List ScheduleStep)) := do
   let sortedHypotheses := mkSortedHypothesesVariablesMap hypotheses
   let varNames := vars.map (fun x => x.var)

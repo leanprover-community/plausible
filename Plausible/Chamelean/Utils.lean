@@ -166,7 +166,7 @@ def setDelaboratorOptions (opts : Options) : Options :=
     |>.setBool `pp.instances true
     |>.setBool `pp.instanceTypes false
     |>.setBool `pp.all false
-    |>.setBool `pp.explicit false
+    |>.setBool ``pp.explicit true
 
 
 /-- Delaborates an `Expr` in a `LocalContext` to a `TSyntax term` -/
@@ -203,6 +203,134 @@ def isConstructorRecursive (inductiveName : Name) (ctorName : Name) : MetaM Bool
         return true
     return false
   | none => throwError "constructors with non-arrow types are not-considered to be recursive"
+
+def foldlWithIndex (f : α → Nat → β → β) (init : β) (l : List α) : β :=
+  let rec aux (idx : Nat) (acc : β) (l : List α) :=
+    match l with
+    | [] => acc
+    | a :: l' => aux (idx + 1) (f a idx acc) l'
+  aux 0 init l
+
+/-- Recursively collects all free variables in an expression and counts their occurrences.
+    If skipArgIndex is provided and the top-level expression is an application,
+    skips the argument at that index when counting occurrences. -/
+partial def collectFVarOccurrences (e : Expr) (skipArgIndex : Option Nat := none) : FVarIdMap Nat :=
+  let rec aux (expr : Expr) (acc : FVarIdMap Nat) (isTopLevel : Bool) : FVarIdMap Nat :=
+    match expr with
+    | .fvar fvarId => acc.insert fvarId (acc.getD fvarId 0 + 1)
+    | .app f arg =>
+      if isTopLevel then
+        -- Handle top-level application with potential argument skipping
+        let args := expr.getAppArgs
+        Id.run do
+          let mut result := acc
+          for h : i in [:args.size] do
+            if some i != skipArgIndex then
+              result := aux args[i] result false
+          result
+      else
+        aux arg (aux f acc false) false
+    | .lam _ domain body _ => aux body (aux domain acc false) false
+    | .forallE _ domain body _ => aux body (aux domain acc false) false
+    | .letE _ type value body _ => aux body (aux value (aux type acc false) false) false
+    | .mdata _ expr => aux expr acc isTopLevel
+    | .proj _ _ struct => aux struct acc false
+    | _ => acc
+  aux e {} true
+
+/-`collectUnmatchableSubterms` traverses an expression from top down until it finds anything except a constructor application
+or a variable or an inductive. It collects all such subterms. These subterms we cannot match on during unifications so we
+turn them later into equality constraints. -/
+partial def collectUnmatchableSubterms (e : Expr) : MetaM (List Expr) :=
+  match e with
+  | .app .. | .const .. => do
+    let (f, args) := e.getAppFnArgs
+    let inf ← getConstInfo f
+    if inf.isDefinition then
+      return [e]
+    else
+      args.foldlM (fun acc arg => (· ++ acc) <$> collectUnmatchableSubterms arg) []
+  | .fvar .. => return []
+  | _ => return [e] -- If it is not an application or a const, it is also not matchable, so we
+                    -- should also flatten it out.
+
+/-`collectUnmatchableProperSubterms` traverses an expression from top down (ignoring the head, which is a hypothesis that does not need to be
+matched on) until it finds anything except a constructor application or a variable or an inductive. It collects all such subterms. These
+subterms we cannot match on during unifications so we turn them later into equality constraints.-/
+partial def collectUnmatchableProperSubterms (e : Expr) : MetaM (List Expr) :=
+  match e with
+  | .app .. => do
+    let args := e.getAppArgs
+    args.foldlM (fun acc arg => (· ++ acc) <$> collectUnmatchableSubterms arg) []
+  | _ => return []
+
+/-- Looks up a key in a list and returns the value along with the list without that entry -/
+def lookupAndRemove [BEq α] (key : α) (list : List (α × β)) : Option (β × List (α × β)) :=
+  let rec aux (acc : List (α × β)) : List (α × β) → Option (β × List (α × β))
+  | [] => none
+  | (k, v) :: rest =>
+    if key == k then
+      some (v, acc ++ rest)
+    else
+      aux ((k, v) :: acc) rest
+  aux [] list
+
+/-- Recursively replaces expressions in an expression tree using a replacement map,
+    removing each replacement after it's used.
+    If skipArgIndex is provided and the top-level expression is an application,
+    skips replacement in the argument at that index. -/
+partial def replaceExprsRecursivelyOnce (e : Expr) (replacements : List (Expr × Expr)) (skipArgIndex : Option Nat := none) : Expr :=
+  let (result, _) := StateT.run (aux e true) replacements
+  result
+where
+  aux (expr : Expr) (isTopLevel : Bool) : StateT (List (Expr × Expr)) Id Expr := do
+    let currentReplacements ← get
+    -- First check if this expression should be replaced
+    match lookupAndRemove expr currentReplacements with
+    | some (replacement, remainingReplacements) =>
+      -- Update state with remaining replacements
+      set remainingReplacements
+      return replacement
+    | none =>
+      -- If not, recursively process subexpressions
+      match expr with
+      | .app f arg =>
+        if isTopLevel then
+          -- Handle top-level application with potential argument skipping
+          let (fn, args) := expr.getAppFnArgs
+          let args' ← args.toList.mapIdxM (fun i arg =>
+            match skipArgIndex with
+            | some skipIdx => if i == skipIdx then return arg else aux arg false
+            | none => aux arg false)
+          return mkAppN (mkConst fn []) args'.toArray
+        else do
+          let f' ← aux f false
+          let arg' ← aux arg false
+          return .app f' arg'
+      | .lam name domain body bi => do
+        let domain' ← aux domain false
+        let body' ← aux body false
+        return .lam name domain' body' bi
+      | .forallE name domain body bi => do
+        let domain' ← aux domain false
+        let body' ← aux body false
+        return .forallE name domain' body' bi
+      | .letE name type value body nonDep => do
+        let type' ← aux type false
+        let value' ← aux value false
+        let body' ← aux body false
+        return .letE name type' value' body' nonDep
+      | .mdata data expr => do
+        let expr' ← aux expr isTopLevel
+        return .mdata data expr'
+      | .proj name idx struct => do
+        let struct' ← aux struct false
+        return .proj name idx struct'
+      | _ => return expr
+
+/--info: Lean.Expr.app (Lean.Expr.const `f []) (Lean.Expr.const `g [])-/
+#guard_msgs() in
+#eval replaceExprsRecursivelyOnce (.app (.const `f []) (.app (.const `f2 []) (.const `a []))) [((.app (.const `f2 []) (.const `a [])),(.const `g []))]
 
 /-- `replicateM n act` performs the action `act` for `n` times, returning a list of results. -/
 def replicateM [Monad m] (n : Nat) (action : m α) : m (List α) :=

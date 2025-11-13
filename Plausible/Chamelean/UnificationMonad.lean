@@ -63,6 +63,8 @@ inductive ConstructorExpr
   | Unknown : Name → ConstructorExpr
   | Ctor : Name → List ConstructorExpr → ConstructorExpr
   | FuncApp : Name → List ConstructorExpr → ConstructorExpr
+  | TyCtor : Name → List ConstructorExpr → ConstructorExpr
+  /- A TyCtor is an inductive family applied to arguments. Used for instance in Prod.mk which requires two types as arguments. -/
   | Lit : Literal → ConstructorExpr
   deriving Repr, BEq, Inhabited, Ord
 
@@ -70,11 +72,10 @@ inductive ConstructorExpr
 partial def constructorExprToExpr (ctorExpr : ConstructorExpr) : Expr :=
   match ctorExpr with
   | .Unknown name => mkConst name
-  | .Ctor ctorName ctorArgs =>
+  | .Ctor ctorName ctorArgs | .TyCtor ctorName ctorArgs | .FuncApp ctorName ctorArgs =>
     mkAppN (mkConst ctorName) (constructorExprToExpr <$> ctorArgs.toArray)
-  | .FuncApp funcName ctorArgs =>
-    mkAppN (mkConst funcName) (constructorExprToExpr <$> ctorArgs.toArray)
   | .Lit l => .lit l
+
 
 /-- `ToExpr` instance for `ConstructorExpr` -/
 instance : ToExpr ConstructorExpr where
@@ -86,6 +87,7 @@ partial def constructorExprToTSyntaxTerm (ctorExpr : ConstructorExpr) : MetaM (T
   match ctorExpr with
   | .Unknown name => `($(mkIdent name))
   | .Ctor ctorName ctorArgs
+  | .TyCtor ctorName ctorArgs
   | .FuncApp ctorName ctorArgs => do
     let argTerms ← ctorArgs.toArray.mapM constructorExprToTSyntaxTerm
     `($(mkIdent ctorName) $argTerms:term*)
@@ -103,7 +105,7 @@ partial def constructorExprOfPattern (pattern : Pattern) : ConstructorExpr :=
 partial def patternOfConstructorExpr (ctorExpr : ConstructorExpr) : Option Pattern :=
   match ctorExpr with
   | .Unknown u => some $ .UnknownPattern u
-  | .Ctor ctorName args => .CtorPattern ctorName <$> (List.mapM patternOfConstructorExpr args)
+  | .Ctor ctorName args | .TyCtor ctorName args => .CtorPattern ctorName <$> (List.mapM patternOfConstructorExpr args)
   | .FuncApp _ _ => none
   | .Lit l => some $ .LitPattern l
 
@@ -198,6 +200,9 @@ partial def toMessageDataConstructorExpr (ctorExpr : ConstructorExpr) : MessageD
     let renderedArgs := toMessageDataConstructorExpr <$> args
     m!"FuncApp ({f} {renderedArgs})"
   | .Lit l => m!"Lit {repr l}"
+  | .TyCtor c args =>
+    let renderedArgs := toMessageDataConstructorExpr <$> args
+    m!"TyCtor ({c} {renderedArgs})"
 
 instance : ToMessageData ConstructorExpr where
   toMessageData := toMessageDataConstructorExpr
@@ -414,6 +419,7 @@ partial def updateConstructorArg (k : UnknownMap) (ctorArg : ConstructorExpr) : 
     else
       return (.Unknown arg)
   | .Ctor ctorName args
+  | .TyCtor ctorName args
   | .FuncApp ctorName args =>
     let updatedArgs ← args.mapM (updateConstructorArg k)
     return (.Ctor ctorName updatedArgs)
@@ -450,6 +456,7 @@ def collectUnknownsInConstructorExpr (ctorExpr : ConstructorExpr) : List Unknown
   match ctorExpr with
   | .Unknown u => [u]
   | .Ctor c args
+  | .TyCtor c args
   | .FuncApp c args =>
     c :: List.flatMap collectUnknownsInConstructorExpr args
   | .Lit _ => []

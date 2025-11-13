@@ -12,6 +12,7 @@ inductive HasDep {α : Type} (_ : List α) : Nat → Prop where
 error: unable to find unknown x._@.Test.DeriveArbitrarySuchThat.DependentArgs.1339814650._hygCtx._hyg.3 in UnknownMap [(n_1,
   Undef Nat),
  (α_1, Fixed),
+ (unk, Undef Nat),
  (l_1, Fixed),
  (a, Undef α),
  (u_2, Unknown n_1),
@@ -20,16 +21,39 @@ error: unable to find unknown x._@.Test.DeriveArbitrarySuchThat.DependentArgs.13
  (α, Unknown u_0),
  (u_0, Unknown α_1)]
 -/
-#guard_msgs(error) in
+#guard_msgs(error, ordering:=sorted) in
 derive_generator (fun α l => ∃ n, @HasDep α l n)
 
 inductive HasClassDep {α : Type} [h : DecidableEq α] : Nat → Prop where
 | foo (a b : α) : a = b → HasClassDep 0
 
 /--
-error: exprToHypothesisExpr: unable to convert α to a HypothesisExpr, must be a constructor or an inductive applied to arguments.
+error: Function expected at
+  HasClassDep α_1
+but this term has type
+  Prop
+
+Note: Expected a function because this term is being applied to the argument
+  inst_1
+---
+error: Unknown identifier `α`
+---
+error: Application type mismatch: The argument
+  α_1
+has type
+  Nat
+of sort `Type` but is expected to have type
+  Type
+of sort `Type 1` in the application
+  aux_arb size size α_1
+---
+error: Unknown identifier `inst_1`
+---
+error: Unknown identifier `α`
+---
+error: Unknown identifier `α`
 -/
-#guard_msgs(error) in
+#guard_msgs(drop info, error) in
 derive_generator (fun α inst => ∃ n, @HasClassDep α inst n)
 
 
@@ -38,19 +62,5 @@ def f : Nat → Nat := fun _ => 0
 inductive HasCall : Nat → Prop where
 | foo (n : Nat) : f n = 0 → HasCall n
 
-/--
-error: failed to synthesize
-  ArbitrarySizedSuchThat (?m.64 size') fun vn => vn = OfNat.ofNat 0
-(deterministic) timeout at `typeclass`, maximum number of heartbeats (20000) has been reached
-Note: Use `set_option synthInstance.maxHeartbeats <num>` to set the limit.
-Hint: Additional diagnostic information may be available using the `set_option diagnostics true` command.
-Hint: Additional diagnostic information may be available using the `set_option diagnostics true` command.
----
-error: Invalid pattern: Expected a constructor or constant marked with `[match_pattern]`
-Hint: `Lean.Lsp.RefIdent.RefIdentJsonRepr.f` is similar
----
-error: Invalid pattern: Expected a constructor or constant marked with `[match_pattern]`
-Hint: `Lean.Lsp.RefIdent.RefIdentJsonRepr.f` is similar
--/
 #guard_msgs(error, whitespace:=lax, drop info) in
 derive_generator ∃ n, HasCall n
