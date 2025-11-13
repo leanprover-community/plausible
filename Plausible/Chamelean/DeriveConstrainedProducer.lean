@@ -272,9 +272,11 @@ def linearizeAndFlatten
   let mut freshUnknownsAndTypes := #[]
 
   -- Handle function calls
-  for funcAppExpr in funcAppExprs do
+  for i in List.range funcAppExprs.length do
+    let funcAppExpr := funcAppExprs[i]!
     let funcAppType ← inferType funcAppExpr
-    let freshUnknown := (localCtx.getUnusedName `unk)
+    let freshUnknown := localCtx.getUnusedName <| (`unk).appendAfter s!"_{i}"
+
     UnifyM.insertUnknown freshUnknown
     UnifyM.update freshUnknown (.Undef funcAppType)
     freshUnknownsAndTypes := freshUnknownsAndTypes.push (freshUnknown, funcAppType)
@@ -311,6 +313,7 @@ def linearizeAndFlatten
     for (fvarId, count) in nonlinearVars do
       let originalVar := mkFVar fvarId
       let varType ← inferType originalVar
+      if varType.isSort then continue
       let varName ← fvarId.getUserName
 
       -- Create count-1 fresh variables (keeping first occurrence as original)

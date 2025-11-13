@@ -12,13 +12,13 @@ inductive HasDep {α : Type} (_ : List α) : Nat → Prop where
 error: unable to find unknown x._@.Test.DeriveArbitrarySuchThat.DependentArgs.1339814650._hygCtx._hyg.3 in UnknownMap [(n_1,
   Undef Nat),
  (α_1, Fixed),
- (unk, Undef Nat),
  (l_1, Fixed),
  (a, Undef α),
  (u_2, Unknown n_1),
  (b, Undef α),
  (u_1, Unknown l_1),
  (α, Unknown u_0),
+ (unk_0, Undef Nat),
  (u_0, Unknown α_1)]
 -/
 #guard_msgs(error, ordering:=sorted) in
