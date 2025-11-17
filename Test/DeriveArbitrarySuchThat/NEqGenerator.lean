@@ -2,6 +2,7 @@ import Plausible.Gen
 import Plausible.Chamelean.DecOpt
 import Plausible.Chamelean.ArbitrarySizedSuchThat
 import Plausible.Chamelean.DeriveConstrainedProducer
+import Plausible.Chamelean.DeriveChecker
 import Test.CommonDefinitions.BinaryTree
 import Plausible.Attr
 
@@ -40,34 +41,46 @@ inductive usesNeq' : Nat × Nat → Prop where
 derive_generator ∃ a, usesNeq' a
 
 inductive Diag : (α : Type u) → α → α × α → Prop where
-| c : Diag α a (a, a)
+| c : Diag α a (b, b)
 
-/--  error: Application type mismatch: The argument
-  a_1
- has type
-   α
-but is expected to have type
-  α_1
-   in the application
-   Diag α_1 a_1
- ---
- error: unknown universe level `u`
- ---
- error: Redundant alternative: Any expression matching
-   _
- will match one of the preceding alternatives
- ---
- error: Redundant alternative: Any expression matching
-   _
- will match one of the preceding alternatives
- ---
- error: (kernel) declaration has metavariables 'inst.aux_arb✝'-/
+-- set_option trace.plausible.deriving.arbitrary true
+
+/--
+error: Redundant alternative: Any expression matching
+  _
+will match one of the preceding alternatives
+---
+error: Redundant alternative: Any expression matching
+  _
+will match one of the preceding alternatives-/
 #guard_msgs(error, drop info, whitespace := lax) in
-derive_generator fun α b => ∃ a, Diag α a b
+derive_generator fun γ p => ∃ g, Diag γ g p
 
+/-- error: Redundant alternative: Any expression matching
+  _
+will match one of the preceding alternatives
+
+---
+
+error: Redundant alternative: Any expression matching
+  _
+will match one of the preceding alternatives -/
+#guard_msgs(error, drop info, whitespace := lax) in
+derive_checker fun γ g p => Diag γ g p
 
 inductive usesVec : _ → Prop where
 | c {a b : Nat} : usesVec #v[a,b,a]
 
 #guard_msgs(drop error, drop info, whitespace := lax) in
 derive_generator ∃ a, usesVec a
+
+inductive TypeChange : Type u → Nat → Prop where
+| ennd : TypeChange (((α × α) × (α × α)) × (((α × α) × (α × α)))) 3
+| change : TypeChange (α × α) (n + 1) → TypeChange α n
+
+example : TypeChange (Nat × Nat) 1 := .ennd |>.change.change
+
+example : TypeChange Nat 0 := .ennd |>.change.change.change
+
+#guard_msgs(drop error, drop info) in
+derive_generator fun α => ∃ n, TypeChange α n

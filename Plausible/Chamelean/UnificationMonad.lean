@@ -418,11 +418,9 @@ partial def updateConstructorArg (k : UnknownMap) (ctorArg : ConstructorExpr) : 
       return (.Unknown canonicalUnknown)
     else
       return (.Unknown arg)
-  | .Ctor ctorName args
-  | .TyCtor ctorName args
-  | .FuncApp ctorName args =>
-    let updatedArgs ← args.mapM (updateConstructorArg k)
-    return (.Ctor ctorName updatedArgs)
+  | .Ctor ctorName args => return .Ctor ctorName (← args.mapM $ updateConstructorArg k)
+  | .TyCtor ctorName args => return .TyCtor ctorName (← args.mapM $ updateConstructorArg k)
+  | .FuncApp ctorName args => return .FuncApp ctorName (← args.mapM $ updateConstructorArg k)
   | .Lit l => return .Lit l
 
 /-- `updatePattern k p` uses the `UnknownMap` `k` to rewrite any unknowns that appear in the

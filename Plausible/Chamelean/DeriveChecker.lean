@@ -37,7 +37,7 @@ def getCheckerScheduleForInductiveConstructor (inductiveName : Name) (ctorName :
     - Note: this function is identical to `mkTopLevelChecker`, except it doesn't take in a `NameMap` argument
     - TODO: refactor to avoid code duplication -/
 def mkDecOptInstance (baseCheckers : TSyntax `term) (inductiveCheckers : TSyntax `term)
-  (inductiveName : Name) (args : TSyntaxArray `term) (topLevelLocalCtx : LocalContext) : TermElabM (TSyntax `command) := do
+  (inductiveName : Name) (inductiveLevels : List Level) (args : TSyntaxArray `term) (topLevelLocalCtx : LocalContext) : TermElabM (TSyntax `command) := do
 
   -- Produce a fresh name for the `size` argument for the lambda
   -- at the end of the checker function, as well as the `aux_dec` inner helper function
@@ -61,7 +61,7 @@ def mkDecOptInstance (baseCheckers : TSyntax `term) (inductiveCheckers : TSyntax
   let matchExpr ← mkMatchExpr sizeIdent caseExprs
 
   -- Add parameters for each argument to the inductive relation
-  let paramInfo ← analyzeInductiveArgs inductiveName args
+  let paramInfo ← analyzeInductiveArgs inductiveName inductiveLevels args
 
   -- Inner params are for the inner `aux_dec` function
   let mut innerParams := #[]
@@ -70,24 +70,34 @@ def mkDecOptInstance (baseCheckers : TSyntax `term) (inductiveCheckers : TSyntax
 
   -- Outer params are for the top-level lambda function which invokes `aux_dec`
   let mut outerParams := #[]
-  for (paramName, paramType) in paramInfo do
+  let mut typeParams := #[]
+  for (paramName, paramType, paramTypeSyntax) in paramInfo do
     let outerParamIdent := mkIdent paramName
     outerParams := outerParams.push outerParamIdent
 
+    if paramType.isSort then typeParams := typeParams.push paramName
+
     -- Inner parameters are for the inner `aux_arb` function
-    let innerParam ← `(Term.letIdBinder| ($(mkIdent paramName) : $paramType))
+    let innerParam ←
+    if paramType.isSort then
+     `(Term.letIdBinder| ($(mkIdent paramName) : _))
+    else
+     `(Term.letIdBinder| ($(mkIdent paramName) : $paramTypeSyntax))
     innerParams := innerParams.push innerParam
 
+  let arbitraryTypeParamInstances ← mkTypeClassInstanceBinders typeParams #[``Enum, ``DecidableEq]
+
   -- Produces an instance of the `DecOpt` typeclass containing the definition for the derived generator
-  `(instance : $decOptTypeclass ($(mkIdent inductiveName) $args*) where
+  `(instance $arbitraryTypeParamInstances:bracketedBinder* : $decOptTypeclass (@$(mkIdent inductiveName) $args*) where
       $unqualifiedDecOptFn:ident :=
-        let rec $auxDecIdent:ident $innerParams* : $checkerType :=
+        let rec $auxDecIdent:ident $innerParams* $arbitraryTypeParamInstances:bracketedBinder* : $checkerType :=
           $matchExpr
         fun $freshSizeIdent => $auxDecIdent $freshSizeIdent $freshSizeIdent $outerParams*)
 
 
 def deriveScheduledChecker' (_args : Array Expr)
     (constrInd : Name)
+    (constrLevels : List Level)
     (constrArgs : Array Expr) : TermElabM (TSyntax `command) := do
   -- Parse `inductiveProp` for an application of the inductive relation
 
@@ -179,13 +189,14 @@ def deriveScheduledChecker' (_args : Array Expr)
     baseCheckers
     inductiveCheckers
     constrInd
+    constrLevels
     freshArgIdents
     localCtx
 
 private def withParsedDerivingArgs (input : Expr)
   (action :
     (args : Array Expr) →
-    (constrInd : Name) → (constrArgs : Array Expr) → TermElabM α) : TermElabM α :=
+    (constrInd : Name) → (constrLevels : List Level) → (constrArgs : Array Expr) → TermElabM α) : TermElabM α :=
   lambdaTelescope input <|
   fun args body => do
   let body ← whnf body
@@ -193,7 +204,8 @@ private def withParsedDerivingArgs (input : Expr)
   fun ind indArgs => do
   if !ind.isConst then throwError m!"Error in parsing constraint: {ind} is expected to be a constant."
   let indName := ind.constName!
-  action args indName indArgs
+  let indLevels := ind.constLevels!
+  action args indName indLevels indArgs
 
 /-- Derives a checker which checks the `inductiveProp` (an inductive relation, represented as a `TSyntax term`)
     using the unification algorithm from Generating Good Generators and the schedules discuseed in Testing Theorems -/

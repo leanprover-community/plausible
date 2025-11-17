@@ -169,9 +169,9 @@ partial def exprToConstructorExpr (e : Expr) : MetaM ConstructorExpr := do
 
 /-- Converts an `Expr` to a `HypothesisExpr` if it is a variable or application of type constructor or function to constructor expressions else throws error -/
 def exprToHypothesisExpr (e : Expr) : MetaM HypothesisExpr := do
-  trace[plausible.deriving.arbitrary] s!"Converting {e} to Hypexpr"
+  trace[plausible.deriving.arbitrary] m!"Converting {e} to Hypexpr"
   let e ← Lean.Meta.withTransparency .reducible <| Meta.whnf e
-  trace[plausible.deriving.arbitrary] s!"Converting {e} to Hypexpr after whnf"
+  trace[plausible.deriving.arbitrary] m!"Converting {e} to Hypexpr after whnf"
   if e.isApp || e.isConst then
     let (ctorName, args) := e.getAppFnArgs
     let env ← getEnv
@@ -187,38 +187,15 @@ def exprToHypothesisExpr (e : Expr) : MetaM HypothesisExpr := do
     with the result of unification (provided via the `UnifyM` monad) -/
 def updateNonRecSource (k : UnknownMap) (hyp : HypothesisExpr) : UnifyM Source := do
   let (ctorName, args) := hyp
+  let updatedName ← UnifyM.findCanonicalUnknown k ctorName
   let updatedArgs ← List.mapM (UnifyM.updateConstructorArg k) args
-  return .NonRec (ctorName, updatedArgs)
+  return .NonRec (updatedName, updatedArgs)
 
 /-- Updates a `Source` with the result of unification as contained in the `UnknownMap` -/
 def updateSource (k : UnknownMap) (src : Source) : UnifyM Source := do
   match src with
   | .NonRec hyp => do
-    let hypExpr := toExpr hyp
-
-    -- To do so, we first extract the constructor in the hypothesis
-    -- and see if it corresponds to a type constructor for a parameterized type `inductive` type (e.g. `List`)
-    -- If yes, we can just return the source as is, since the source is just the name of a type
-    let (ctor, _) := hypExpr.getAppFnArgs
-
-    try (do
-      -- Determine the return type of the constructor in the hypothesis
-      let inductiveVal ← getConstInfoInduct ctor
-      let ctorTy := inductiveVal.type
-      let returnType ← Array.back! <$> getComponentsOfArrowType ctorTy
-      -- If the return type is *not* `Prop`, then the `Source` is
-      -- a generator for some inductive type (as opposed to an inductive `Prop`),
-      -- so we don't need to update the source
-      if (not returnType.isProp) then
-        pure src
-      else
-        updateNonRecSource k hyp)
-    catch _ =>
-      -- `ctor` is not an inductive type (calling Lean's `getConstInfoInduct` function raised an exception)
-      -- This means we have a hypothesis which is *not* an application of some inductive type/proposition,
-      -- i.e. we can just update the variables in the `hyp` w/ the result of unification
-      updateNonRecSource k hyp
-
+    updateNonRecSource k hyp
   | .Rec r tys => do
     let updatedTys ← List.mapM (UnifyM.updateConstructorArg k) tys
     return .Rec r updatedTys
@@ -238,7 +215,8 @@ def updateScheduleSteps (scheduleSteps : List ScheduleStep) : UnifyM (List Sched
     | .SuchThat unknownsAndTypes src dst => do
       let updatedUnknownsAndTypes ← unknownsAndTypes.mapM (fun (u, ty) => do
         let u' ← UnifyM.findCanonicalUnknown k u
-        return (u', ty))
+        let ty' ← ty.mapM <| UnifyM.updateConstructorArg k
+        return (u', ty'))
       let updatedSource ← updateSource k src
       return .SuchThat updatedUnknownsAndTypes updatedSource dst
     | .Check src polarity => do

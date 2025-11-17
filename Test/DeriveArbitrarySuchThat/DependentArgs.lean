@@ -1,5 +1,7 @@
 import Plausible.Chamelean.ArbitrarySizedSuchThat
 import Plausible.Chamelean.DeriveConstrainedProducer
+import Plausible.Chamelean.EnumeratorCombinators
+import Plausible.Chamelean.DeriveChecker
 import Plausible.Attr
 
 set_option guard_msgs.diff true
@@ -27,35 +29,14 @@ derive_generator (fun α l => ∃ n, @HasDep α l n)
 inductive HasClassDep {α : Type} [h : DecidableEq α] : Nat → Prop where
 | foo (a b : α) : a = b → HasClassDep 0
 
-/--
-error: Function expected at
-  HasClassDep α_1
-but this term has type
-  Prop
-
-Note: Expected a function because this term is being applied to the argument
-  inst_1
----
-error: Unknown identifier `α`
----
-error: Application type mismatch: The argument
-  α_1
-has type
-  Nat
-of sort `Type` but is expected to have type
-  Type
-of sort `Type 1` in the application
-  aux_arb size size α_1
----
-error: Unknown identifier `inst_1`
----
-error: Unknown identifier `α`
----
-error: Unknown identifier `α`
--/
 #guard_msgs(drop info, error) in
 derive_generator (fun α inst => ∃ n, @HasClassDep α inst n)
 
+#guard_msgs(error, drop warning, drop info) in
+derive_checker fun α inst n => @HasClassDep α inst n
+
+#guard_msgs(drop info, error) in
+derive_enumerator (fun α inst => ∃ n, @HasClassDep α inst n)
 
 def f : Nat → Nat := fun _ => 0
 
@@ -64,3 +45,6 @@ inductive HasCall : Nat → Prop where
 
 #guard_msgs(error, whitespace:=lax, drop info) in
 derive_generator ∃ n, HasCall n
+
+#guard_msgs(error, whitespace:=lax, drop info) in
+derive_enumerator ∃ n, HasCall n

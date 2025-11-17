@@ -302,7 +302,7 @@ def linearizeAndFlatten
     -- Count variable occurrences to find nonlinear patterns
     let varOccurrences := collectFVarOccurrences conclusion outputIndex
 
-    trace[plausible.deriving.arbitrary] s!"varOccurences: {repr varOccurrences.toList} \n expr: {conclusion} \n outputIndex {outputIndex}"
+    trace[plausible.deriving.arbitrary] m!"varOccurences: {repr varOccurrences.toList} \n expr: {conclusion} \n outputIndex {outputIndex}"
 
     let nonlinearVars := varOccurrences.toList.filter (fun (_, count) => count > 1)
 
@@ -523,8 +523,8 @@ def getScheduleForInductiveRelationConstructor
       -- Include any fresh variables produced (when rewriting function calls in conclusions)
       -- in the list of universally-quantified variables
       let updatedForAllVars := List.map (fun (n,ty) => ⟨n,ty⟩) updatedForAllVars
-      trace[plausible.deriving.arbitrary] s!"Updated ForAll Vars: {repr updatedForAllVars}"
-      trace[plausible.deriving.arbitrary] s!"Fixed Vars: {repr fixedVars}"
+      trace[plausible.deriving.arbitrary] m!"Updated ForAll Vars: {repr updatedForAllVars}"
+      trace[plausible.deriving.arbitrary] m!"Fixed Vars: {repr fixedVars}"
 
       -- Compute all possible checker schedules for this constructor
       let possibleSchedules := possibleSchedules
@@ -602,6 +602,7 @@ def deriveConstrainedProducer
   (outputVar : Expr)
   (outputType : Expr)
   (constrainingInductive : Name)
+  (inductiveLevels : List Level)
   (constrArgs : Array Expr)
   (deriveSort : DeriveSort) : TermElabM (TSyntax `command) := do
   -- Determine what sort of producer we're deriving (a `Generator` or an `Enumerator`)
@@ -611,7 +612,6 @@ def deriveConstrainedProducer
 
   -- Figure out the name and type of the value we wish to generate (the "output")
   let outputName := outputVar.fvarId!
-
   -- Find the index of the argument in the inductive application for the value we wish to generate
   -- (i.e. find `i` s.t. `argIdents[i] == outputName`)
   let outputIdxOpt := findTargetVarIndex outputName constrArgs
@@ -668,7 +668,6 @@ def deriveConstrainedProducer
       let freshSize' := mkIdent $ localCtx.getUnusedName `size'
 
       let mut requiredInstances := #[]
-
       for ctorName in inductiveVal.ctors do
         let scheduleOption ← (UnifyM.runInMetaM
           (getProducerScheduleForInductiveConstructor inductiveName ctorName freshenedOutputName
@@ -727,6 +726,7 @@ def deriveConstrainedProducer
     baseProducers
     inductiveProducers
     constrainingInductive
+    inductiveLevels
     freshArgIdents
     freshenedOutputName
     outputType
@@ -739,14 +739,15 @@ private def deriveArbitrarySuchThatInstance'
   (outputVar : Expr)
   (outputType : Expr)
   (constrainingInductive : Name)
+  (inductiveLevels : List Level)
   (constrArgs : Array Expr) :
   TermElabM (TSyntax `command) := do
-  deriveConstrainedProducer args outputVar outputType constrainingInductive constrArgs (deriveSort := .Generator)
+  deriveConstrainedProducer args outputVar outputType constrainingInductive inductiveLevels constrArgs (deriveSort := .Generator)
 
 private def withParsedDerivingArgs (input : Expr)
   (action :
     (args : Array Expr) → (out : Expr) → (outTy : Expr) →
-    (constrInd : Name) → (constrArgs : Array Expr) → TermElabM α) : TermElabM α :=
+    (constrInd : Name) → (constrLevels : List Level) → (constrArgs : Array Expr) → TermElabM α) : TermElabM α :=
   lambdaTelescope input <|
   fun args body => do
   let .some (outTy, body) := body.app2? ``Exists | throwError m!"Error in parsing constraint: {body} is not of the form ∃ x, P."
@@ -759,7 +760,8 @@ private def withParsedDerivingArgs (input : Expr)
   let out := outVars[0]!
   if !ind.isConst then throwError m!"Error in parsing constraint: {ind} is expected to be a constant."
   let indName := ind.constName!
-  action args out outTy indName indArgs
+  let indLevels := ind.constLevels!
+  action args out outTy indName indLevels indArgs
 
 /-- Derives an instance of the `ArbitrarySuchThat` typeclass,
     where `outputVar` and `outputTypeSyntax` are the name & type of the value to be generated,
@@ -769,8 +771,8 @@ def deriveArbitrarySuchThatInstance (tm : Term) : TermElabM Command := do
   withParsedDerivingArgs e deriveArbitrarySuchThatInstance'
 
 def deriveEnumSuchThatInstance' (args : Array Expr) (outputVar : Expr) (outputType : Expr)
-  (constrainingProp : Name) (constrArgs : Array Expr) : TermElabM (TSyntax `command) :=
-  deriveConstrainedProducer args outputVar outputType constrainingProp constrArgs (deriveSort := .Enumerator)
+  (constrainingProp : Name) (inductiveLevels : List Level) (constrArgs : Array Expr) : TermElabM (TSyntax `command) :=
+  deriveConstrainedProducer args outputVar outputType constrainingProp inductiveLevels constrArgs (deriveSort := .Enumerator)
 
 /-- Derives an instance of the `EnumSuchThat` typeclass,
     where `outputVar` and `outputTypeSyntax` are the name & type of the value to be generated,
