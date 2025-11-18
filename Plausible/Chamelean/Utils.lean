@@ -241,7 +241,9 @@ partial def collectFVarOccurrences (e : Expr) (skipArgIndex : Option Nat := none
 /-`collectUnmatchableSubterms` traverses an expression from top down until it finds anything except a constructor application
 or a variable or an inductive. It collects all such subterms. These subterms we cannot match on during unifications so we
 turn them later into equality constraints. -/
-partial def collectUnmatchableSubterms (e : Expr) : MetaM (List Expr) :=
+partial def collectUnmatchableSubterms (e : Expr) : MetaM (List Expr) := do
+  let eType ← inferType e
+  if eType.isSort then return []
   match e with
   | .app .. | .const .. => do
     let (f, args) := e.getAppFnArgs

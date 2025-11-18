@@ -28,7 +28,7 @@ local instance [Ord α][Ord β]: Ord (α × β) := lexOrd
 inductive Source
   | NonRec : HypothesisExpr → Source
   | Rec : Name → List ConstructorExpr → Source
-  deriving Repr, BEq, Ord
+  deriving Repr, BEq
 
 /-- Producers are either enumerators or generators -/
 inductive ProducerSort
@@ -68,7 +68,7 @@ inductive ScheduleSort
       and false otherwise (we're currently dealing with a function that returns `Option Bool`) -/
   | TheoremSchedule (conclusion : HypothesisExpr) (typeClassUsed : Bool)
 
-  deriving Repr, Ord, BEq
+  deriving Repr, BEq
 
 inductive Explicit where | allExplicit | allowImplicit deriving Repr, BEq, Ord
 
@@ -87,7 +87,7 @@ inductive ScheduleStep
   /-- Used when you decompose a constructor constrained arg into a
     fresh variable followed by a pattern match -/
   | Match : Explicit → Name → Pattern → ScheduleStep
-  deriving Repr, BEq, Ord
+  deriving Repr, BEq
 
 /-- Stringifier for `Source` -/
 def sourceToString source := match source with
@@ -130,6 +130,7 @@ inductive Density
 /-- Converts a `HypothesisExpr` to a `TSyntax term` -/
 def hypothesisExprToTSyntaxTerm (hypExpr : HypothesisExpr) : MetaM (TSyntax `term) := do
   let (ctorName, ctorArgs) := hypExpr
+  if ctorName = `sort then `(Sort _) else
   let ctorArgTerms ← ctorArgs.toArray.mapM constructorExprToTSyntaxTerm
   `($(mkIdent ctorName) $ctorArgTerms:term*)
 
@@ -162,7 +163,10 @@ partial def exprToConstructorExpr (e : Expr) : MetaM ConstructorExpr := do
       throwError m!"exprToConstructorExpr: We do not support higher order application of {name} in Expr {e}"
     | .Lit _ =>
       throwError m!"exprToConstructorExpr: String and Nat Literals cannot be applied as functions, see: {f} in {e}"
+    | .CSort _lvl =>
+      throwError m!"exprToConstructorExpr: String and Nat Literals cannot be applied as functions, see: {f} in {e}"
   | .lit l => return .Lit l
+  | .sort lvl => return .CSort lvl
   | _ =>
     -- For other expression types (literals, lambdas, etc.), generate a placeholder name
     throwError m!"exprToConstructorExpr can only handle free variables, constants, and applications. Attempted to convert: {e}"
@@ -181,7 +185,9 @@ def exprToHypothesisExpr (e : Expr) : MetaM HypothesisExpr := do
   else if e.isFVar then
     let name ← e.fvarId!.getUserName
     return (name, [])
-  else throwError m!"exprToHypothesisExpr: Expr {e} must be of the form C a1 a2 ... an when used as hypothesis"
+  else match e with
+  | .sort _lvl => return (`sort, [])
+  | _ => throwError m!"exprToHypothesisExpr: Expr {e} must be of the form C a1 a2 ... an when used as hypothesis"
 
 /-- Helper function called by `updateSource`, which updates variables in a hypothesis `hyp`
     with the result of unification (provided via the `UnifyM` monad) -/

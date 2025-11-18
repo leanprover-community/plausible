@@ -86,6 +86,7 @@ inductive MExp : Type where
   | MOutOfFuel
 
   | MHole
+  | MSort (lvl : Level)
 
   deriving Repr, Inhabited, BEq
 
@@ -175,6 +176,7 @@ partial def constructorExprToMExp (exp : Explicit) (expr : ConstructorExpr) : ME
   | .Ctor c args | .TyCtor c args => .MCtr exp c (constructorExprToMExp exp <$> args)
   | .FuncApp f args => .MApp exp (.MId f) (constructorExprToMExp exp <$> args)
   | .Lit l => .MLit l
+  | .CSort lvl => .MSort lvl
 
 partial def mexpToConstructorExpr (m : MExp) : Option ConstructorExpr :=
   match m with
@@ -186,6 +188,7 @@ partial def mexpToConstructorExpr (m : MExp) : Option ConstructorExpr :=
     let convertedArgs ← args.mapM mexpToConstructorExpr
     return .FuncApp f convertedArgs
   | .MLit l => return .Lit l
+  | .MSort lvl => return .CSort lvl
   | _ => none
 
 /-- `MExp` representation of a recursive function call,
@@ -261,6 +264,7 @@ mutual
   /-- Compiles a `MExp` to a Lean `doElem`, according to the `DeriveSort` provided -/
   partial def mexpToTSyntax (mexp : MExp) (deriveSort : DeriveSort) : CompileScheduleM (TSyntax `term) :=
     match mexp with
+    | .MSort _ => `(Sort _)
     | .MHole => `(_)
     | .MId v | .MConst v => `($(mkIdent v))
     | .MApp explicit func args => do

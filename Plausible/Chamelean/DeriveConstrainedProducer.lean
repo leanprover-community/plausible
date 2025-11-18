@@ -266,7 +266,7 @@ def linearizeAndFlatten
   UnifyM (Array Expr × Expr × List (Name × Expr) × LocalContext) := do
   -- Find all sub-terms which are non-trivial function applications
   let funcAppExprs ← collectUnmatchableProperSubterms conclusion
-
+  trace[plausible.deriving.arbitrary] m!"Unmatchable exprs: {funcAppExprs} In conclusion: {conclusion}"
   withLCtx' localCtx do
 
   let mut freshUnknownsAndTypes := #[]

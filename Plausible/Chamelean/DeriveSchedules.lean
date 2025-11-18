@@ -38,27 +38,34 @@ def variablesInConstructorExpr (ctorExpr : ConstructorExpr) : List Name :=
   | .Unknown u => [u]
   | .Ctor _ args | .FuncApp _ args | .TyCtor _ args => args.flatMap variablesInConstructorExpr
   | .Lit _ => []
+  | .CSort _ => []
 
 /-- Given a hypothesis `hyp`, along with `binding` (a list of variables that we are binding with a call to a generator), plus `recCall` (a pair contianing the name of the inductive and a list of output argument indices),
     this function checks whether the generator we're using is recursive.
 
     For example, if we're trying to produce a call to the generator [(e, tau) ← typing gamma _ _], then
     we would have `binding = [e,tau]` and `hyp = typing gamma e tau`. -/
-def isRecCall (binding : List Name) (hyp : HypothesisExpr) (recCall : Name × List Nat) : MetaM Bool := do
+def isRecCall (binding : List Name) (typeVars : List Name) (hyp : HypothesisExpr) (recCall : Name × List Nat) : MetaM Bool := do
   let (ctorName, args) := hyp
   -- An output position is a position where all vars contained are unbound
   -- if they are unbound, we include them in the list of output indices (`outputPositions`)
   let outputPositions ← filterMapMWithIndex (fun i arg => do
     let vars := variablesInConstructorExpr arg
-    if vars.isEmpty then pure none
-    else if List.all vars (. ∈ binding) then
+    if vars.isEmpty then pure none else
+    let varsSubsetBinding := vars ⊆ binding
+    let varsSubsetTypeVars := vars ⊆ typeVars
+    if varsSubsetBinding && !varsSubsetTypeVars then
       pure (some i)
-    else if List.any vars (. ∈ binding) then do
+    else if !varsSubsetBinding && vars.any (· ∈ binding) then
       let v := List.find? (· ∈ binding) vars
-      logError m!"error: {v} ∈ {binding} = binding"
-      throwError m!"Arguments to hypothesis {hyp} contain both fixed and yet-to-be-bound variables (not allowed)"
-    else pure none) args
+      let vn := List.find? (· ∉ binding) vars
+      throwError m!"error: {v} ∈ {binding} and {vn} ∉ {binding}\nArguments to hypothesis {hyp} contain both fixed and yet-to-be-bound variables (not allowed)"
+    else pure none
+  ) args
+
   let (inductiveName, recCallOutputIdxes) := recCall
+
+  trace[plausible.deriving.arbitrary] m!"isRecCall: typeVars: {typeVars} binding {binding} hyp: {hyp} args: {args} outputsPos: {outputPositions} recCall: {recCall}"
 
   return (ctorName == inductiveName && (recCallOutputIdxes.mergeSort) == (outputPositions.mergeSort))
 
@@ -169,6 +176,7 @@ partial def outputsNotConstrainedByFunctionApplication (hyp : HypothesisExpr) (o
         | .TyCtor _ args
         | .FuncApp _ args => args.anyM (check true)
         | .Lit _ => return false
+        | .CSort _ => return false
 
 private inductive OptionallyTypedVar where
 | TVar : TypedVar -> OptionallyTypedVar
@@ -212,9 +220,8 @@ def handleConstrainedOutputs (hyp : HypothesisExpr) (outputVars : List TypedVar)
       match List.mapM (outputNamesTypes.lookup .) vars with
       | none => pure (none, arg, none)
 
-      | some _typedOutputs =>
-
-      if !vars.isEmpty then do
+      | some typedOutputs =>
+      if !vars.isEmpty && !typedOutputs.all (fun x => x.isSort) then do
         let localCtx ← getLCtx
         let newName := localCtx.getUnusedName (Name.mkStr1 ("v" ++ String.intercalate "_" (Name.getString! <$> vars)))
         -- let argType ← inferType $ ToExpr.toExpr arg
@@ -228,42 +235,22 @@ def handleConstrainedOutputs (hyp : HypothesisExpr) (outputVars : List TypedVar)
     | .Unknown v =>
       match outputNamesTypes.lookup v with
       | some ty =>
-        pure (none, arg, some (.TVar ⟨v,ty⟩))
+        if ty.isSort then
+          pure (none, arg, none)
+        else
+          pure (none, arg, some (.TVar ⟨v,ty⟩))
       | none  =>
         pure (none, arg, none)
     | .FuncApp _ _  | .TyCtor _ _ =>
       pure (none, arg, none)
     | .Lit _ =>
       pure (none, arg, none)
+    | .CSort _ =>
+      pure (none, arg, none)
 
       )
 
   return (patternMatches.filterMap id, (ctorName, args'), newOutputs.filterMap id)
-
-/-- Converts a list of `ScheduleStep`s to *normal form* (i.e. all unconstrained generation
-    occurs before constrained generation) -/
-def normalizeSchedule (steps : List ScheduleStep) : List ScheduleStep :=
-  -- `unconstrainedBlock` is a list of `ScheduleStep`s consisting only of unconstrianed generation
-  -- (i.e. calls to `arbitrary`)
-  let rec normalize (steps : List ScheduleStep) (unconstrainedBlock : List ScheduleStep) : List ScheduleStep :=
-    match steps with
-    | [] =>
-      -- if we run out of steps, we can just sort the `unconstrainedBlock`
-      -- according to the comparison function on `scheduleStep`s
-      List.mergeSort (le := compareBlocks) unconstrainedBlock
-    | step@(.Unconstrained _ _ _) :: steps =>
-      -- If we encounter a step consisting of unconstrained generation,
-      -- we cons it onto `unconstrainedBlock` & continue
-      normalize steps (step::unconstrainedBlock)
-    | step :: steps =>
-      -- If we encounter any step that's not unconstrained generation,
-      -- the current block of unconstrained generation is over,
-      -- so we need to cons it (after sorting) to the head of the list of `step` and continue
-      List.mergeSort (le := compareBlocks) unconstrainedBlock ++ step :: normalize steps []
-  normalize steps []
-    where
-      -- Comparison function on blocks of `ScheduleSteps`
-      compareBlocks b1 b2 := Ordering.isLE $ Ord.compare b1 b2
 
 /-Lazily enumerates pairs where the first elements is all subsets of
   the given list `as` and the second element is the complement-/
@@ -324,6 +311,7 @@ private partial def containsFunctionCall (ctrExpr : ConstructorExpr) : Bool :=
   | .Ctor _ args | .TyCtor _ args => List.any args (fun x => containsFunctionCall x)
   | .FuncApp _ _ => true
   | .Lit _ => false
+  | .CSort _ => false
 
 private partial def tyCtorConstrainsVariable (ctrExpr : ConstructorExpr) : Bool :=
   match ctrExpr with
@@ -331,12 +319,13 @@ private partial def tyCtorConstrainsVariable (ctrExpr : ConstructorExpr) : Bool 
   | .Ctor _ args | .FuncApp _ args => args.any tyCtorConstrainsVariable
   | .TyCtor _ _ => !(variablesInConstructorExpr ctrExpr).isEmpty
   | .Lit _ => false
+  | .CSort _ => false
 
-private def constructHypothesis (hyp : HypothesisExpr × List (List Name)) : HypothesisExpr × List (List Name) × List Name :=
+private def constructHypothesis (typeVars : List Name) (hyp : HypothesisExpr × List (List Name)) : HypothesisExpr × List (List Name) × List Name :=
   let repeatedNames := collectRepeatedNames hyp.snd
   let hypIndices := List.zip hyp.fst.snd hyp.snd
   let (mustBind, allSafe) := hypIndices.partition (fun (ctrExpr, vars) =>
-    containsFunctionCall ctrExpr || tyCtorConstrainsVariable ctrExpr || (vars.any (List.contains repeatedNames)))
+    containsFunctionCall ctrExpr || tyCtorConstrainsVariable ctrExpr || (vars.any (fun v => v ∈ repeatedNames && v ∉ typeVars)))
   -- Any variables that appear multiple times in a hypothesis will end up in mustBind the same number of times, so we must deduplicate
   -- to avoid instantiating it multiple times.
   (hyp.fst, allSafe.map (fun x => x.snd), (List.eraseDups mustBind).flatMap (fun x => x.snd))
@@ -547,14 +536,17 @@ in a canonical order always, thus dramatically reducing the size of the enumerat
 because hypotheses in different components cannot possibly depend on each other, so their ordering
 does not make a difference.
 -/
-private partial def enumSchedules' {α v} [BEq v] (vars : List v) (hypComps : List (List (α × List (List v) × List v))) (env : List v)
+private partial def enumSchedules' {α v} [BEq v] (vars : List v) (matchableVars : List v) (hypComps : List (List (α × List (List v) × List v))) (env : List v)
   : LazyList (List (PreScheduleStep α v)) :=
   match hypComps with
   | [] => pure (prune_empties [.InstVars $ vars.removeAll env])
-  | [] :: hypComps' => enumSchedules' vars hypComps' env
+  | [] :: hypComps' => enumSchedules' vars matchableVars hypComps' env
   | hyps :: hypComps' => do
     let ⟨ (hyp, potential_output_indices, always_bound_variables),hyps' ⟩ ← select hyps
-    let (some_bound_output_indices, all_unbound_output_indices) := List.partition (fun l => List.any l (List.contains env) || l.isEmpty) potential_output_indices
+    let (some_bound_output_indices, all_unbound_output_indices) := potential_output_indices.partition /- Partition the output arguments based on -/
+      (fun l => /- Whether each output index's list of contained variables, `l`-/
+        l.any (fun v => env.contains v && !matchableVars.contains v) /- contains a variable that is fixed already in the environment and is not matchable on (e.g. not a type variable) -/
+        || l.all (matchableVars.contains)) /- or if all the variables are matchable on (it is constant), or empty. -/
     let (out,bound) ← subsetsAndComplements all_unbound_output_indices
     if out.length > 1 || (out.isEmpty && !bound.isEmpty) then .lnil else
     let bound_vars := bound.flatten ++ (always_bound_variables ++ some_bound_output_indices.flatten).filter (not ∘ List.contains env)
@@ -568,22 +560,22 @@ private partial def enumSchedules' {α v} [BEq v] (vars : List v) (hypComps : Li
                               , .Produce out_vars hyp
                               , .Checks (Prod.fst <$> postchecks)
                               ]
-                              ++ l) (enumSchedules' vars (to_be_satisfied' :: hypComps') env'')
+                              ++ l) (enumSchedules' vars matchableVars (to_be_satisfied' :: hypComps') env'')
 
 #guard_msgs(error, drop info) in
-#eval (enumSchedules' [1,2,3,4] [[("A",[[1,2,3],[4]],[])], [("B",[[4]],[])]] []).take 15
+#eval (enumSchedules' [1,2,3,4] [] [[("A",[[1,2,3],[4]],[])], [("B",[[4]],[])]] []).take 15
 
 -- Two separate SCCs: {H1,H2} share 'a', {H3,H4} share 'd'
 #guard_msgs(error, drop info) in
-#eval (enumSchedules' ["a","b","c","d","e"] [[("H1",[["a"],["b"],["c"]],[]), ("H2",[["a"]],[])], [("H3",[["d"]],[]), ("H4",[["d"],["e"]],[])]] []).take 100
+#eval (enumSchedules' ["a","b","c","d","e"] [] [[("H1",[["a"],["b"],["c"]],[]), ("H2",[["a"]],[])], [("H3",[["d"]],[]), ("H4",[["d"],["e"]],[])]] []).take 100
 
 -- Three SCCs: connected chain, isolated, pair
 #guard_msgs(error, drop info) in
-#eval (enumSchedules' [1,2,3,4,5,6] [[("A",[[1],[2]],[]), ("B",[[2],[3]],[]), ("C",[[3]],[])], [("D",[[4]],[])], [("E",[[5]],[]), ("F",[[5],[6]],[])]] []).take 100
+#eval (enumSchedules' [1,2,3,4,5,6] [] [[("A",[[1],[2]],[]), ("B",[[2],[3]],[]), ("C",[[3]],[])], [("D",[[4]],[])], [("E",[[5]],[]), ("F",[[5],[6]],[])]] []).take 100
 
 -- Multiple single-node SCCs
 #guard_msgs(error, drop info) in
-#eval (enumSchedules' [1,2,3] [[("X",[[1]],[])], [("Y",[[2]],[])], [("Z",[[3]],[])]] []).take 2
+#eval (enumSchedules' [1,2,3] [] [[("X",[[1]],[])], [("Y",[[2]],[])], [("Z",[[3]],[])]] []).take 2
 
 -- Comparison: enumSchedules vs enumSchedules' - total schedule counts
 -- Example 1: Two separate SCCs should reduce schedules significantly
@@ -591,14 +583,14 @@ private partial def enumSchedules' {α v} [BEq v] (vars : List v) (hypComps : Li
 #eval (enumSchedules ["a","b","c","d"] [("H1",[["a"],["b"]],[]), ("H2",[["a"]],[]), ("H3",[["c"],["d"]],[]), ("H4",[["c"]],[])] []).length
 
 #guard_msgs(error, drop info) in
-#eval (enumSchedules' ["a","b","c","d"] [[("H1",[["a"],["b"]],[]), ("H2",[["a"]],[])], [("H3",[["c"],["d"]],[]), ("H4",[["c"]],[])]] []).length
+#eval (enumSchedules' ["a","b","c","d"] [] [[("H1",[["a"],["b"]],[]), ("H2",[["a"]],[])], [("H3",[["c"],["d"]],[]), ("H4",[["c"]],[])]] []).length
 
 -- Example 2: Single SCC should have same count
 #guard_msgs(error, drop info) in
 #eval (enumSchedules [1,2,3] [("A",[[1],[2]],[]), ("B",[[2],[3]],[])] []).length
 
 #guard_msgs(error, drop info) in
-#eval (enumSchedules' [1,2,3] [[("A",[[1],[2]],[]), ("B",[[2],[3]],[])]] []).length
+#eval (enumSchedules' [1,2,3] [] [[("A",[[1],[2]],[]), ("B",[[2],[3]],[])]] []).length
 
 
 -- Compare binary choice approach vs full permutations
@@ -773,7 +765,7 @@ in a canonical order always, thus dramatically reducing the size of the enumerat
 because hypotheses in different components cannot possibly depend on each other, so their ordering
 does not make a difference.
 -/
-private def enumSchedulesChunked {α v} [BEq v] (vars : List v) (hypComps : List (LazyList (List (α × List (List v) × List v)))) (env : List v)
+private def enumSchedulesChunked {α v} [BEq v] (vars : List v) (matchableVars : List v) (hypComps : List (LazyList (List (α × List (List v) × List v)))) (env : List v)
   : LazyList (List (PreScheduleStep α v)) :=
   match hypComps with
   | [] => pure (prune_empties [.InstVars $ vars.removeAll env])
@@ -786,7 +778,10 @@ private def enumSchedulesChunked {α v} [BEq v] (vars : List v) (hypComps : List
       | [] => break
       | (hyp, potential_output_indices, always_bound_variables) :: rest =>
       perm := rest
-      let (some_bound_output_indices, all_unbound_output_indices) := List.partition (fun l => List.any l (List.contains env) || l.isEmpty) potential_output_indices
+      let (some_bound_output_indices, all_unbound_output_indices) := potential_output_indices.partition /- Partition the output arguments based on -/
+        (fun l => /- Whether each output index's list of contained variables, `l`-/
+          l.any (fun v => env.contains v && !matchableVars.contains v) /- contains a variable that is fixed already in the environment and is not matchable on (e.g. not a type variable) -/
+          || l.all (matchableVars.contains)) /- or if all the variables are matchable on (it is constant), or empty. -/
       let (out,bound) ← subsetsAndComplements all_unbound_output_indices
       if out.length > 1 || (out.isEmpty && !bound.isEmpty) then .lnil else
       let bound_vars := bound.flatten ++ (always_bound_variables ++ some_bound_output_indices.flatten).filter (not ∘ List.contains env)
@@ -801,7 +796,7 @@ private def enumSchedulesChunked {α v} [BEq v] (vars : List v) (hypComps : List
                                 , .Checks (Prod.fst <$> postchecks)
                                 ];
       perm := to_be_satisfied'
-    LazyList.mapLazyList (sched ++ ·) $ enumSchedulesChunked vars hypComps' env
+    LazyList.mapLazyList (sched ++ ·) $ enumSchedulesChunked vars matchableVars hypComps' env
 
 -- Determine the right name for the recursive function in the producer
 private def recursiveFunctionName (deriveSort : DeriveSort) : Name :=
@@ -830,9 +825,10 @@ private def preScheduleStepToScheduleStep (preStep : PreScheduleStep HypothesisE
         | .UVar n =>
           pure (n, none)
           )
+    let typedVars := env.vars.filterMap fun ⟨v, t⟩ => if t.isSort then some v else none
     let (_, hypArgs) := hyp'
     let constrainingRelation ←
-      if (← isRecCall (outs.map (fun x => x.var)) hyp env.recCall) then
+      if ← isRecCall (outs.map (fun x => x.var)) typedVars hyp env.recCall then
         let inputArgs := filterWithIndex (fun i _ => i ∉ (Prod.snd env.recCall)) hypArgs
         pure (Source.Rec (recursiveFunctionName env.deriveSort) inputArgs)
       else
@@ -887,6 +883,7 @@ instance [ToString α] [ToString v] : ToString (List (List (PreScheduleStep α v
 
 private def possiblePreSchedules (vars : List TypedVar) (hypotheses : List HypothesisExpr) (deriveSort : DeriveSort)
   (recCall : Name × List Nat) (fixedVars : List Name) : LazyList ((List (PreScheduleStep HypothesisExpr TypedVar))) × ScheduleEnv :=
+  let typeVars := vars.filterMap fun ⟨v,t⟩ => if t.isSort then some v else none
   let sortedHypotheses := mkSortedHypothesesVariablesMap hypotheses
   let varNames := vars.map (fun x => x.var)
   let prodSort := convertDeriveSortToProducerSort deriveSort
@@ -898,9 +895,9 @@ private def possiblePreSchedules (vars : List TypedVar) (hypotheses : List Hypot
                              |>.map (fun (h,vars) => ((h,vars), List.flatten vars))
                              |> computeSCC
                              |>.map (enumDependencySatisfyingOrderings ·
-                                    |> LazyList.mapLazyList (List.map constructHypothesis))
+                                    |> LazyList.mapLazyList (List.map <| constructHypothesis typeVars))
   let firstChecks := PreScheduleStep.Checks newCheckedHyps.reverse
-  let lazyPreSchedules : LazyList (List (PreScheduleStep HypothesisExpr Name)) := enumSchedulesChunked remainingVars connectedHypotheses fixedVars
+  let lazyPreSchedules : LazyList (List (PreScheduleStep HypothesisExpr Name)) := enumSchedulesChunked remainingVars typeVars connectedHypotheses fixedVars
   let nameTypeMap := List.foldl (fun m ⟨name,ty⟩ => NameMap.insert m name ty) ∅ vars
   let typedPreSchedules : LazyList (List (PreScheduleStep HypothesisExpr TypedVar)) := lazyPreSchedules.mapLazyList ((firstChecks :: ·) ∘ List.map (typePreScheduleStep nameTypeMap))
   (typedPreSchedules, scheduleEnv)
@@ -933,6 +930,7 @@ def possibleSchedules (vars : List TypedVar) (hypotheses : List HypothesisExpr) 
     - `fixedVars`: A list of fixed variables (i.e. inputs to the inductive relation) -/
 def possibleSchedules' (vars : List TypedVar) (hypotheses : List HypothesisExpr) (deriveSort : DeriveSort)
   (recCall : Name × List Nat) (fixedVars : List Name) : LazyList (MetaM (List ScheduleStep)) := do
+  let typeVars := vars.filterMap fun ⟨v,t⟩ => if t.isSort then some v else none
   let sortedHypotheses := mkSortedHypothesesVariablesMap hypotheses
   let varNames := vars.map (fun x => x.var)
   let prodSort := convertDeriveSortToProducerSort deriveSort
@@ -940,9 +938,9 @@ def possibleSchedules' (vars : List TypedVar) (hypotheses : List HypothesisExpr)
   let remainingVars := List.filter (fun v => not $ fixedVars.contains v) varNames
   let (newCheckedIdxs, newCheckedHyps) := List.unzip $ (collectCheckSteps scheduleEnv fixedVars [])
   let remainingSortedHypotheses := filterWithIndex (fun i _ => i ∉ newCheckedIdxs) sortedHypotheses
-  let connectedHypotheses := (computeSCC (remainingSortedHypotheses.map (fun (h,vars) => ((h,vars),vars.flatten)))).map (List.map fun ((h,vars),_) => constructHypothesis (h,vars))
+  let connectedHypotheses := (computeSCC (remainingSortedHypotheses.map (fun (h,vars) => ((h,vars),vars.flatten)))).map (List.map fun ((h,vars),_) => constructHypothesis typeVars (h,vars))
   let firstChecks := List.reverse $ (ScheduleStep.Check . true) <$> newCheckedHyps
-  let lazyPreSchedules : LazyList (List (PreScheduleStep HypothesisExpr Name)) := enumSchedules' remainingVars connectedHypotheses fixedVars
+  let lazyPreSchedules : LazyList (List (PreScheduleStep HypothesisExpr Name)) := enumSchedules' remainingVars typeVars connectedHypotheses fixedVars
   let nameTypeMap := List.foldl (fun m ⟨name,ty⟩ => NameMap.insert m name ty) ∅ vars
   let typedPreSchedules : LazyList (List (PreScheduleStep HypothesisExpr TypedVar)) := lazyPreSchedules.mapLazyList (List.map (typePreScheduleStep nameTypeMap))
   let lazySchedules := typedPreSchedules.mapLazyList ((ReaderT.run . scheduleEnv) ∘ ((firstChecks ++ .) <$> .) ∘ List.flatMapM preScheduleStepToScheduleStep)
@@ -964,7 +962,7 @@ def exampleEnumSchedulesChunked :=
   let components := hypotheses |>.map (fun (h,vars) => ((h,vars), List.flatten vars.1 ++ vars.2))
                              |> computeSCC
                              |>.map (@enumDependencySatisfyingOrderings _ _ ⟨fun (a,_) (b,_) => BEq.beq a b⟩ _ _ _ _)
-  enumSchedulesChunked [`ets,`acts,`R,`ns,`T,`T1,`T2,`E1,`x1,`x2] components [`V]
+  enumSchedulesChunked [`ets,`acts,`R,`ns,`T,`T1,`T2,`E1,`x1,`x2] [] components [`V]
 
 def countChecks (schd : List (PreScheduleStep α β)) : Nat :=
   schd.foldl (fun acc step => match step with | PreScheduleStep.Checks cs => acc + cs.length | _ => acc) 0
