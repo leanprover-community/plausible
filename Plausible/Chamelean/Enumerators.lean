@@ -192,7 +192,7 @@ instance : Enum Char where
 
 /-- `Enum` instance for `String`s containing ASCII-printable characters -/
 instance : Enum String where
-  enum := List.asString <$> (Enum.enum : Enumerator (List Char))
+  enum := String.ofList <$> (Enum.enum : Enumerator (List Char))
 
 /-- `Enum` instance for `Fin n` where `n > 0`
   (enumerates all `Nat`s from 0 to `n - 1` inclusive) -/
