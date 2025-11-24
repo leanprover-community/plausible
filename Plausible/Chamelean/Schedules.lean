@@ -33,7 +33,7 @@ local instance [Ord α][Ord β]: Ord (α × β) := lexOrd
 inductive Source
   | NonRec : HypothesisExpr → Source
   | Rec : Name → List ConstructorExpr → Source
-  deriving Repr, BEq, Ord
+  deriving Repr, BEq
 
 /-- Producers are either enumerators or generators -/
 inductive ProducerSort
@@ -73,8 +73,9 @@ inductive ScheduleSort
       and false otherwise (we're currently dealing with a function that returns `Option Bool`) -/
   | TheoremSchedule (conclusion : HypothesisExpr) (typeClassUsed : Bool)
 
-  deriving Repr, Ord, BEq
+  deriving Repr, BEq
 
+inductive Explicit where | allExplicit | allowImplicit deriving Repr, BEq, Ord
 
 /-- A single step in a generator schedule -/
 inductive ScheduleStep
@@ -90,9 +91,8 @@ inductive ScheduleStep
 
   /-- Used when you decompose a constructor constrained arg into a
     fresh variable followed by a pattern match -/
-  | Match : Name → Pattern → ScheduleStep
-
-  deriving Repr, BEq, Ord
+  | Match : Explicit → Name → Pattern → ScheduleStep
+  deriving Repr, BEq
 
 /-- Stringifier for `Source` -/
 def sourceToString source := match source with
@@ -107,7 +107,7 @@ def stepToString step := match step with
     | .SuchThat vars src _ => s!"{vars.map (fun ((name : Name), (_ : Option ConstructorExpr)) => name)} ← {sourceToString src}"
     | .Check src true => s!"check {sourceToString src}"
     | .Check src false => s!"check ¬{sourceToString src}"
-    | .Match name pattern => s!"match {name} with {patternToString pattern}"
+    | .Match explicit name pattern => s!"match {repr explicit} {name} with {patternToString pattern}"
 
 /-- Stringifier for lists of steps. -/
 def scheduleStepsToString (steps : List ScheduleStep) := "do\n  " ++ String.intercalate "\n  " (stepToString <$> steps)
@@ -135,6 +135,7 @@ inductive Density
 /-- Converts a `HypothesisExpr` to a `TSyntax term` -/
 def hypothesisExprToTSyntaxTerm (hypExpr : HypothesisExpr) : MetaM (TSyntax `term) := do
   let (ctorName, ctorArgs) := hypExpr
+  if ctorName = `sort then `(Sort _) else
   let ctorArgTerms ← ctorArgs.toArray.mapM constructorExprToTSyntaxTerm
   `($(mkIdent ctorName) $ctorArgTerms:term*)
 
@@ -149,74 +150,63 @@ partial def exprToConstructorExpr (e : Expr) : MetaM ConstructorExpr := do
     let env ← getEnv
     if env.isConstructor name then
       return ConstructorExpr.Ctor name []
+    else if (← isInductive name) then
+      return .TyCtor name []
     else
-      return ConstructorExpr.FuncApp name []
+      return .FuncApp name []
   | .app f arg => do
     let fExpr ← exprToConstructorExpr f
     let argExpr ← exprToConstructorExpr arg
     match fExpr with
-    | ConstructorExpr.Ctor name args =>
-      return ConstructorExpr.Ctor name (args ++ [argExpr])
-    | ConstructorExpr.FuncApp name args =>
-      return ConstructorExpr.FuncApp name (args ++ [argExpr])
-    | ConstructorExpr.Unknown name =>
+    | .TyCtor name args =>
+      return .TyCtor name (args ++ [argExpr])
+    | .Ctor name args =>
+      return .Ctor name (args ++ [argExpr])
+    | .FuncApp name args =>
+      return .FuncApp name (args ++ [argExpr])
+    | .Unknown name =>
       throwError m!"exprToConstructorExpr: We do not support higher order application of {name} in Expr {e}"
-    | ConstructorExpr.Lit _ =>
+    | .Lit _ =>
       throwError m!"exprToConstructorExpr: String and Nat Literals cannot be applied as functions, see: {f} in {e}"
-  | .lit l => return ConstructorExpr.Lit l
+    | .CSort _lvl =>
+      throwError m!"exprToConstructorExpr: String and Nat Literals cannot be applied as functions, see: {f} in {e}"
+  | .lit l => return .Lit l
+  | .sort lvl => return .CSort lvl
   | _ =>
     -- For other expression types (literals, lambdas, etc.), generate a placeholder name
     throwError m!"exprToConstructorExpr can only handle free variables, constants, and applications. Attempted to convert: {e}"
 
-/-- Converts an `Expr` to an `Option HypothesisExpr` -/
+/-- Converts an `Expr` to a `HypothesisExpr` if it is a variable or application of type constructor or function to constructor expressions else throws error -/
 def exprToHypothesisExpr (e : Expr) : MetaM HypothesisExpr := do
-  let e ← Meta.whnf e
-  let (ctorName, args) := e.getAppFnArgs
-  let env ← getEnv
-  -- Only proceed if `ctorName` refers to a constructor or the name of an `inductive`
-  if env.isConstructor ctorName || (← isInductive ctorName) then
+  trace[plausible.deriving.arbitrary] m!"Converting {e} to Hypexpr"
+  let e ← Lean.Meta.withTransparency .reducible <| Meta.whnf e
+  trace[plausible.deriving.arbitrary] m!"Converting {e} to Hypexpr after whnf"
+  if e.isApp || e.isConst then
+    let (ctorName, args) := e.getAppFnArgs
+    let env ← getEnv
+    if env.isConstructor ctorName then throwError m!"exprToHypothesisExpr: Expr {e} cannot have head term {ctorName} which is a constructor. Must be a function or inductive"
     let constructorArgs ← args.mapM exprToConstructorExpr
     return (ctorName, constructorArgs.toList)
-  else
-    throwError m!"exprToHypothesisExpr: unable to convert {e} to a HypothesisExpr, \
-                  must be a constructor or an inductive applied to arguments."
+  else if e.isFVar then
+    let name ← e.fvarId!.getUserName
+    return (name, [])
+  else match e with
+  | .sort _lvl => return (`sort, [])
+  | _ => throwError m!"exprToHypothesisExpr: Expr {e} must be of the form C a1 a2 ... an when used as hypothesis"
 
 /-- Helper function called by `updateSource`, which updates variables in a hypothesis `hyp`
     with the result of unification (provided via the `UnifyM` monad) -/
 def updateNonRecSource (k : UnknownMap) (hyp : HypothesisExpr) : UnifyM Source := do
   let (ctorName, args) := hyp
+  let updatedName ← UnifyM.findCanonicalUnknown k ctorName
   let updatedArgs ← List.mapM (UnifyM.updateConstructorArg k) args
-  return .NonRec (ctorName, updatedArgs)
+  return .NonRec (updatedName, updatedArgs)
 
 /-- Updates a `Source` with the result of unification as contained in the `UnknownMap` -/
 def updateSource (k : UnknownMap) (src : Source) : UnifyM Source := do
   match src with
   | .NonRec hyp => do
-    let hypExpr := toExpr hyp
-
-    -- To do so, we first extract the constructor in the hypothesis
-    -- and see if it corresponds to a type constructor for a parameterized type `inductive` type (e.g. `List`)
-    -- If yes, we can just return the source as is, since the source is just the name of a type
-    let (ctor, _) := hypExpr.getAppFnArgs
-
-    try (do
-      -- Determine the return type of the constructor in the hypothesis
-      let inductiveVal ← getConstInfoInduct ctor
-      let ctorTy := inductiveVal.type
-      let returnType ← Array.back! <$> getComponentsOfArrowType ctorTy
-      -- If the return type is *not* `Prop`, then the `Source` is
-      -- a generator for some inductive type (as opposed to an inductive `Prop`),
-      -- so we don't need to update the source
-      if (not returnType.isProp) then
-        pure src
-      else
-        updateNonRecSource k hyp)
-    catch _ =>
-      -- `ctor` is not an inductive type (calling Lean's `getConstInfoInduct` function raised an exception)
-      -- This means we have a hypothesis which is *not* an application of some inductive type/proposition,
-      -- i.e. we can just update the variables in the `hyp` w/ the result of unification
-      updateNonRecSource k hyp
-
+    updateNonRecSource k hyp
   | .Rec r tys => do
     let updatedTys ← List.mapM (UnifyM.updateConstructorArg k) tys
     return .Rec r updatedTys
@@ -225,10 +215,10 @@ def updateSource (k : UnknownMap) (src : Source) : UnifyM Source := do
 def updateScheduleSteps (scheduleSteps : List ScheduleStep) : UnifyM (List ScheduleStep) := do
   UnifyM.withConstraints $ fun k => scheduleSteps.mapM (fun step =>
     match step with
-    | .Match u p => do
+    | .Match e u p => do
       let updatedScrutinee ← UnifyM.findCanonicalUnknown k u
       let updatedPattern ← UnifyM.updatePattern k p
-      return .Match updatedScrutinee updatedPattern
+      return .Match e updatedScrutinee updatedPattern
     | .Unconstrained u src producerSort => do
       let updatedUnknown ← UnifyM.findCanonicalUnknown k u
       let updatedSrc ← updateSource k src
@@ -236,7 +226,8 @@ def updateScheduleSteps (scheduleSteps : List ScheduleStep) : UnifyM (List Sched
     | .SuchThat unknownsAndTypes src dst => do
       let updatedUnknownsAndTypes ← unknownsAndTypes.mapM (fun (u, ty) => do
         let u' ← UnifyM.findCanonicalUnknown k u
-        return (u', ty))
+        let ty' ← ty.mapM <| UnifyM.updateConstructorArg k
+        return (u', ty'))
       let updatedSource ← updateSource k src
       return .SuchThat updatedUnknownsAndTypes updatedSource dst
     | .Check src polarity => do
@@ -252,8 +243,9 @@ def updateScheduleSteps (scheduleSteps : List ScheduleStep) : UnifyM (List Sched
       processing the rest of the schedule. -/
 def addConclusionPatternsAndEqualitiesToSchedule (patterns : List (Unknown × Pattern)) (equalities : Std.HashSet (Unknown × Unknown)) (currentSchedule : Schedule) : Schedule :=
   let (existingScheduleSteps, scheduleSort) := currentSchedule
-  let matchSteps := (Function.uncurry ScheduleStep.Match) <$> patterns
-  let equalityCheckSteps := (fun (u1, u2) => ScheduleStep.Check (Source.NonRec (`BEq.beq, [.Unknown u1, .Unknown u2])) true) <$> equalities.toList
+  let matchSteps := (Function.uncurry (ScheduleStep.Match .allowImplicit)) <$> patterns
+  -- We should never have an equality here. Assertion after unification should handle that though.
+  let equalityCheckSteps := (fun (u1, u2) => ScheduleStep.Check (Source.NonRec (``Eq, [.Unknown u1, .Unknown u2])) true) <$> equalities.toList
   (matchSteps ++ equalityCheckSteps ++ existingScheduleSteps, scheduleSort)
 
 end

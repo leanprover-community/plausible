@@ -13,7 +13,7 @@ inductive Baz : Bar → Prop where
 
 end Foo
 
--- set_option trace.plausible.deriving.arbitrary true
+--
 
 #guard_msgs(drop info) in
 derive_generator (∃ (b: Foo.Bar), Foo.Baz b)

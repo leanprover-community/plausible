@@ -9,6 +9,8 @@ derive_checker (fun l l' => Permutation l l')
 
 
 -- Example: to run the derived checker, you can uncomment the following
--- def l := [1, 2, 3, 4]
--- def l' := [2, 1, 3, 4]
--- #eval (DecOpt.decOpt (Permutation l l')) 2
+def l := [1, 2, 3, 4]
+def l' := [2, 1, 3, 4]
+/--info: true-/
+#guard_msgs in
+#eval (DecOpt.decOpt (Permutation l l')) 0

@@ -68,18 +68,21 @@ inductive ConstructorExpr
   | Unknown : Name → ConstructorExpr
   | Ctor : Name → List ConstructorExpr → ConstructorExpr
   | FuncApp : Name → List ConstructorExpr → ConstructorExpr
+  | TyCtor : Name → List ConstructorExpr → ConstructorExpr
+  /- A TyCtor is an inductive family applied to arguments. Used for instance in Prod.mk which requires two types as arguments. -/
   | Lit : Literal → ConstructorExpr
-  deriving Repr, BEq, Inhabited, Ord
+  | CSort : Level → ConstructorExpr
+  deriving Repr, BEq, Inhabited
 
 /-- Converts a `ConstructorExpr` to a Lean `Expr` -/
 partial def constructorExprToExpr (ctorExpr : ConstructorExpr) : Expr :=
   match ctorExpr with
   | .Unknown name => mkConst name
-  | .Ctor ctorName ctorArgs =>
+  | .Ctor ctorName ctorArgs | .TyCtor ctorName ctorArgs | .FuncApp ctorName ctorArgs =>
     mkAppN (mkConst ctorName) (constructorExprToExpr <$> ctorArgs.toArray)
-  | .FuncApp funcName ctorArgs =>
-    mkAppN (mkConst funcName) (constructorExprToExpr <$> ctorArgs.toArray)
   | .Lit l => .lit l
+  | .CSort lvl => .sort lvl
+
 
 /-- `ToExpr` instance for `ConstructorExpr` -/
 instance : ToExpr ConstructorExpr where
@@ -91,10 +94,12 @@ partial def constructorExprToTSyntaxTerm (ctorExpr : ConstructorExpr) : MetaM (T
   match ctorExpr with
   | .Unknown name => `($(mkIdent name))
   | .Ctor ctorName ctorArgs
+  | .TyCtor ctorName ctorArgs
   | .FuncApp ctorName ctorArgs => do
     let argTerms ← ctorArgs.toArray.mapM constructorExprToTSyntaxTerm
     `($(mkIdent ctorName) $argTerms:term*)
   | .Lit l => mkLiteral l
+  | .CSort _lvl => `(Sort _) /- Questionable choice to ignore the level of the sort, and let lean infer it. -/
 
 
 /-- Converts a `Pattern` to an equivalent `ConstructorExpr` -/
@@ -108,9 +113,10 @@ partial def constructorExprOfPattern (pattern : Pattern) : ConstructorExpr :=
 partial def patternOfConstructorExpr (ctorExpr : ConstructorExpr) : Option Pattern :=
   match ctorExpr with
   | .Unknown u => some $ .UnknownPattern u
-  | .Ctor ctorName args => .CtorPattern ctorName <$> (List.mapM patternOfConstructorExpr args)
+  | .Ctor ctorName args | .TyCtor ctorName args => .CtorPattern ctorName <$> (List.mapM patternOfConstructorExpr args)
   | .FuncApp _ _ => none
   | .Lit l => some $ .LitPattern l
+  | .CSort _lvl => none
 
 
 /-- An `UnknownMap` maps `Unknown`s to `Range`s -/
@@ -203,6 +209,10 @@ partial def toMessageDataConstructorExpr (ctorExpr : ConstructorExpr) : MessageD
     let renderedArgs := toMessageDataConstructorExpr <$> args
     m!"FuncApp ({f} {renderedArgs})"
   | .Lit l => m!"Lit {repr l}"
+  | .TyCtor c args =>
+    let renderedArgs := toMessageDataConstructorExpr <$> args
+    m!"TyCtor ({c} {renderedArgs})"
+  | .CSort lvl => m!"CSort {lvl}"
 
 instance : ToMessageData ConstructorExpr where
   toMessageData := toMessageDataConstructorExpr
@@ -418,11 +428,11 @@ partial def updateConstructorArg (k : UnknownMap) (ctorArg : ConstructorExpr) : 
       return (.Unknown canonicalUnknown)
     else
       return (.Unknown arg)
-  | .Ctor ctorName args
-  | .FuncApp ctorName args =>
-    let updatedArgs ← args.mapM (updateConstructorArg k)
-    return (.Ctor ctorName updatedArgs)
+  | .Ctor ctorName args => return .Ctor ctorName (← args.mapM $ updateConstructorArg k)
+  | .TyCtor ctorName args => return .TyCtor ctorName (← args.mapM $ updateConstructorArg k)
+  | .FuncApp ctorName args => return .FuncApp ctorName (← args.mapM $ updateConstructorArg k)
   | .Lit l => return .Lit l
+  | .CSort lvl => return .CSort lvl
 
 /-- `updatePattern k p` uses the `UnknownMap` `k` to rewrite any unknowns that appear in the
     `Pattern` `p`, substituting each `Unknown` with its canonical representation
@@ -455,9 +465,11 @@ def collectUnknownsInConstructorExpr (ctorExpr : ConstructorExpr) : List Unknown
   match ctorExpr with
   | .Unknown u => [u]
   | .Ctor c args
+  | .TyCtor c args
   | .FuncApp c args =>
     c :: List.flatMap collectUnknownsInConstructorExpr args
   | .Lit _ => []
+  | .CSort _ => []
 
 mutual
   /-- Evaluates a `Range`, returning a `ConstructorExpr`. Note that if the

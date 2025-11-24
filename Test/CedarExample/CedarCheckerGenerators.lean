@@ -7,6 +7,7 @@ import Plausible.Chamelean.ArbitrarySizedSuchThat
 import Plausible.Chamelean.DeriveChecker
 import Plausible.Chamelean.DeriveConstrainedProducer
 import Plausible.Chamelean.DeriveEnum
+import Plausible.Attr
 
 open Plausible
 
@@ -297,6 +298,8 @@ derive_generator (fun v t => ∃ (x : Var), Cedar.HasTypeVar v x t)
 
 #guard_msgs(drop info, drop warning) in
 derive_checker (fun ns tef t => Cedar.BindAttrType ns tef t)
+
+
 
 #guard_msgs(drop info, drop warning) in
 derive_generator (fun ns t => ∃ (tef : (CedarType × String × Bool)), Cedar.BindAttrType ns tef t)

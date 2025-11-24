@@ -2,6 +2,7 @@ import Plausible.Chamelean.DecOpt
 import Plausible.Chamelean.DeriveChecker
 import Plausible.Chamelean.EnumeratorCombinators
 import Test.CommonDefinitions.BinaryTree
+import Plausible.Attr
 
 open DecOpt
 

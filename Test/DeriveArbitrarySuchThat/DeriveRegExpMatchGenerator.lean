@@ -64,4 +64,5 @@ derive_generator (fun re => ∃ (s : List Nat), ExpMatch s re)
 
 -- To sample from this generator and print out 10 successful examples using the `Repr`
 -- instance for `List Nat`, we can run the following:
--- #eval Gen.run (arbitrarySizedST (fun s => ExpMatch s r) 10) 10
+#guard_msgs(drop info) in
+#eval Gen.printSamples (arbitrarySizedST (fun s => ExpMatch s r) 13)

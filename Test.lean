@@ -24,6 +24,7 @@ import Test.DeriveArbitrarySuchThat.MutuallyRecursiveRelationsTest
 import Test.DeriveArbitrarySuchThat.WithUnfolds
 import Test.DeriveArbitrarySuchThat.Syntax
 import Test.DeriveArbitrarySuchThat.DependentArgs
+import Test.DeriveArbitrarySuchThat.NEqGenerator
 
 -- Tests for `deriving Arbitrary`
 import Test.DeriveArbitrary.DeriveTreeGenerator
