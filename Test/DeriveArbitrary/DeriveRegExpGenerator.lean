@@ -111,10 +111,6 @@ def shrinkRegExp (r : RegExp) : List RegExp :=
 instance : Shrinkable RegExp where
   shrink := shrinkRegExp
 
-/-- `SampleableExt` instance for `RegExp` -/
-instance : SampleableExt RegExp :=
-  SampleableExt.mkSelfContained Arbitrary.arbitrary
-
 /-- error: Found a counter-example! -/
 #guard_msgs in
 #eval Testable.check (∀ r : RegExp, neverMatchesAnyString r == True)

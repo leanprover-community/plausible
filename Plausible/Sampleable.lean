@@ -134,6 +134,7 @@ instance selfContained [Repr α] [Shrinkable α] [Arbitrary α] : SampleableExt 
   interp := id
 
 /-- This is kept for backwards compatibility -/
+@[deprecated "Define an `Arbitrary` instance instead and use the default `SampleableExt` instance provided" (since := "22-10-2025")]
 def mkSelfContained [Repr α] [Shrinkable α] (g : Gen α) : SampleableExt α :=
   let : Arbitrary α := ⟨g⟩
   inferInstance
@@ -232,7 +233,7 @@ instance ULift.shrinkable [Shrinkable α] : Shrinkable (ULift α) where
   shrink u := (shrink u.down).map ULift.up
 
 instance String.shrinkable : Shrinkable String where
-  shrink s := (shrink s.toList).map String.mk
+  shrink s := (shrink s.toList).map String.ofList
 
 instance Array.shrinkable [Shrinkable α] : Shrinkable (Array α) where
   shrink xs := (shrink xs.toList).map Array.mk
