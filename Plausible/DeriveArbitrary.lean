@@ -23,7 +23,7 @@ open Elab.Command
 This file defines a handler which automatically derives `Arbitrary` instances
 for inductive types.
 
-(Note that the deriving handler technically derives `ArbitraryFueled` instancces,
+(Note that the deriving handler technically derives `ArbitraryFueled` instances,
 but every `ArbitraryFueled` instance automatically results in an `Arbitrary` instance,
 as detailed in `Arbitrary.lean`.)
 
@@ -227,7 +227,7 @@ def mkBody (header : Header) (inductiveVal : InductiveVal) (generatorType : TSyn
         weightedNonRecursiveGenerators := weightedNonRecursiveGenerators.push (← `((1, $generatorBody)))
         nonRecursiveGeneratorsNoWeights := nonRecursiveGeneratorsNoWeights.push generatorBody
       else
-        -- Recursive generaotrs have an associated weight of `fuel' + 1`, following the QuickChick convention
+        -- Recursive generators have an associated weight of `fuel' + 1`, following the QuickChick convention
         weightedRecursiveGenerators := weightedRecursiveGenerators.push (← ``(($freshFuel' + 1, $generatorBody)))
 
   -- Use the first non-recursive generator (without its weight) as the default generator

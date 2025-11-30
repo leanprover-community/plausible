@@ -17,7 +17,7 @@ The `Arbitrary` typeclass represents types for which there exists a
 random generator suitable for property-based testing, similar to
 Haskell QuickCheck's `Arbitrary` typeclass and Rocq/Coq QuickChick's `Gen` typeclass.
 
-(Note: the `SampleableExt` involvs types which have *both* a generator & a shrinker,
+(Note: the `SampleableExt` involves types which have *both* a generator & a shrinker,
 and possibly a non trivial `proxy` type,
 whereas `Arbitrary` describes types which have a generator only.)
 

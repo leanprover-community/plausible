@@ -197,7 +197,7 @@ def runRand (cmd : RandT m α) : m α := do
   return res
 
 /--
-Run the random computaton `cmd` with `seed` for the RNG.
+Run the random computation `cmd` with `seed` for the RNG.
 -/
 def runRandWith (seed : Nat) (cmd : RandT m α) : m α := do
   return (← cmd.run (ULift.up <| mkStdGen seed)).1
