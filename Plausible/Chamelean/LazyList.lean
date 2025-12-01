@@ -172,4 +172,30 @@ def lazySeq (s : α → α) (lo : α) (len : Nat) : LazyList α :=
 def range (n : Nat) : LazyList Nat :=
   lazySeq .succ .zero n
 
+/-- ForIn instance for LazyList -/
+instance [Monad m] : ForIn m (LazyList α) α where
+  forIn l init f := go l init f
+    where
+      go {β} (l : LazyList α) (acc : β) (f : α → β → m (ForInStep β)) : m β := do
+        match l with
+        | .lnil => return acc
+        | .lcons a l' => do
+          match ← (f a acc) with
+          | ForInStep.done b' => return b'
+          | .yield b' =>
+            go l'.get b' f
+
+-- Test that take 3 only evaluates first 3 elements
+/--info: First 3: [item2, item1, item0]-/
+#guard_msgs in
+#eval do
+  let result : LazyList String :=
+    .lcons "item0" ⟨fun _ =>
+      .lcons "item1" ⟨fun _ =>
+        .lcons "item2" ⟨fun _ =>
+          .lcons "item3" ⟨fun _ =>
+            .lcons (dbg_trace "5th element evaluated!"; "item4") ⟨fun _ => .lnil⟩⟩⟩⟩⟩
+  IO.println s!"First 3: {result.take 3}"
+  pure ()
+
 end LazyList
