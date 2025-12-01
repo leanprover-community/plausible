@@ -171,15 +171,17 @@ partial def exprToConstructorExpr (e : Expr) : MetaM ConstructorExpr := do
     -- For other expression types (literals, lambdas, etc.), generate a placeholder name
     throwError m!"exprToConstructorExpr can only handle free variables, constants, and applications. Attempted to convert: {e}"
 
-/-- Converts an `Expr` to a `HypothesisExpr` if it is a variable or application of type constructor or function to constructor expressions else throws error -/
-def exprToHypothesisExpr (e : Expr) : MetaM HypothesisExpr := do
+/-- Converts an `Expr` to a `HypothesisExpr` if it is a variable or application of type constructor or function to constructor expressions else throws.
+  We also pass in the current constructor name, as a poor person's location info.
+ -/
+def exprToHypothesisExpr (ctor : Name) (e : Expr) : MetaM HypothesisExpr := do
   trace[plausible.deriving.arbitrary] m!"Converting {e} to Hypexpr"
   let e ← Lean.Meta.withTransparency .reducible <| Meta.whnf e
   trace[plausible.deriving.arbitrary] m!"Converting {e} to Hypexpr after whnf"
   if e.isApp || e.isConst then
     let (ctorName, args) := e.getAppFnArgs
     let env ← getEnv
-    if env.isConstructor ctorName then throwError m!"exprToHypothesisExpr: Expr {e} cannot have head term {ctorName} which is a constructor. Must be a function or inductive"
+    if env.isConstructor ctorName then throwError m!"exprToHypothesisExpr: In constructor {ctor}\nExpr {e} cannot have head term {ctorName} which is a constructor. Must be a function or inductive"
     let constructorArgs ← args.mapM exprToConstructorExpr
     return (ctorName, constructorArgs.toList)
   else if e.isFVar then
@@ -187,7 +189,7 @@ def exprToHypothesisExpr (e : Expr) : MetaM HypothesisExpr := do
     return (name, [])
   else match e with
   | .sort _lvl => return (`sort, [])
-  | _ => throwError m!"exprToHypothesisExpr: Expr {e} must be of the form C a1 a2 ... an when used as hypothesis"
+  | _ => throwError m!"exprToHypothesisExpr: In constructor {ctor} Expression\n{e}\nmust be of the form C a1 a2 ... an when used as hypothesis"
 
 /-- Helper function called by `updateSource`, which updates variables in a hypothesis `hyp`
     with the result of unification (provided via the `UnifyM` monad) -/

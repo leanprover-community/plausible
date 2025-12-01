@@ -440,7 +440,7 @@ def getScheduleForInductiveRelationConstructor
       linearizeAndFlatten hypotheses conclusion outputIndex (← getLCtx)
     -- Enter the updated `LocalContext` containing the fresh variable that was created when rewriting the conclusion
     withLCtx' updatedLocalCtx (do
-      let hypothesisExprs := (← monadLift (updatedHypotheses.toList.mapM exprToHypothesisExpr)).toArray
+      let hypothesisExprs := (← monadLift (updatedHypotheses.toList.mapM (exprToHypothesisExpr ctorName))).toArray
 
       trace[plausible.deriving.arbitrary] m!"Hypotheses to be ordered as HypothesisExprs: {updatedHypotheses}"
 
@@ -485,7 +485,7 @@ def getScheduleForInductiveRelationConstructor
         assert! (← get).equalities.isEmpty
 
       -- Convert the conclusion from an `Expr` to a `HypothesisExpr`
-      let conclusionExpr ← exprToHypothesisExpr updatedConclusion
+      let conclusionExpr ← exprToHypothesisExpr ctorName updatedConclusion
 
       let ctorNameOpt :=
         match deriveSort with
@@ -530,6 +530,7 @@ def getScheduleForInductiveRelationConstructor
       let possibleSchedules := possibleSchedules
         (vars := updatedForAllVars)
         (hypotheses := hypothesisExprs.toList)
+        ctorName
         deriveSort
         recCall
         fixedVars
@@ -614,7 +615,7 @@ def deriveConstrainedProducer
   -- (i.e. find `i` s.t. `argIdents[i] == outputName`)
   let outputIdxOpt := findTargetVarIndex outputName constrArgs
   if let .none := outputIdxOpt then
-    throwError "cannot find index of value to be generated"
+    throwError m!"cannot find index of {outputVar}, try specifying the implicit arguments"
   let outputIdx := Option.get! outputIdxOpt
 
   -- Obtain Lean's `InductiveVal` data structure, which contains metadata about the inductive relation

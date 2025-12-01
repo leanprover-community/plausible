@@ -42,6 +42,8 @@ derive_generator ∃ (n : _), TypeBoxPredS n
 
 
 
-/--error: exprToHypothesisExpr: Expr SomeFoo.1 must be of the form C a1 a2 ... an when used as hypothesis-/
+/--error: exprToHypothesisExpr: In constructor TypeBoxPredOpaque.someRefl Expression
+SomeFoo.1
+must be of the form C a1 a2 ... an when used as hypothesis-/
 #guard_msgs(error, drop warning, drop info) in
 derive_generator ∃ (n : Nat), TypeBoxPredOpaque n
