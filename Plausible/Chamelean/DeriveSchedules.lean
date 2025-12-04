@@ -230,7 +230,6 @@ def handleConstrainedOutputs (hyp : HypothesisExpr) (outputVars : List TypedVar)
       if !vars.isEmpty && !typedOutputs.all (fun x => x.isSort) then do
         let localCtx ← getLCtx
         let newName := localCtx.getUnusedName (Name.mkStr1 ("v" ++ String.intercalate "_" (Name.getString! <$> vars)))
-        -- let argType ← inferType $ ToExpr.toExpr arg
         match patternOfConstructorExpr arg with
         | none => throwError m!"ConstructorExpr {arg} fails to be converted to pattern in handleConstrainedOutputs"
         | some pat =>
@@ -470,7 +469,7 @@ the schedules. -/
 private partial def enumSchedules {α v} [BEq v] (vars : List v) (hyps : List (α × List (List v) × List v)) (env : List v)
   : LazyList (List (PreScheduleStep α v)) :=
   match hyps with
-  | [] => pure (prune_empties [.InstVars $ vars.removeAll env])
+  | [] => pure (prune_empties [.InstVars <| vars.removeAll env])
   | _ => do
     let ⟨ (hyp, potential_output_indices, always_bound_variables),hyps' ⟩ ← select hyps
     let (some_bound_output_indices, all_unbound_output_indices) := List.partition (List.any . (List.contains env)) potential_output_indices
@@ -545,7 +544,7 @@ does not make a difference.
 private partial def enumSchedules' {α v} [BEq v] (vars : List v) (matchableVars : List v) (hypComps : List (List (α × List (List v) × List v))) (env : List v)
   : LazyList (List (PreScheduleStep α v)) :=
   match hypComps with
-  | [] => pure (prune_empties [.InstVars $ vars.removeAll env])
+  | [] => pure (prune_empties [.InstVars <| vars.removeAll env])
   | [] :: hypComps' => enumSchedules' vars matchableVars hypComps' env
   | hyps :: hypComps' => do
     let ⟨ (hyp, potential_output_indices, always_bound_variables),hyps' ⟩ ← select hyps
@@ -646,7 +645,7 @@ private def splitIntoChunks {α} [BEq α] (order : List α) (anchors : List α) 
 -- Each new hypothesis can be inserted at any valid chunk boundary
 private partial def enumChunkedInsertions {α} [BEq α] (newHyps : List α) (chunks : Chunks α) : LazyList (List α) :=
   match newHyps, chunks with
-  | [], _ => pure $ chunks.beforeAnchor ++ chunks.anchors.flatten
+  | [], _ => pure <| chunks.beforeAnchor ++ chunks.anchors.flatten
   | h :: hs, _ => do
     let chunkIdx ← LazyList.range (chunks.numAnchors + 1)
     let newChunks := {chunks with anchors := chunks.anchors.insertIdx (chunkIdx) [h], numAnchors := chunks.numAnchors + 1}
@@ -683,7 +682,7 @@ private partial def enumDependencySatisfyingOrderings {α v} [BEq α] [Repr α] 
 
 /--info: [[2, 5, 1], [1, 2, 5], [5, 1, 2], [1, 5, 2]]-/
 #guard_msgs in
-#eval (enumChunkedInsertions [2] $ splitIntoChunks · [5]) =<< (enumChunkedInsertions [1,5] (splitIntoChunks [] []))
+#eval (enumChunkedInsertions [2] <| splitIntoChunks · [5]) =<< (enumChunkedInsertions [1,5] (splitIntoChunks [] []))
 
 -- Test chunked approach with simple dependency chain: H depends on var 1, I depends on vars 1&2, J depends on var 2
 /--info: [["J", "I", "H"], ["H", "J", "I"], ["I", "H", "J"], ["H", "I", "J"]]-/
@@ -771,30 +770,48 @@ in a canonical order always, thus dramatically reducing the size of the enumerat
 because hypotheses in different components cannot possibly depend on each other, so their ordering
 does not make a difference.
 -/
-private def enumSchedulesChunked {α v} [BEq v] (vars : List v) (matchableVars : List v) (hypComps : List (LazyList (List (α × List (List v) × List v)))) (env : List v)
+private def enumSchedulesChunked {α v} [BEq v] [Hashable v] (vars : List v) (matchableVars : List v) (hypComps : List (LazyList (List (α × List (List v) × List v)))) (env : List v)
   : LazyList (List (PreScheduleStep α v)) :=
+  -- Use HashSet for O(1) lookups instead of O(n) List.contains
+  let envSet := Std.HashSet.ofList env
+  let matchableSet := Std.HashSet.ofList matchableVars
+
   match hypComps with
-  | [] => pure (prune_empties [.InstVars $ vars.removeAll env])
+  | [] => pure (prune_empties [.InstVars <| vars.filter (!envSet.contains ·)])
   | componentPerms :: hypComps' => do
     let mut perm ← componentPerms
     let mut sched := []
+    let mut envSet := envSet
     let mut env := env
+
     repeat
       match perm with
       | [] => break
       | (hyp, potential_output_indices, always_bound_variables) :: rest =>
       perm := rest
-      let (some_bound_output_indices, all_unbound_output_indices) := potential_output_indices.partition /- Partition the output arguments based on -/
-        (fun l => /- Whether each output index's list of contained variables, `l`-/
-          l.any (fun v => env.contains v && !matchableVars.contains v) /- contains a variable that is fixed already in the environment and is not matchable on (e.g. not a type variable) -/
-          || l.all (matchableVars.contains)) /- or if all the variables are matchable on (it is constant), or empty. -/
+
+      let (some_bound_output_indices, all_unbound_output_indices) := potential_output_indices.partition
+        (fun l =>
+          l.any (fun v => envSet.contains v && !matchableSet.contains v)
+          || l.all matchableSet.contains)
+
       let (out,bound) ← subsetsAndComplements all_unbound_output_indices
       if out.length > 1 || (out.isEmpty && !bound.isEmpty) then .lnil else
-      let bound_vars := bound.flatten ++ (always_bound_variables ++ some_bound_output_indices.flatten).filter (not ∘ List.contains env)
+
+      let bound_vars := bound.flatten ++ (always_bound_variables ++ some_bound_output_indices.flatten).filter (!envSet.contains ·)
+
+      -- Update both list and set for efficiency
+      for v in bound_vars do
+        envSet := envSet.insert v
       env := bound_vars ++ env
+
       let (prechecks,to_be_satisfied) := List.partition (needs_checking env) perm
       let out_vars := out.flatten
+
+      for v in out_vars do
+        envSet := envSet.insert v
       env := out_vars ++ env
+
       let (postchecks,to_be_satisfied') := List.partition (needs_checking env) to_be_satisfied
       sched := sched ++ prune_empties [.InstVars bound_vars
                                 , .Checks (Prod.fst <$> prechecks)
@@ -802,7 +819,237 @@ private def enumSchedulesChunked {α v} [BEq v] (vars : List v) (matchableVars :
                                 , .Checks (Prod.fst <$> postchecks)
                                 ];
       perm := to_be_satisfied'
-    LazyList.mapLazyList (sched ++ ·) $ enumSchedulesChunked vars matchableVars hypComps' env
+
+    LazyList.mapLazyList (sched ++ ·) <| enumSchedulesChunked vars matchableVars hypComps' env
+
+private def filterWorse [LE σ] [DecidableRel (fun (a b : σ) => a <= b)] (l : LazyList α) (rank : α → σ) : LazyList (α × Nat) :=
+  let seen := 1
+  let rec go score l seen : LazyList (α × Nat) :=
+    match l with
+    | .lnil => .lnil
+    | .lcons a rest =>
+      let score' := rank a
+      if score' >= score then
+        go score rest.get (seen + 1)
+      else
+        .lcons (a, seen) <| go score' rest.get (seen + 1)
+  match l with
+  | .lnil => .lnil
+  | .lcons a rest => .lcons (a, seen) <| go (rank a) rest.get (seen + 1)
+
+structure PreScheduleScore where
+  checks : Nat
+  length : Nat
+  unconstrained : Nat
+  deriving Ord, Repr
+
+def preScheduleStepsScore (schedule : List (PreScheduleStep α β)) : PreScheduleScore :=
+  let steps := schedule
+  Id.run do
+    let mut checks := 0
+    let mut length := 0
+    let mut unconstrained := 0
+    for step in steps do
+      length := length + 1
+      match step with
+      | .Checks cs => checks := checks + cs.length
+      | .InstVars vs => unconstrained := unconstrained + vs.length
+      | _ => ()
+    ⟨checks, length, unconstrained⟩
+
+instance preScheduleStepsScoreLE : LE PreScheduleScore := ⟨fun a b => compare a b |>.isLE⟩
+instance preScheduleStepsScoreLT : LT PreScheduleScore := ⟨fun a b => compare a b |>.isLT⟩
+
+instance preScheduleScoreLEDecidable {a b : PreScheduleScore} : Decidable (a <= b) :=
+  decidable_of_bool ((compare a b).isLE) (by simp [preScheduleStepsScoreLE])
+
+instance preScheduleScoreLTDecidable {a b : PreScheduleScore} : Decidable (a < b) :=
+  decidable_of_bool ((compare a b).isLT) (by simp [preScheduleStepsScoreLT])
+
+def preScheduleLT (a b : List (PreScheduleStep α β)) := preScheduleStepsScore a ≤ preScheduleStepsScore b
+
+def sequentialFlatMap {α β s : Type} (l : LazyList α) (initialState : s) (f : α → s → LazyList (β × s)) : LazyList (β × s) :=
+  let rec go (remaining : LazyList α) (currentState : s) : LazyList (β × s) :=
+    match remaining with
+    | LazyList.lnil => LazyList.lnil
+    | LazyList.lcons a rest =>
+      let results := f a currentState
+      match results with
+      | LazyList.lnil => go rest.get currentState
+      | LazyList.lcons (b, newState) subRest =>
+        LazyList.lcons (b, newState) ⟨fun _ =>
+          let rec drainResults (remaining : LazyList (β × s)) (state : s) : LazyList (β × s) :=
+            match remaining with
+            | LazyList.lnil => go rest.get state
+            | LazyList.lcons (b', state') rest' =>
+              LazyList.lcons (b', state') ⟨fun _ => drainResults rest'.get state'⟩
+          drainResults subRest.get newState⟩
+  go l initialState
+
+-- Initialize worst possible score for branch and bound
+def initWorstScore (numHyps : Nat) : PreScheduleScore :=
+  ⟨numHyps + 1, 0, 0⟩
+
+-- Estimate lower bound for remaining schedule (conservative estimate)
+def estimateLowerBound (partialScore : PreScheduleScore) (remainingHyps : Nat) : PreScheduleScore :=
+  ⟨partialScore.checks, partialScore.length + remainingHyps, partialScore.unconstrained⟩
+
+-- Generate all permutations of a list
+def List.permutations {α : Type u} : List α → List (List α)
+  | [] => [[]]
+  | x :: xs => ((List.permutations xs).flatMap fun perm =>
+    (List.range (perm.length + 1)).map fun i => perm.take i ++ [x] ++ perm.drop i)
+
+-- Branch and bound during enumeration using StateT
+private partial def enumSchedulesChunkedWithPruning {α v} [BEq v] [Repr α] [Repr v] [Hashable v] (vars : List v) (matchableVars : List v) (hypComps : List (LazyList (List (α × List (List v) × List v)))) (env : List v) (numHyps : Nat)
+  : LazyList (List (PreScheduleStep α v)) :=
+  let matchableSet := Std.HashSet.ofList matchableVars
+  let rec go (hypComps : List (LazyList (List (α × List (List v) × List v)))) (env : List v) (sched : List (PreScheduleStep α v)) (numHypsRemaining : Nat) (bestScore : PreScheduleScore)
+    : LazyList (List (PreScheduleStep α v) × PreScheduleScore) :=
+    match hypComps with
+    | [] => do
+      let finalSched := sched ++ prune_empties [.InstVars <| vars.filter (!(Std.HashSet.ofList env).contains ·)]
+      let finalScore := preScheduleStepsScore finalSched
+      if finalScore < bestScore then
+        pure (finalSched, finalScore)
+      else
+        .lnil
+    | componentPerms :: hypComps' =>
+      sequentialFlatMap componentPerms bestScore (fun perm currentBest =>
+        let partialScore := preScheduleStepsScore sched
+        let lowerBound := estimateLowerBound partialScore perm.length
+        if lowerBound > currentBest then .lnil else
+
+        let rec processPerm (currentPerm : List _) (currentSched : List _) (currentEnv : List _) (currentEnvSet : Std.HashSet _) (runningBest : PreScheduleScore) : LazyList (List (PreScheduleStep α v) × PreScheduleScore) :=
+          -- Prune if current partial score already exceeds best
+          let currentPartialScore := preScheduleStepsScore currentSched
+          let remainingHyps := currentPerm.length
+          let lowerBound := estimateLowerBound currentPartialScore remainingHyps
+          if lowerBound > runningBest then .lnil else
+          match currentPerm with
+          | [] => go hypComps' currentEnv currentSched (numHypsRemaining - perm.length) runningBest
+          | (hyp, potential_output_indices, always_bound_variables) :: rest =>
+            let (some_bound_output_indices, all_unbound_output_indices) := potential_output_indices.partition
+              (fun l =>
+                l.any (fun v => currentEnvSet.contains v && !matchableSet.contains v)
+                || l.all matchableSet.contains)
+            let choices := .lcons ([],all_unbound_output_indices) ⟨fun _ => select all_unbound_output_indices |>.mapLazyList (fun (a,b) => ([a],b))⟩
+            -- When switching to multiple argument outputs, use `subsetsAndComplements all_unbound_output_indices` instead to consider all subsets.
+            sequentialFlatMap choices runningBest fun (out,bound) subBest =>
+              if out.length > 1 || (out.isEmpty && !bound.isEmpty) then .lnil else
+              let bound_vars := bound.flatten ++ (always_bound_variables ++ some_bound_output_indices.flatten).filter (!currentEnvSet.contains ·)
+              let newEnvSet := bound_vars.foldl (fun s v => s.insert v) currentEnvSet
+              let newEnv := bound_vars ++ currentEnv
+              let (prechecks, to_be_satisfied) := List.partition (needs_checking newEnv) rest
+              let out_vars := out.flatten
+              let finalEnvSet := out_vars.foldl (fun s v => s.insert v) newEnvSet
+              let finalEnv := out_vars ++ newEnv
+              let (postchecks, to_be_satisfied') := List.partition (needs_checking finalEnv) to_be_satisfied
+              let newSched := currentSched ++ prune_empties [.InstVars bound_vars
+                                        , .Checks (Prod.fst <$> prechecks)
+                                        , .Produce out_vars hyp
+                                        , .Checks (Prod.fst <$> postchecks)]
+              processPerm to_be_satisfied' newSched finalEnv finalEnvSet subBest
+
+        processPerm perm sched env (Std.HashSet.ofList env) currentBest)
+
+  let initialScore := initWorstScore numHyps
+  go hypComps env [] numHyps initialScore |>.mapLazyList (fun (schd, _score) => schd)
+
+#guard_msgs(drop info) in
+#eval do
+  -- Test 1: Deep dependency chain - all connected by shared variables, forms one SCC
+  let deepChainScc := [("H1", [["a"]], []), ("H2", [["a"], ["b"]], []), ("H3", [["b"], ["c"]], []),
+                       ("H4", [["c"], ["d"]], []), ("H5", [["d"], ["e"]], []), ("H6", [["e"], ["f"]], [])]
+  let deepChainComps := [LazyList.fromList (List.permutations deepChainScc)]
+  let deepVars := ["a", "b", "c", "d", "e", "f"]
+
+  let deepOriginal := enumSchedulesChunked deepVars [] deepChainComps [] |>.toList.length
+  let deepPruned := enumSchedulesChunkedWithPruning deepVars [] deepChainComps [] 6 |>.toList.length
+
+  -- Test 2: True multi-SCC example with disconnected variable groups
+  -- SCC1: variables {p, q} - H1 and H2 share variable p
+  let scc1 := [("H1", [["p"]], []), ("H2", [["p"], ["q"]], [])]
+  -- SCC2: variables {r, s} - H3 and H4 share variable r
+  let scc2 := [("H3", [["r"]], []), ("H4", [["r"], ["s"]], [])]
+  -- SCC3: variables {t, u} - H5 and H6 share variable t
+  let scc3 := [("H5", [["t"]], []), ("H6", [["t"], ["u"]], [])]
+  let branchComps := [LazyList.fromList (List.permutations scc1), LazyList.fromList (List.permutations scc2), LazyList.fromList (List.permutations scc3)]
+  let branchVars := ["p", "q", "r", "s", "t", "u"]
+
+  let branchOriginal := enumSchedulesChunked branchVars [] branchComps [] |>.toList.length
+  let branchPruned := enumSchedulesChunkedWithPruning branchVars [] branchComps [] 6 |>.toList.length
+
+  -- Test 3: Complex with matchable variables split into SCCs
+  let complexScc1 := [("H1", [["a"], ["b"]], ["m1"])]
+  let complexScc2 := [("H2", [["b", "m1"], ["c"]], ["m2"])]
+  let complexScc3 := [("H3", [["c"], ["d", "m2"]], []), ("H4", [["d"], ["e"]], ["m3"])]
+  let complexScc4 := [("H5", [["e", "m3"]], []), ("H6", [["a", "e"]], [])]
+  let complexComps := [LazyList.fromList (List.permutations complexScc1), LazyList.fromList (List.permutations complexScc2),
+                       LazyList.fromList (List.permutations complexScc3), LazyList.fromList (List.permutations complexScc4)]
+  let complexVars := ["a", "b", "c", "d", "e", "m1", "m2", "m3"]
+  let complexMatchable := ["m1", "m2", "m3"]
+
+  let complexOriginal := enumSchedulesChunked complexVars complexMatchable complexComps [] |>.toList.length
+  let complexPruned := enumSchedulesChunkedWithPruning complexVars complexMatchable complexComps [] 6 |>.toList.length
+
+  -- Test 4: Worst case scenario split into SCCs
+  let worstScc1 := [("H1", [["a"]], []), ("H2", [["b"]], [])]
+  let worstScc2 := [("H3", [["a", "b"], ["c"]], [])]
+  let worstScc3 := [("H4", [["a", "c"], ["d"]], []), ("H5", [["b", "c"], ["e"]], [])]
+  let worstScc4 := [("H6", [["d", "e"], ["f"]], [])]
+  let worstScc5 := [("H7", [["a", "f"]], []), ("H8", [["b", "f"]], []), ("H9", [["c", "f"]], [])]
+  let worstComps := [LazyList.fromList (List.permutations worstScc1), LazyList.fromList (List.permutations worstScc2), LazyList.fromList (List.permutations worstScc3),
+                     LazyList.fromList (List.permutations worstScc4), LazyList.fromList (List.permutations worstScc5)]
+  let worstVars := ["a", "b", "c", "d", "e", "f"]
+
+  let worstOriginal := enumSchedulesChunked worstVars [] worstComps [] |>.toList.length
+  let worstPruned := enumSchedulesChunkedWithPruning worstVars [] worstComps [] 9 |>.toList.length
+
+  IO.println "=== Branch and Bound Optimization Results ==="
+  IO.println s!"Deep Chain - Original: {deepOriginal}, Pruned: {deepPruned}, Reduction: {((deepOriginal - deepPruned) * 100) / deepOriginal}%"
+  IO.println s!"Multi Branch - Original: {branchOriginal}, Pruned: {branchPruned}, Reduction: {((branchOriginal - branchPruned) * 100) / branchOriginal}%"
+  IO.println s!"Complex Constraints - Original: {complexOriginal}, Pruned: {complexPruned}, Reduction: {((complexOriginal - complexPruned) * 100) / complexOriginal}%"
+  IO.println s!"Worst Case - Original: {worstOriginal}, Pruned: {worstPruned}, Reduction: {((worstOriginal - worstPruned) * 100) / worstOriginal}%"
+
+  let totalReduction := ((deepOriginal + branchOriginal + complexOriginal + worstOriginal) -
+                        (deepPruned + branchPruned + complexPruned + worstPruned)) * 100 /
+                       (deepOriginal + branchOriginal + complexOriginal + worstOriginal)
+  IO.println s!"Total Reduction: {totalReduction}%"
+  pure ()
+
+#guard_msgs(drop info) in
+#eval do
+  let benchHyps := [("H1", [["a"]], []), ("H2", [["a"], ["b"]], []), ("H3", [["b"], ["c"]], []),
+                    ("H4", [["c"], ["d"]], []), ("H5", [["a", "d"]], []), ("H6", [["b", "d"]], [])]
+  let benchComps := [(enumDependencySatisfyingOrderings <| benchHyps.map (fun ((a : String),(b : List (List String)),c) => ((a,b,c),b.flatten ++ c) ))]
+  let benchVars := ["a", "b", "c", "d"]
+
+  -- Measure quality of schedules (lower scores are better)
+  let originalSchedules := enumSchedulesChunked benchVars [] benchComps [] |>.toList
+  let prunedSchedules := enumSchedulesChunkedWithPruning benchVars [] benchComps [] 6 |>.toList
+
+  let originalScores := originalSchedules.map preScheduleStepsScore
+  let prunedScores := prunedSchedules.map preScheduleStepsScore
+
+  let originalBest := @originalScores.min? _ ⟨fun a b => if a < b then a else b⟩
+  let prunedBest := @prunedScores.min? _ ⟨fun a b => if a < b then a else b⟩
+  let originalAvg := if originalScores.isEmpty then 0 else (originalScores.map (fun (s : PreScheduleScore) => s.checks + s.length + s.unconstrained)).sum / originalScores.length
+  let prunedAvg := if prunedScores.isEmpty then 0 else (prunedScores.map (fun (s : PreScheduleScore) => s.checks + s.length + s.unconstrained)).sum / prunedScores.length
+
+  IO.println "=== Schedule Quality Analysis ==="
+  IO.println s!"Original - Count: {originalSchedules.length}, Best Score: {repr originalBest}, Avg Score: {originalAvg}"
+  IO.println s!"Pruned - Count: {prunedSchedules.length}, Best Score: {repr prunedBest}, Avg Score: {prunedAvg}"
+
+  match originalBest, prunedBest with
+  | some orig, some pruned =>
+    if pruned ≤ orig then
+      IO.println "✓ Pruning maintains or improves best schedule quality"
+    else
+      IO.println "✗ Pruning degraded best schedule quality"
+  | _, _ => IO.println "Unable to compare best scores"
+
+  pure ()
 
 -- Determine the right name for the recursive function in the producer
 private def recursiveFunctionName (deriveSort : DeriveSort) : Name :=
@@ -811,7 +1058,7 @@ private def recursiveFunctionName (deriveSort : DeriveSort) : Name :=
   | .Enumerator => `aux_enum
   | .Checker | .Theorem => `aux_dec
 
-private def preScheduleStepToScheduleStep (preStep : PreScheduleStep HypothesisExpr TypedVar) : ScheduleM (List ScheduleStep) := do
+private def preScheduleStepToScheduleStep (ctorName : Name) (preStep : PreScheduleStep HypothesisExpr TypedVar) : ScheduleM (List ScheduleStep) := do
   let env ← read
   match preStep with
   | .Checks hyps => return (hyps.map (fun hyp =>
@@ -842,12 +1089,12 @@ private def preScheduleStepToScheduleStep (preStep : PreScheduleStep HypothesisE
     return (ScheduleStep.SuchThat typedOutputs constrainingRelation env.prodSort :: newMatches)
   | .InstVars vars =>
     vars.mapM (fun ⟨v,ty⟩ => do
-    let (ctorName, ctorArgs) := ty.getAppFnArgs
+    let (cName, cArgs) := ty.getAppFnArgs
     let src ←
-      if ctorName == Prod.fst env.recCall
-        then Source.Rec (recursiveFunctionName env.deriveSort) <$> ctorArgs.toList.mapM (fun foo => exprToConstructorExpr foo)
+      if cName == Prod.fst env.recCall
+        then Source.Rec (recursiveFunctionName env.deriveSort) <$> cArgs.toList.mapM (fun e => exprToConstructorExpr e)
       else
-        let hypothesisExpr ← exprToHypothesisExpr ty
+        let hypothesisExpr ← exprToHypothesisExpr ctorName ty
         pure (Source.NonRec hypothesisExpr)
     return ScheduleStep.Unconstrained v src env.prodSort
     )
@@ -894,16 +1141,16 @@ private def possiblePreSchedules (vars : List TypedVar) (hypotheses : List Hypot
   let varNames := vars.map (fun x => x.var)
   let prodSort := convertDeriveSortToProducerSort deriveSort
   let scheduleEnv := ⟨ vars, sortedHypotheses, deriveSort, prodSort, recCall, fixedVars ⟩
-  let remainingVars := List.filter (fun v => not $ fixedVars.contains v) varNames
-  let (newCheckedIdxs, newCheckedHyps) := List.unzip $ (collectCheckedHypotheses scheduleEnv fixedVars [])
+  let remainingVars := List.filter (fun v => not <| fixedVars.contains v) varNames
+  let (newCheckedIdxs, newCheckedHyps) := List.unzip <| (collectCheckedHypotheses scheduleEnv fixedVars [])
   let remainingSortedHypotheses := filterWithIndex (fun i _ => i ∉ newCheckedIdxs) sortedHypotheses
-  let connectedHypotheses := remainingSortedHypotheses
-                             |>.map (fun (h,vars) => ((h,vars), List.flatten vars))
-                             |> computeSCC
+  let rawHypotheses := remainingSortedHypotheses.map (fun (h,vars) => ((h,vars), List.flatten vars))
+  let sccGroups := computeSCC rawHypotheses
+  let connectedHypotheses := sccGroups
                              |>.map (enumDependencySatisfyingOrderings ·
                                     |> LazyList.mapLazyList (List.map <| constructHypothesis typeVars))
   let firstChecks := PreScheduleStep.Checks newCheckedHyps.reverse
-  let lazyPreSchedules : LazyList (List (PreScheduleStep HypothesisExpr Name)) := enumSchedulesChunked remainingVars typeVars connectedHypotheses fixedVars
+  let lazyPreSchedules : LazyList (List (PreScheduleStep HypothesisExpr Name)) := enumSchedulesChunkedWithPruning remainingVars typeVars connectedHypotheses fixedVars sortedHypotheses.length
   let nameTypeMap := List.foldl (fun m ⟨name,ty⟩ => NameMap.insert m name ty) ∅ vars
   let typedPreSchedules : LazyList (List (PreScheduleStep HypothesisExpr TypedVar)) := lazyPreSchedules.mapLazyList ((firstChecks :: ·) ∘ List.map (typePreScheduleStep nameTypeMap))
   (typedPreSchedules, scheduleEnv)
@@ -912,47 +1159,58 @@ private def possiblePreSchedules (vars : List TypedVar) (hypotheses : List Hypot
     (each candidate schedule is represented as a `List ScheduleStep`).
 
     Arguments:
-    - `vars`: list of universally-quantified variables and their types
-    - `hypotheses`: List of hypotheses about the variables in `vars`
-    - `deriveSort` determines whether we're deriving a checker/enumerator/generator
-    - `recCall`: a pair contianing the name of the inductive relation and a list of indices for output arguments
-      + `recCall` represents what a recursive call to the function being derived looks like
+    - `ctorName`: The name of the constructor we are deriving a schedule for
+    - `vars`: A list of universally-quantified variables and their types
+    - `hypotheses`: A list of hypotheses about the variables in `vars`
+    - `deriveSort` The sort (checker/enumerator/generator) of deriver we are generating
+    - `recCall`: A pair contianing the name of the inductive relation and a list of indices for output arguments
     - `fixedVars`: A list of fixed variables (i.e. inputs to the inductive relation) -/
-public def possibleSchedules (vars : List TypedVar) (hypotheses : List HypothesisExpr) (deriveSort : DeriveSort)
-  (recCall : Name × List Nat) (fixedVars : List Name) : LazyList (MetaM (List ScheduleStep)) := do
+public def possibleSchedules (ctorName : Name) (vars : List TypedVar) (hypotheses : List HypothesisExpr) (deriveSort : DeriveSort)
+  (recCall : Name × List Nat) (fixedVars : List Name) : LazyList (MetaM (List ScheduleStep × Nat)) := do
   let (typedPreSchedules, scheduleEnv) := possiblePreSchedules vars hypotheses deriveSort recCall fixedVars
-  let lazySchedules := typedPreSchedules.mapLazyList ((ReaderT.run . scheduleEnv) ∘ List.flatMapM preScheduleStepToScheduleStep)
+  let prunedImprovingTypedPreSchedules := filterWorse typedPreSchedules preScheduleStepsScore
+  let lazySchedules := prunedImprovingTypedPreSchedules.mapLazyList
+    ((ReaderT.run . scheduleEnv) ∘ (fun (s,c) => return (← s.flatMapM <| preScheduleStepToScheduleStep ctorName, c)))
   lazySchedules
 
-/-- Computes all possible schedules for a constructor
-    (each candidate schedule is represented as a `List ScheduleStep`).
-
-    Arguments:
-    - `vars`: list of universally-quantified variables and their types
-    - `hypotheses`: List of hypotheses about the variables in `vars`
-    - `deriveSort` determines whether we're deriving a checker/enumerator/generator
-    - `recCall`: a pair contianing the name of the inductive relation and a list of indices for output arguments
-      + `recCall` represents what a recursive call to the function being derived looks like
-    - `fixedVars`: A list of fixed variables (i.e. inputs to the inductive relation) -/
-def possibleSchedules' (vars : List TypedVar) (hypotheses : List HypothesisExpr) (deriveSort : DeriveSort)
+/-- An unoptimized version of `possibleSchedues` for testing purposes. -/
+private def possibleSchedules' (ctorName : Name) (vars : List TypedVar) (hypotheses : List HypothesisExpr) (deriveSort : DeriveSort)
   (recCall : Name × List Nat) (fixedVars : List Name) : LazyList (MetaM (List ScheduleStep)) := do
   let typeVars := vars.filterMap fun ⟨v,t⟩ => if t.isSort then some v else none
   let sortedHypotheses := mkSortedHypothesesVariablesMap hypotheses
   let varNames := vars.map (fun x => x.var)
   let prodSort := convertDeriveSortToProducerSort deriveSort
   let scheduleEnv := ⟨ vars, sortedHypotheses, deriveSort, prodSort, recCall, fixedVars ⟩
-  let remainingVars := List.filter (fun v => not $ fixedVars.contains v) varNames
-  let (newCheckedIdxs, newCheckedHyps) := List.unzip $ (collectCheckSteps scheduleEnv fixedVars [])
+  let remainingVars := List.filter (fun v => not <| fixedVars.contains v) varNames
+  let (newCheckedIdxs, newCheckedHyps) := List.unzip <| (collectCheckSteps scheduleEnv fixedVars [])
   let remainingSortedHypotheses := filterWithIndex (fun i _ => i ∉ newCheckedIdxs) sortedHypotheses
   let connectedHypotheses := (computeSCC (remainingSortedHypotheses.map (fun (h,vars) => ((h,vars),vars.flatten)))).map (List.map fun ((h,vars),_) => constructHypothesis typeVars (h,vars))
-  let firstChecks := List.reverse $ (ScheduleStep.Check . true) <$> newCheckedHyps
+  let firstChecks := List.reverse <| (ScheduleStep.Check . true) <$> newCheckedHyps
   let lazyPreSchedules : LazyList (List (PreScheduleStep HypothesisExpr Name)) := enumSchedules' remainingVars typeVars connectedHypotheses fixedVars
   let nameTypeMap := List.foldl (fun m ⟨name,ty⟩ => NameMap.insert m name ty) ∅ vars
   let typedPreSchedules : LazyList (List (PreScheduleStep HypothesisExpr TypedVar)) := lazyPreSchedules.mapLazyList (List.map (typePreScheduleStep nameTypeMap))
-  let lazySchedules := typedPreSchedules.mapLazyList ((ReaderT.run . scheduleEnv) ∘ ((firstChecks ++ .) <$> .) ∘ List.flatMapM preScheduleStepToScheduleStep)
+  let lazySchedules := typedPreSchedules.mapLazyList ((ReaderT.run . scheduleEnv) ∘ ((firstChecks ++ .) <$> .) ∘ List.flatMapM (preScheduleStepToScheduleStep ctorName))
   lazySchedules
 
-def exampleEnumSchedulesChunked :=
+private def exampleEnumSchedulesChunked :=
+  -- All hypotheses from Cedar.HasType.TContainsAny constructor
+  let hypotheses := [
+    (`V_eq, [[`ets, `acts, `R]], [`V]),
+    (`DefinedEntities, [[`ets], [`ns]], []),
+    (`WfCedarType, [[`ns], [`T]], []),
+    (`SubType_T1, [[`T1], [`T]], []),
+    (`SubType_T2, [[`T2], [`T]], []),
+    (`HasType_E1, [[`E1], [`x1], [`T1]], [`V]),
+    (`HasType_E2, [[`E2], [`x2], [`T2]], [`V])
+  ]
+
+  -- Use computeSCC to find connected components then enumerate valid orderings that satisfy dependencies within each.
+  let components := hypotheses |>.map (fun (h,vars) => ((h,vars), List.flatten vars.1 ++ vars.2))
+                             |> computeSCC
+                             |>.map (@enumDependencySatisfyingOrderings _ _ ⟨fun (a,_) (b,_) => BEq.beq a b⟩ _ _ _ _)
+  enumSchedulesChunked [`ets,`acts,`R,`ns,`T,`T1,`T2,`E1,`x1,`x2] [] components [`V]
+
+private def exampleEnumSchedulesChunkedPruned :=
   -- All hypotheses from Cedar.HasType.TContainsAny constructor
   let hypotheses := [
     (`V_eq, [[`ets, `acts, `R]], [`V]),
@@ -968,9 +1226,9 @@ def exampleEnumSchedulesChunked :=
   let components := hypotheses |>.map (fun (h,vars) => ((h,vars), List.flatten vars.1 ++ vars.2))
                              |> computeSCC
                              |>.map (@enumDependencySatisfyingOrderings _ _ ⟨fun (a,_) (b,_) => BEq.beq a b⟩ _ _ _ _)
-  enumSchedulesChunked [`ets,`acts,`R,`ns,`T,`T1,`T2,`E1,`x1,`x2] [] components [`V]
+  enumSchedulesChunkedWithPruning [`ets,`acts,`R,`ns,`T,`T1,`T2,`E1,`x1,`x2] [] components [`V] 0
 
-def countChecks (schd : List (PreScheduleStep α β)) : Nat :=
+private def countChecks (schd : List (PreScheduleStep α β)) : Nat :=
   schd.foldl (fun acc step => match step with | PreScheduleStep.Checks cs => acc + cs.length | _ => acc) 0
 
 /-
@@ -978,6 +1236,13 @@ Sorts all the schedules according to the used ordering, so we can examine them.
 -/
 #guard_msgs(drop info) in
 #eval exampleEnumSchedulesChunked.take 200000 |>.mergeSort (le := fun a b =>
+  match compare (countChecks a) (countChecks b) with
+  | .eq => a.length < b.length
+  | .gt => false
+  | .lt => true)
+
+#guard_msgs(drop info) in
+#eval exampleEnumSchedulesChunkedPruned.take 200000 |>.mergeSort (le := fun a b =>
   match compare (countChecks a) (countChecks b) with
   | .eq => a.length < b.length
   | .gt => false

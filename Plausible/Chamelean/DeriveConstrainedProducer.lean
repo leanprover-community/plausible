@@ -444,7 +444,7 @@ public def getScheduleForInductiveRelationConstructor
       linearizeAndFlatten hypotheses conclusion outputIndex (← getLCtx)
     -- Enter the updated `LocalContext` containing the fresh variable that was created when rewriting the conclusion
     withLCtx' updatedLocalCtx (do
-      let hypothesisExprs := (← monadLift (updatedHypotheses.toList.mapM exprToHypothesisExpr)).toArray
+      let hypothesisExprs := (← monadLift (updatedHypotheses.toList.mapM (exprToHypothesisExpr ctorName))).toArray
 
       trace[plausible.deriving.arbitrary] m!"Hypotheses to be ordered as HypothesisExprs: {updatedHypotheses}"
 
@@ -489,7 +489,7 @@ public def getScheduleForInductiveRelationConstructor
         assert! (← get).equalities.isEmpty
 
       -- Convert the conclusion from an `Expr` to a `HypothesisExpr`
-      let conclusionExpr ← exprToHypothesisExpr updatedConclusion
+      let conclusionExpr ← exprToHypothesisExpr ctorName updatedConclusion
 
       let ctorNameOpt :=
         match deriveSort with
@@ -534,6 +534,7 @@ public def getScheduleForInductiveRelationConstructor
       let possibleSchedules := possibleSchedules
         (vars := updatedForAllVars)
         (hypotheses := hypothesisExprs.toList)
+        ctorName
         deriveSort
         recCall
         fixedVars
@@ -542,27 +543,25 @@ public def getScheduleForInductiveRelationConstructor
       | .lnil => throwError m!"Unable to compute any possible schedules"
       | .lcons fstSchdM rest =>
 
-      let fstSchd ← fstSchdM
+      let (fstSchd, countSeen) ← fstSchdM
 
-      let mut countSeen  := 1
+      let mut countProcessed  := 1
       let mut bestScore := scheduleStepsScore fstSchd
       let mut bestSchedule   := fstSchd
 
-      let prefixSize := 100000
+      trace[plausible.deriving.results] m!"First Schedule: {scheduleStepsToString bestSchedule} \nScore: {repr bestScore}\nSchedules Considered: {repr countSeen}\nSchedules Processed: {repr countProcessed}"
 
-      trace[plausible.deriving.arbitrary] m!"First Schedule: {scheduleStepsToString bestSchedule} \nScore: {repr bestScore}\nSchedules Considered: {repr countSeen}"
-
-      for schdM in LazyList.take prefixSize rest.get do
-        let schd ← schdM
+      for schdM in rest.get do
+        let (schd, countSeen) ← schdM
         let score := scheduleStepsScore schd
-        countSeen := countSeen + 1
+        countProcessed := countProcessed + 1
         if score < bestScore then
           bestSchedule := schd
           bestScore := score
-          trace[plausible.deriving.arbitrary] m!"Better Schedule: {scheduleStepsToString bestSchedule} \nScore: {repr bestScore}\nSchedules Considered: {repr countSeen}"
+          trace[plausible.deriving.results] m!"Better Schedule: {scheduleStepsToString bestSchedule} \nScore: {repr bestScore}\nSchedules Considered: {repr countSeen}\nSchedules Processed: {repr countProcessed}"
 
 
-      trace[plausible.deriving.arbitrary] m!"Chosen Schedule: {scheduleStepsToString bestSchedule} \nScore: {repr bestScore}\nSchedules Considered: {repr countSeen}"
+      trace[plausible.deriving.results] m!"Chosen Schedule: {scheduleStepsToString bestSchedule} \nScore: {repr bestScore}\nSchedules Considered: {repr countSeen}\nSchedules Processed: {repr countProcessed}"
 
       -- Update the best schedule with the result of unification
       let updatedBestSchedule ← updateScheduleSteps bestSchedule
@@ -620,7 +619,7 @@ def deriveConstrainedProducer
   -- (i.e. find `i` s.t. `argIdents[i] == outputName`)
   let outputIdxOpt := findTargetVarIndex outputName constrArgs
   if let .none := outputIdxOpt then
-    throwError "cannot find index of value to be generated"
+    throwError m!"cannot find index of {outputVar}, try specifying the implicit arguments"
   let outputIdx := Option.get! outputIdxOpt
 
   -- Obtain Lean's `InductiveVal` data structure, which contains metadata about the inductive relation
