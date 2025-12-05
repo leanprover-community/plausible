@@ -29,8 +29,4 @@ class ArbitraryFueled (α : Type) where
 meta instance [ArbitraryFueled α] : Arbitrary α where
   arbitrary := Gen.sized ArbitraryFueled.arbitraryFueled
 
-/-- Raised when a fueled generator fails due to insufficient fuel. -/
-meta def Gen.outOfFuel : GenError :=
-  .genError "out of fuel"
-
 end Plausible

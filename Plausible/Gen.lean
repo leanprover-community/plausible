@@ -109,9 +109,13 @@ The code for these combinators closely mirrors those used in Rocq/Coq QuickChick
 
 -/
 
+/-- Raised when a fueled generator fails due to insufficient fuel. -/
+meta def Gen.outOfFuel : GenError :=
+  .genError "out of fuel"
+
 /-- `pick default xs n` chooses a weight & a generator `(k, gen)` from the list `xs` such that `n < k`.
     If `xs` is empty, the `default` generator with weight 0 is returned.  -/
-private def pick (default : Gen α) (xs : List (Nat × Gen α)) (n : Nat) : Nat × Gen α :=
+def pick (default : Gen α) (xs : List (Nat × Gen α)) (n : Nat) : Nat × Gen α :=
   match xs with
   | [] => (0, default)
   | (k, x) :: xs =>
@@ -119,6 +123,40 @@ private def pick (default : Gen α) (xs : List (Nat × Gen α)) (n : Nat) : Nat 
       (k, x)
     else
       pick default xs (n - k)
+
+instance inhabitedGen : Inhabited (Gen α) where
+  default := throw <| .genError "inhabitedWitness"
+
+
+private def pickDrop (xs : List (Nat × Gen α)) (n : Nat) : Nat × Gen α × List (Nat × Gen α) :=
+  let fail : GenError := .genError "Plausible.Chamelean.Gen.pickDrop: out of options."
+  match xs with
+  | [] => (0, throw fail, [])
+  | (k, x) :: xs =>
+    if n < k then
+      (k, x, xs)
+    else
+      let (k', x', xs') := pickDrop xs (n - k)
+      (k', x', (k, x)::xs')
+
+private def sumFst (gs : List (Nat × α)) : Nat := List.sum <| List.map Prod.fst gs
+
+/- Helper function for `backtrack` which picks one out of `total` generators with some initial amount of `fuel` -/
+private def backtrackFuel (fuel : Nat) (total : Nat) (gs : List (Nat × Gen α)) : Gen α :=
+  match fuel with
+  | .zero => throw Gen.outOfFuel
+  | .succ fuel' => do
+    let n ← Gen.choose Nat 0 (total - 1) (by omega)
+    let (k, g, gs') := pickDrop gs n
+    -- Try to generate a value using `g`, if it fails, backtrack with `fuel'`
+    -- and pick one out of the `total - k` remaining generators
+    tryCatch g (fun _ => backtrackFuel fuel' (total - k) gs')
+
+/-- Tries all generators until one returns a `Some` value or all the generators failed once with `None`.
+   The generators are picked at random according to their weights (like `frequency` in Haskell QuickCheck),
+   and each generator is run at most once. -/
+def backtrack (gs : List (Nat × Gen α)) : Gen α :=
+  backtrackFuel (gs.length) (sumFst gs) gs
 
 /-- Picks one of the generators in `gs` at random, returning the `default` generator
     if `gs` is empty.
@@ -220,7 +258,7 @@ partial def Gen.runUntil {α : Type} (attempts : Option Nat := .none) (x : Gen �
   where
   repeatGen (attempts : Option Nat) (x : Gen α) : Gen α :=
   match attempts with
-  | .some 0 => throw <| GenError.genError "Gen.runUtil: Out of attempts"
+  | .some 0 => throw <| GenError.genError "Gen.runUntil: Out of attempts"
   | _ =>
   try x catch
   | GenError.genError _ => do
@@ -230,19 +268,23 @@ partial def Gen.runUntil {α : Type} (attempts : Option Nat := .none) (x : Gen �
   | .some n => .some (n-1)
   | .none => .none
 
-private def test : Gen Nat :=
+private def test (n : Nat) : Gen Nat :=
   do
     let x : Nat ← Gen.choose Nat 0 (← Gen.getSize) (Nat.zero_le _)
-    if x % 10 == 0
+    if x % n == 0
     then
       return x
     else
       throw <| .genError "uh oh"
 
--- This fails 9/10 times
--- #eval Gen.run test 9
+-- -- This fails `9/10` times
+-- #eval Gen.run (test 10) 9
 
--- This succeeds almost always.
--- #eval Gen.runUntil (attempts := .some 1000) test 9
+-- -- This succeeds almost always.
+-- #eval Gen.runUntil (attempts := .some 1000) (test 10) 9
+
+
+-- -- This test usually returns an even number, but sometimes `1`
+-- #eval Gen.run (Gen.backtrack [(10, test 2), (1, return 1)]) 4
 
 end Plausible
