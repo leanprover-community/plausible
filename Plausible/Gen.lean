@@ -142,12 +142,12 @@ private def pickDrop (xs : List (Nat × Gen α)) (n : Nat) : Nat × Gen α × Li
 private def sumFst (gs : List (Nat × α)) : Nat := List.sum <| List.map Prod.fst gs
 
 /- Helper function for `backtrack` which picks one out of `total` generators with some initial amount of `fuel` -/
-private def backtrackFuel (fuel : Nat) (total : Nat) (gs : List (Nat × Gen α)) : Gen α :=
+private def backtrackFuel {α : Type u} (fuel : Nat) (total : Nat) (gs : List (Nat × Gen α)) : Gen α :=
   match fuel with
   | .zero => throw Gen.outOfFuel
   | .succ fuel' => do
-    let n ← Gen.choose Nat 0 (total - 1) (by omega)
-    let (k, g, gs') := pickDrop gs n
+    let n ← (Gen.choose Nat 0 (total - 1) (by omega)).up
+    let (k, g, gs') := pickDrop gs n.down
     -- Try to generate a value using `g`, if it fails, backtrack with `fuel'`
     -- and pick one out of the `total - k` remaining generators
     tryCatch g (fun _ => backtrackFuel fuel' (total - k) gs')
