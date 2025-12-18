@@ -190,7 +190,7 @@ partial def convertHypothesisTermToRange (term : TSyntax `term) : UnifyM Range :
   | _ => throwError m!"unable to convert {term} to a Range"
 
 /-- Converts a `Pattern` to a `TSyntax term` -/
-def convertPatternToTerm (pattern : Pattern) : MetaM (TSyntax `term) :=
+partial def convertPatternToTerm (pattern : Pattern) : MetaM (TSyntax `term) :=
   match pattern with
   | .UnknownPattern name => return (mkIdent name)
   | .CtorPattern ctorName args => do

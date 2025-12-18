@@ -7,7 +7,6 @@ open Lean
 /-- Option to enable debug messages from Chamelean -/
 register_option chamelean.debug : Bool := {
   defValue := false
-  group := "chamelean"
   descr := "enable debug messages from Chamelean"
 }
 

@@ -32,7 +32,7 @@ def pickDrop (xs : List (ExceptT GenError Enumerator α)) (n : Nat) : ExceptT Ge
 /-- Helper function for `backtrack` which picks one out of `total` enumerators with some initial amount of `fuel` -/
 def enumerateFuel (fuel : Nat) (total : Nat) (es : List (ExceptT GenError Enumerator α)) : ExceptT GenError Enumerator α :=
   match fuel with
-  | .zero => throw Gen.outOfFuel
+  | .zero => throw Gen.Gen.outOfFuel
   | .succ fuel' => do
     let n ← monadLift $ enumNatRange 0 (total - 1)
     let (e, es') := pickDrop es n

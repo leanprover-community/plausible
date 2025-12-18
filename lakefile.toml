@@ -9,8 +9,3 @@ name = "Test"
 [[lean_lib]]
 name = "Plausible"
 leanOptions = {linter.missingDocs = false}
-
-[[require]]
-name = "batteries"
-scope = "leanprover-community"
-rev = "main"

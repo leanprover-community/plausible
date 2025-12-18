@@ -1,6 +1,3 @@
--- Import linter from batteries to suppress "missing documentation" linter warnings
-import Batteries.Tactic.Lint
-
 import Plausible.Arbitrary
 import Plausible.DeriveArbitrary
 import Plausible.Chamelean.GeneratorCombinators
@@ -300,7 +297,7 @@ inductive RecordType : CedarType → Prop where
 | RTNil : RecordType CedarType.recordTypeNil
 | RTCons : ∀ fn o T1 T2, RecordType (CedarType.recordTypeCons fn o T1 T2)
 
-@[nolint docBlame]
+
 inductive DefinedName : List EntityName → EntityName → Prop where
 | DNFound : ∀ L A B,
     A = B →
@@ -310,7 +307,7 @@ inductive DefinedName : List EntityName → EntityName → Prop where
     DefinedName L A →
     DefinedName (B::L) A
 
-@[nolint docBlame]
+
 inductive DefinedNames : List EntityName → List EntityName → Prop where
 | DNSNil : ∀ ns, DefinedNames ns []
 | DNSCons : ∀ n ns0 ns,
@@ -357,7 +354,6 @@ inductive WfRecordType : List EntityName → CedarType → Prop where
 -- Schemas
 ------------------------------------------------------
 
-@[nolint docBlame]
 inductive EntitySchemaEntry where
 | MkEntitySchemaEntry (ancestors : List EntityName) (attrs : List (String × Bool × CedarType))
 deriving BEq, DecidableEq
@@ -370,14 +366,12 @@ inductive WfAttrs : List EntityName → List (String × Bool × CedarType) → P
     WfAttrs ns attrs →
     WfAttrs ns ((s, b, T)::attrs)
 
-@[nolint docBlame]
 inductive WfET : List EntityName → EntitySchemaEntry → Prop where
 | WfETSingle : ∀ ns ancs attrs,
     DefinedNames ns ancs →
     WfAttrs ns attrs →
     WfET ns (EntitySchemaEntry.MkEntitySchemaEntry ancs attrs)
 
-@[nolint docBlame]
 inductive WfETS : List EntityName → List EntityName → List (EntityName × EntitySchemaEntry) → Prop where
 | WfETSSingle : ∀ ns n et,
     DefinedName ns n →
@@ -389,7 +383,6 @@ inductive WfETS : List EntityName → List EntityName → List (EntityName × En
     WfETS ns ns0 ets →
     WfETS ns (n::ns0) ((n, et)::ets)
 
-@[nolint docBlame]
 inductive ActionSchemaEntry where
 | MkActionSchemaEntry (prin : List EntityName) (res : List EntityName) (contextType : List (String × Bool × CedarType))
 deriving BEq, DecidableEq
@@ -403,7 +396,6 @@ inductive WfACT : List EntityName → (EntityUID × ActionSchemaEntry) → Prop 
     WfAttrs ns attrs →
     WfACT ns ((EntityUID.MkEntityUID n s), (ActionSchemaEntry.MkActionSchemaEntry [p] [r] attrs))
 
-@[nolint docBlame]
 inductive WfACTS : List EntityName → List (EntityUID × ActionSchemaEntry) → Prop where
 | WfACTSSingle : ∀ ns act,
     WfACT ns act →
@@ -413,19 +405,18 @@ inductive WfACTS : List EntityName → List (EntityUID × ActionSchemaEntry) →
     WfACTS ns acts →
     WfACTS ns (act::acts)
 
-@[nolint docBlame]
 inductive Schema where
 | MkSchema (ets : List (EntityName × EntitySchemaEntry)) (acts : List (EntityUID × ActionSchemaEntry))
 deriving BEq, DecidableEq
 
-@[nolint docBlame]
+
 inductive WfSchema : List EntityName → Schema → Prop where
 | WfS : ∀ ns ets acts,
     WfETS ns ns ets →
     WfACTS ns acts →
     WfSchema ns (Schema.MkSchema ets acts)
 
-@[nolint docBlame]
+
 inductive DefinedEntity : List (EntityName × EntitySchemaEntry) → EntityName → Prop where
 | DENow : ∀ n E R, DefinedEntity ((n, E)::R) n
 | DELater : ∀ n n1 E R,
@@ -433,7 +424,7 @@ inductive DefinedEntity : List (EntityName × EntitySchemaEntry) → EntityName 
     DefinedEntity R n →
     DefinedEntity ((n1, E)::R) n
 
-@[nolint docBlame]
+
 inductive DefinedEntities : List (EntityName × EntitySchemaEntry) → List EntityName → Prop where
 | DESNil : DefinedEntities [] []
 | DESCons : ∀ n ns et ets,
@@ -450,7 +441,7 @@ inductive LookupEntityAttr : List (String × Bool × CedarType) → (String × B
     LookupEntityAttr FS (F1, B1) TF →
     LookupEntityAttr ((F2, B, TF)::FS) (F1, B1) TF
 
-@[nolint docBlame]
+
 inductive GetEntityAttr : List (EntityName × EntitySchemaEntry) → (EntityName × String × Bool) → CedarType → Prop where
 | GENow : ∀ n fn b A E R T,
     LookupEntityAttr E (fn, b) T →
@@ -464,7 +455,7 @@ inductive GetEntityAttr : List (EntityName × EntitySchemaEntry) → (EntityName
 -- Environments
 ------------------------------------------------------
 
-@[nolint docBlame]
+
 inductive RequestType where
 | MkRequest (prin : EntityName) (act : EntityUID) (res : EntityName) (ctxt : List (String × Bool × CedarType))
 deriving BEq, DecidableEq
@@ -476,7 +467,7 @@ inductive ReqContextToCedarType : List (String × Bool × CedarType) → CedarTy
     ReqContextToCedarType R TR →
     ReqContextToCedarType ((i, B, T)::R) (CedarType.recordTypeCons i B T TR)
 
-@[nolint docBlame]
+
 inductive ActionToRequestTypes : EntityUID → EntityName → List EntityName → List (String × Bool × CedarType) → List RequestType → List RequestType → Prop where
 | ATRTSingle : ∀ uid p r c acc,
     ActionToRequestTypes uid p [r] c acc ((RequestType.MkRequest p uid r c)::acc)
@@ -484,7 +475,7 @@ inductive ActionToRequestTypes : EntityUID → EntityName → List EntityName �
     ActionToRequestTypes uid p rs c acc reqs →
     ActionToRequestTypes uid p (r::rs) c acc ((RequestType.MkRequest p uid r c)::reqs)
 
-@[nolint docBlame]
+
 inductive ActionSchemaEntryToRequestTypes : EntityUID → ActionSchemaEntry → List RequestType → List RequestType → Prop where
 | ASTRTSingle : ∀ uid p rs c reqs acc,
     ActionToRequestTypes uid p rs c acc reqs →
@@ -494,7 +485,7 @@ inductive ActionSchemaEntryToRequestTypes : EntityUID → ActionSchemaEntry → 
     ActionSchemaEntryToRequestTypes uid (ActionSchemaEntry.MkActionSchemaEntry ps rs c) reqs' reqs →
     ActionSchemaEntryToRequestTypes uid (ActionSchemaEntry.MkActionSchemaEntry (p::ps) rs c) acc reqs
 
-@[nolint docBlame]
+
 inductive ActionSchemaToRequestTypes : List (EntityUID × ActionSchemaEntry) → List RequestType → List RequestType → Prop where
 | ASTESingle : ∀ uid a acc reqs,
     ActionSchemaEntryToRequestTypes uid a acc reqs →
@@ -504,12 +495,12 @@ inductive ActionSchemaToRequestTypes : List (EntityUID × ActionSchemaEntry) →
     ActionSchemaToRequestTypes ass reqs' reqs →
     ActionSchemaToRequestTypes ((uid, a)::ass) acc reqs
 
-@[nolint docBlame]
+
 inductive Environment where
 | MkEnvironment (schema : Schema) (reqType : RequestType)
 deriving BEq, DecidableEq
 
-@[nolint docBlame]
+
 inductive SchemaToEnvironments : Schema → List RequestType → List Environment → Prop where
 | MkEnvsSingle : ∀ r s,
     SchemaToEnvironments s [r] [(Environment.MkEnvironment s r)]
@@ -542,7 +533,7 @@ inductive SubType : CedarType → CedarType → Prop where
 -- Typing: Primitives and Variables
 ------------------------------------------------------
 
-@[nolint docBlame]
+
 inductive HasTypePrim : Environment → Prim → CedarType → Prop where
 | TTrue : ∀ V, HasTypePrim V (Prim.boolean true) (CedarType.boolType BoolType.tt)
 | TFalse : ∀ V, HasTypePrim V (Prim.boolean false) (CedarType.boolType BoolType.ff)
@@ -555,7 +546,7 @@ inductive HasTypePrim : Environment → Prim → CedarType → Prop where
       (Prim.entityUID (EntityUID.MkEntityUID n i))
       (CedarType.entityType n)
 
-@[nolint docBlame]
+
 inductive HasTypeVar : Environment → Var → CedarType → Prop where
 | TPrincipal : ∀ s P A R C,
     HasTypeVar (Environment.MkEnvironment s (RequestType.MkRequest P A R C)) Var.principal (CedarType.entityType P)
@@ -567,7 +558,7 @@ inductive HasTypeVar : Environment → Var → CedarType → Prop where
     ReqContextToCedarType C T →
     HasTypeVar (Environment.MkEnvironment s (RequestType.MkRequest P A R C)) Var.context T
 
-@[nolint docBlame]
+
 inductive BindAttrType : List EntityName → (CedarType × String × Bool) → CedarType → Prop where
 | BindNow : ∀ x t b r ns,
     WfRecordType ns r →

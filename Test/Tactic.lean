@@ -162,7 +162,7 @@ theorem type_u (α : Type u) (l : List α) : l = l ++ l := by
 
 -- https://github.com/leanprover-community/plausible/issues/15
 /--
-info: Unable to find a counter-example
+warning: Unable to find a counter-example
 ---
 warning: declaration uses 'sorry'
 -/

@@ -6,7 +6,6 @@ public import Plausible.Chamelean.ArbitrarySizedSuchThat
 public import Plausible.Chamelean.Enumerators
 public import Plausible.Chamelean.DecOpt
 public import Plausible.Chamelean.TSyntaxCombinators
-public import Batteries.Lean.Expr
 public import Plausible.Chamelean.Schedules
 public import Plausible.Chamelean.UnificationMonad
 public import Plausible.Chamelean.Idents

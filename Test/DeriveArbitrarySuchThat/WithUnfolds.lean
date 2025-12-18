@@ -26,10 +26,10 @@ instance (α : Type) (n : Nat) [OfNat α n] : ArbitrarySizedSuchThat α (fun x =
   arbitrarySizedST _ := return OfNat.ofNat n
 
 /--
-error: failed to synthesize
+error: failed to synthesize instance of type class
   ArbitrarySizedSuchThat Nat fun x => OfNat.ofNat 0 = x
 
-Hint: Additional diagnostic information may be available using the `set_option diagnostics true` command.-/
+Hint: Type class instance resolution failures can be inspected with the `set_option trace.Meta.synthInstance true` command.-/
 #guard_msgs(all) in
 #check ArbitrarySizedSuchThat.arbitrarySizedST (fun (x : Nat) => Eq (OfNat.ofNat 0) x)
 

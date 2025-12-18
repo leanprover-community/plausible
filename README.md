@@ -35,26 +35,9 @@ for the desired generated values and provide some `Nat` to act as the generator'
 #eval runArbitrary (α := Tree) 10
 ```
 
-<<<<<<< HEAD
 Similarly, to return the elements produced form a derived enumerator, users can call `runEnum` like so:
 ```lean
 #eval runEnum (α := Tree) 10
-=======
-example (xs ys : Array Nat) : xs.size = ys.size → xs = ys := by
-  /-
-  ===================
-  Found a counter-example!
-  xs := #[0]
-  ys := #[1]
-  guard: 1 = 1
-  issue: #[0] = #[1] does not hold
-  (0 shrinks)
-  -------------------
-  -/
-  plausible
-
-#eval Plausible.Testable.check <| ∀ (xs ys : Array Nat), xs.size = ys.size → xs = ys
->>>>>>> upstream
 ```
 
 If you are defining your own type it needs instances of `Repr`, `Plausible.Shrinkable` and
@@ -232,17 +215,3 @@ derive_checker (fun n t => balanced n t)
 - [`Testable.lean`](./Test/Testable.lean): Tests for the `Testable` typeclass infrastructure with custom types
 
 For more documentation refer to the module docs.
-<<<<<<< HEAD
-=======
-
-**Deriving Instance for `Arbitrary`** (for algebraic data types)
-Users can write `deriving Arbitrary` after an inductive type definition, i.e.
-```lean
-inductive Foo where
-  ...
-  deriving Arbitrary
-```
-
-Alternatively, users can also write `deriving instance Arbitrary for T1, ..., Tn` as a top-level command to derive `Arbitrary` instances for types `T1, ..., Tn` simultaneously.
-
->>>>>>> upstream

@@ -3,7 +3,6 @@ module
 
 public import Lean
 public import Plausible.Chamelean.Utils
-public import Batteries.Lean.Expr
 open Lean Elab Command Meta Term Parser
 
 namespace TSyntaxCombinators

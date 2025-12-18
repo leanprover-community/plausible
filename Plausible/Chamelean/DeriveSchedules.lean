@@ -2,7 +2,6 @@
 module
 
 meta import Lean.Expr
-meta import Batteries
 public meta import Plausible.Chamelean.Utils
 public meta import Plausible.Chamelean.Schedules
 meta import Plausible.Chamelean.UnificationMonad
