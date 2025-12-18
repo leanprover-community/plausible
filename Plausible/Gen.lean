@@ -35,6 +35,7 @@ inductive GenError : Type where
 | genError : String → GenError
 deriving Inhabited, Repr, BEq
 
+/-- A non-descript generation failure. -/
 def Gen.genericFailure : GenError := .genError "Generation failure."
 
 /-- Monad to generate random examples to test properties with.
@@ -47,6 +48,7 @@ instance instMonadLiftGen [MonadLiftT m (ReaderT (ULift Nat) (Except GenError))]
 
 instance instMonadErrorGen : MonadExcept GenError Gen := by infer_instance
 
+/-- Lift a `GenError` to `IO.Error`. -/
 def Gen.genFailure (e : GenError) : IO.Error :=
   let .genError mes := e
   IO.userError s!"generation failure: {mes}"
