@@ -519,10 +519,8 @@ def retry (cmd : Gen (TestResult p)) : Nat → Gen (TestResult p)
 
 /-- Count the number of times the test procedure gave up. -/
 def giveUp (x : Nat) : TestResult p → TestResult p
-  | success (PSum.inl ()) => gaveUp x
-  | success (PSum.inr p) => success <| (PSum.inr p)
   | gaveUp n => gaveUp <| n + x
-  | TestResult.failure h xs n => failure h xs n
+  | r => r
 
 /-- Try `n` times to find a counter-example for `p`. -/
 def Testable.runSuiteAux (p : Prop) [Testable p] (cfg : Configuration) :
@@ -535,13 +533,13 @@ def Testable.runSuiteAux (p : Prop) [Testable p] (cfg : Configuration) :
       slimTrace s!"Retrying up to {cfg.numRetries} times until guards hold"
     let x ← retry ((Testable.runProp p cfg true).resize size) cfg.numRetries
     match x with
-    | success (PSum.inl ()) => runSuiteAux p cfg r n
+    | success (PSum.inl ()) => runSuiteAux p cfg x n
     | gaveUp g => runSuiteAux p cfg (giveUp g r) n
     | _ => return x
 
 /-- Try to find a counter-example of `p`. -/
 def Testable.runSuite (p : Prop) [Testable p] (cfg : Configuration := {}) : Gen (TestResult p) :=
-  Testable.runSuiteAux p cfg (success <| PSum.inl ()) cfg.numInst
+  Testable.runSuiteAux p cfg (gaveUp 0) cfg.numInst
 
 /-- Run a test suite for `p` in `IO` using the global RNG in `stdGenRef`. -/
 def Testable.checkIO (p : Prop) [Testable p] (cfg : Configuration := {}) : IO (TestResult p) :=

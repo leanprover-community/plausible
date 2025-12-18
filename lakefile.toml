@@ -2,11 +2,6 @@ name = "plausible"
 version = "0.1.0"
 defaultTargets = ["Plausible"]
 testRunner = "Test"
-lintDriver = "batteries/runLinter"
-
-[leanOptions]
-linter.missingDocs = false
-experimental.module = true
 
 [[lean_lib]]
 name = "Test"
