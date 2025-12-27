@@ -8,3 +8,19 @@ name = "Test"
 
 [[lean_lib]]
 name = "Plausible"
+
+[[lean_exe]]
+name = "conjecture-tests"
+root = "Test.Conjecture"
+
+[[lean_exe]]
+name = "conjecture-testable-tests"
+root = "Test.ConjectureTestable"
+
+[[lean_exe]]
+name = "conjecture-bench"
+root = "Test.ConjectureBench"
+
+[[lean_exe]]
+name = "shrink-search-tests"
+root = "Test.ShrinkSearch"
