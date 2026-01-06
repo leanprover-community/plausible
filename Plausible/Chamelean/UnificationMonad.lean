@@ -1,4 +1,8 @@
-
+/-
+Copyright (c) 2026 AWS. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: AWS
+-/
 import Std.Data.HashMap
 import Lean.Expr
 import Lean.Exception
