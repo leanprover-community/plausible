@@ -96,10 +96,6 @@ instance : Shrinkable Value where
       let shrunkenDtypes := Shrinkable.shrink dtype
       (Function.uncurry .tensor) <$> List.zip shrunkenShapes shrunkenDtypes
 
-/-- `SampleableExt` instance for `Value` -/
-instance : SampleableExt Value :=
-  SampleableExt.mkSelfContained Arbitrary.arbitrary
-
 -- To test whether the derived generator can generate counterexamples,
 -- we state an (erroneous) property that states that all `Value`s are `Bool`s
 -- and see if the generator can refute this property.

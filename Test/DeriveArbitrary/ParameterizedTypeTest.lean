@@ -72,13 +72,6 @@ def shrinkMyList [Shrinkable α] (myList : MyList α) : List (MyList α) :=
 instance [Shrinkable α] : Shrinkable (MyList α) where
   shrink := shrinkMyList
 
-/- `SampleableExt` instance for `MyList α`.
-
-   (Note that the proxy type is still `MyList α` in this instance, and not `List α`,
-   since we are creating the `SampleableExt` instance using `SampleableExt.mkSelfContained`.) -/
-instance [Repr α] [Shrinkable α] [Arbitrary α] : SampleableExt (MyList α) :=
-  SampleableExt.mkSelfContained Arbitrary.arbitrary
-
 /-!
 To test whether the derived generator can generate counterexamples,
 we create an erroneous property `∀ l : MyList Nat, reverse (reverse l) != l`,

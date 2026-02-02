@@ -178,7 +178,9 @@ elab_rules : tactic | `(tactic| plausible $[$cfg]?) => withMainContext do
     \n1. make sure that the types you are using have `Plausible.SampleableExt` instances\
     \n (you can use `#sample my_type` if you are unsure);\
     \n2. make sure that the relations and predicates that your proposition use are decidable;\
-    \n3. make sure that instances of `Plausible.Testable` exist that, when combined,\
+    \n3. if your hypothesis is big consider increasing `set_option synthInstance.maxSize` to a
+    \n  higher power of two
+    \n4. make sure that instances of `Plausible.Testable` exist that, when combined,\
     \n  apply to your decorated proposition:\
     \n```\
     \n{tgt'}\

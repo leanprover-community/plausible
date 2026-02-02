@@ -162,14 +162,6 @@ instance : Shrinkable term where
         | .App e1 e2 | .Add e1 e2 => shrinkTerm e1 ++ shrinkTerm e2
         | .Abs _ e => shrinkTerm e
 
-/-- `SampleableExt` instance for `type` -/
-instance : SampleableExt type :=
-  SampleableExt.mkSelfContained Arbitrary.arbitrary
-
-/-- `SampleableExt` instance for `term` -/
-instance : SampleableExt term :=
-   SampleableExt.mkSelfContained Arbitrary.arbitrary
-
 /-- error: Found a counter-example! -/
 #guard_msgs in
 #eval Testable.check (∀ (term : term), isValue term)
