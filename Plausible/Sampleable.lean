@@ -118,8 +118,8 @@ class SampleableExt (α : Sort u) where
   [sample : Arbitrary proxy]
   interp : proxy → α
 
-attribute [instance] SampleableExt.proxyRepr
-attribute [instance] SampleableExt.shrink
+attribute [instance_reducible, instance] SampleableExt.proxyRepr
+attribute [instance_reducible, instance] SampleableExt.shrink
 
 namespace SampleableExt
 
