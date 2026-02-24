@@ -8,3 +8,7 @@ name = "Test"
 
 [[lean_lib]]
 name = "Plausible"
+
+[[lean_exe]]
+name = "shrink-search-tests"
+root = "Test.ShrinkSearch"
