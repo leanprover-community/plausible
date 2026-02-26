@@ -261,6 +261,7 @@ open TestResult
 
 def runProp (p : Prop) [Testable p] : Configuration → Bool → Gen (TestResult p) := Testable.run
 
+/-- Run the test for `p`, returning any thrown `Gen.GenError` as a `TestResult.gaveUp`. -/
 def runPropE (p : Prop) [Testable p] (cfg : Configuration) (min : Bool) : Gen (TestResult p) :=
   do
     try runProp p cfg min
@@ -598,7 +599,7 @@ open Decorations in
 def Testable.check (p : Prop) (cfg : Configuration := {})
     (p' : Decorations.DecorationsOf p := by mk_decorations) [Testable p'] : Lean.CoreM PUnit := do
   match ← Testable.checkIO p' cfg with
-  | TestResult.success _ => if !cfg.quiet then Lean.logInfo "Unable to find a counter-example"
+  | TestResult.success _ => if !cfg.quiet then Lean.logWarning "Unable to find a counter-example"
   | TestResult.gaveUp n =>
     if !cfg.quiet then
       let msg := s!"Gave up after failing to generate values that fulfill the preconditions {n} times."

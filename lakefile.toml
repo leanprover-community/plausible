@@ -8,3 +8,4 @@ name = "Test"
 
 [[lean_lib]]
 name = "Plausible"
+leanOptions = {linter.missingDocs = false}
