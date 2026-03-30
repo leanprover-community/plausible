@@ -24,6 +24,6 @@ instance : Arbitrary MyType :=
     let xyDiff ← SampleableExt.interpSample Nat
     return ⟨x, x + xyDiff, by omega⟩⟩
 
-/-- info: Unable to find a counter-example -/
+/-- warning: Unable to find a counter-example -/
 #guard_msgs in
 #eval Testable.check <| ∀ a b : MyType, a.y ≤ b.x → a.x ≤ b.y

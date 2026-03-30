@@ -120,7 +120,7 @@ example (xs : List Int) (f : Int → Int) : xs.map f = xs := by
   plausible (config := {quiet := true})
 
 /--
-info: Unable to find a counter-example
+warning: Unable to find a counter-example
 ---
 warning: declaration uses `sorry`
 -/
@@ -140,7 +140,7 @@ example (a b : Sum Nat Nat) : a ≠ a → a = b := by
 -- https://leanprover.zulipchat.com/#narrow/stream/287929-mathlib4/topic/slim_check.20giving.20wrong.20counterexamples.3F/near/420008365
 open Nat in
 /--
-info: Unable to find a counter-example
+warning: Unable to find a counter-example
 ---
 warning: declaration uses `sorry`
 -/
@@ -162,7 +162,7 @@ theorem type_u (α : Type u) (l : List α) : l = l ++ l := by
 
 -- https://github.com/leanprover-community/plausible/issues/15
 /--
-info: Unable to find a counter-example
+warning: Unable to find a counter-example
 ---
 warning: declaration uses `sorry`
 -/
