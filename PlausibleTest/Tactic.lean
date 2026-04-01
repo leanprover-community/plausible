@@ -122,7 +122,7 @@ example (xs : List Int) (f : Int → Int) : xs.map f = xs := by
 /--
 info: Unable to find a counter-example
 ---
-warning: declaration uses 'sorry'
+warning: declaration uses `sorry`
 -/
 #guard_msgs in
 example (a : Sum Nat Nat) : a = a := by
@@ -131,7 +131,7 @@ example (a : Sum Nat Nat) : a = a := by
 /--
 warning: Gave up after failing to generate values that fulfill the preconditions 100 times.
 ---
-warning: declaration uses 'sorry'
+warning: declaration uses `sorry`
 -/
 #guard_msgs in
 example (a b : Sum Nat Nat) : a ≠ a → a = b := by
@@ -142,7 +142,7 @@ open Nat in
 /--
 info: Unable to find a counter-example
 ---
-warning: declaration uses 'sorry'
+warning: declaration uses `sorry`
 -/
 #guard_msgs in
 theorem testBit_pred :
@@ -164,7 +164,7 @@ theorem type_u (α : Type u) (l : List α) : l = l ++ l := by
 /--
 info: Unable to find a counter-example
 ---
-warning: declaration uses 'sorry'
+warning: declaration uses `sorry`
 -/
 #guard_msgs in
 theorem true_example_with_guard (a : Nat) (ha : 4 ≤ a) : a = a := by

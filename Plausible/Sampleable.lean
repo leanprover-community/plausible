@@ -118,8 +118,8 @@ class SampleableExt (α : Sort u) where
   [sample : Arbitrary proxy]
   interp : proxy → α
 
-attribute [instance] SampleableExt.proxyRepr
-attribute [instance] SampleableExt.shrink
+attribute [instance_reducible, instance] SampleableExt.proxyRepr
+attribute [instance_reducible, instance] SampleableExt.shrink
 
 namespace SampleableExt
 
@@ -134,7 +134,7 @@ instance selfContained [Repr α] [Shrinkable α] [Arbitrary α] : SampleableExt 
   interp := id
 
 /-- This is kept for backwards compatibility -/
-@[deprecated "Define an `Arbitrary` instance instead and use the default `SampleableExt` instance provided" (since := "22-10-2025")]
+@[implicit_reducible, deprecated "Define an `Arbitrary` instance instead and use the default `SampleableExt` instance provided" (since := "22-10-2025")]
 def mkSelfContained [Repr α] [Shrinkable α] (g : Gen α) : SampleableExt α :=
   let : Arbitrary α := ⟨g⟩
   inferInstance

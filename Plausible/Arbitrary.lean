@@ -126,6 +126,7 @@ instance Bool.Arbitrary : Arbitrary Bool where
 /-- This can be specialized into customized `Arbitrary Char` instances.
 The resulting instance has `1 / p` chances of making an unrestricted choice of characters
 and it otherwise chooses a character from `chars` with uniform probability. -/
+@[implicit_reducible]
 def Char.arbitraryFromList (p : Nat) (chars : List Char) (pos : 0 < chars.length) :
     Arbitrary Char where
   arbitrary := do
