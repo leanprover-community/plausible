@@ -110,7 +110,7 @@ The code for these combinators closely mirrors those used in Rocq/Coq QuickChick
 -/
 
 /-- Raised when a fueled generator fails due to insufficient fuel. -/
-meta def Gen.outOfFuel : GenError :=
+meta def outOfFuel : GenError :=
   .genError "out of fuel"
 
 /-- `pick default xs n` chooses a weight & a generator `(k, gen)` from the list `xs` such that `n < k`.
