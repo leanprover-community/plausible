@@ -82,8 +82,8 @@ def getCtorArgsNamesAndTypes (_header : Header) (indVal : InductiveVal) (ctorNam
   forallTelescopeReducing ctorInfo.type fun args _ => do
     let mut argNamesAndTypes := #[]
 
-    for i in *...args.size do
-      let arg := args[i]!
+    for h : i in 0...args.size do
+      let arg := args[i]
       let argType ← arg.fvarId!.getType
 
       if i < indVal.numParams then
@@ -123,7 +123,7 @@ open TSyntax.Compat in
     since it expects the inst-implicit binders and the instance we're creating to both belong to the same typeclass. -/
 def mkArbitraryFueledInstanceCmds (ctx : Deriving.Context) (typeNames : Array Name) (useAnonCtor := true) : TermElabM (Array Command) := do
   let mut instances := #[]
-  for i in [:ctx.typeInfos.size] do
+  for i in 0...ctx.typeInfos.size do
     let indVal       := ctx.typeInfos[i]!
     if typeNames.contains indVal.name then
       let auxFunName   := ctx.auxFunNames[i]!
@@ -205,7 +205,7 @@ def mkBody (header : Header) (inductiveVal : InductiveVal) (generatorType : TSyn
             -- produce a recursive call to the generator using `aux_arb`,
             -- otherwise generate a value using `arbitrary`
             let bindExpr ←
-              if argType.getAppFn.constName == targetTypeName then
+              if argType.isAppOf targetTypeName then
                 -- We've detected that the constructor has a recursive argument, so we update the flag
                 ctorIsRecursive := true
                 `(doElem| let $freshIdent ← $(mkIdent `aux_arb):term $(freshFuel'):term)
@@ -290,7 +290,7 @@ def mkAuxFunction (ctx : Deriving.Context) (i : Nat) : TermElabM Command := do
 /-- Creates a `mutual ... end` block containing the definitions of the derived generators -/
 def mkMutualBlock (ctx : Deriving.Context) : TermElabM Syntax := do
   let mut auxDefs := #[]
-  for i in *...ctx.typeInfos.size do
+  for i in 0...ctx.typeInfos.size do
     auxDefs := auxDefs.push (← mkAuxFunction ctx i)
   `(mutual
      $auxDefs:command*
@@ -306,14 +306,16 @@ private def mkArbitraryFueledInstanceCmd (declName : Name) : TermElabM (Array Sy
 /-- Deriving handler which produces an instance of the `ArbitraryFueled` typeclass for
     each type specified in `declNames` -/
 def mkArbitraryInstanceHandler (declNames : Array Name) : CommandElabM Bool := do
-  if (← declNames.allM isInductive) then
-    for declName in declNames do
-      let cmds ← liftTermElabM $ mkArbitraryFueledInstanceCmd declName
-      cmds.forM elabCommand
-    return true
-  else
+  if !(← declNames.allM isInductive) then
     throwError "Cannot derive instance of Arbitrary typeclass for non-inductive types"
-    return false
+  for declName in declNames do
+    let indVal ← liftTermElabM $ getConstInfoInduct declName
+    if indVal.numIndices > 0 then
+      throwError "Cannot derive instance of Arbitrary typeclass for indexed inductive type '{declName}'"
+  for declName in declNames do
+    let cmds ← liftTermElabM $ mkArbitraryFueledInstanceCmd declName
+    cmds.forM elabCommand
+  return true
 
 initialize
   registerDerivingHandler ``Arbitrary mkArbitraryInstanceHandler

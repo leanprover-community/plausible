@@ -1,10 +1,10 @@
 /-
-Copyright (c) 2025. All rights reserved.
+Copyright (c) 2025 AWS. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
+Authors: AWS
 -/
 module
 
-import Lean
 import Lean.Elab.Deriving.Basic
 import Lean.Elab.Deriving.Util
 
@@ -56,9 +56,9 @@ private def getCtorArgsNamesAndTypes (indVal : InductiveVal) (ctorName : Name) :
   let ctorInfo ← getConstInfoCtor ctorName
   forallTelescopeReducing ctorInfo.type fun args _ => do
     let mut result := #[]
-    for i in [:args.size] do
+    for h : i in 0...args.size do
       if i < indVal.numParams then continue
-      let arg := args[i]!
+      let arg := args[i]
       let argType ← arg.fvarId!.getType
       let argName ← Core.mkFreshUserName `a
       result := result.push (argName, argType)
@@ -87,24 +87,24 @@ private def mkCtorShrinkExpr (targetTypeName : Name) (ctorIdent : Ident)
   let mut listTerms : Array Term := #[]
 
   -- 1) Subterm shrinks: yield recursive fields directly
-  for i in [:freshIdents.size] do
-    if argTypes[i]!.getAppFn.constName == targetTypeName then
-      listTerms := listTerms.push (← `([$(freshIdents[i]!)]))
+  for h : i in 0...freshIdents.size do
+    if argTypes[i]!.isAppOf targetTypeName then
+      listTerms := listTerms.push (← `([$(freshIdents[i])]))
 
   -- 2) Argument shrinks: shrink each field and reconstruct
-  for i in [:freshIdents.size] do
-    let xi := freshIdents[i]!
+  for h : i in 0...freshIdents.size do
+    let xi := freshIdents[i]
     let xi' := mkIdent (← Core.mkFreshUserName `x')
     let mut reconstructArgs : Array Term := #[]
-    for j in [:freshIdents.size] do
+    for h' : j in 0...freshIdents.size do
       if i == j then
         reconstructArgs := reconstructArgs.push (← `($xi'))
       else
-        reconstructArgs := reconstructArgs.push (← `($(freshIdents[j]!)))
+        reconstructArgs := reconstructArgs.push (← `($(freshIdents[j])))
     let mapBody ← `(fun $xi' => $ctorIdent $reconstructArgs*)
     -- Use recursive call for self-referential fields, Shrinkable.shrink for others
     let shrinkCall ←
-      if argTypes[i]!.getAppFn.constName == targetTypeName then
+      if argTypes[i]!.isAppOf targetTypeName then
         `($auxFn $xi)
       else
         `(Shrinkable.shrink $xi)
@@ -112,7 +112,7 @@ private def mkCtorShrinkExpr (targetTypeName : Name) (ctorIdent : Ident)
     listTerms := listTerms.push shrinkExpr
 
   match listTerms.toList with
-  | [] => `(([] : List _))
+  | [] => `([])
   | [single] => pure single
   | first :: rest =>
     rest.foldlM (fun acc t => `($acc ++ $t)) first
@@ -162,7 +162,7 @@ private def mkAuxFunction (ctx : Deriving.Context) (i : Nat) : TermElabM Command
 /-- Creates a `mutual ... end` block containing the shrink function definitions -/
 private def mkMutualBlock (ctx : Deriving.Context) : TermElabM Syntax := do
   let mut auxDefs := #[]
-  for i in [:ctx.typeInfos.size] do
+  for i in 0...ctx.typeInfos.size do
     auxDefs := auxDefs.push (← mkAuxFunction ctx i)
   `(mutual $auxDefs:command* end)
 
@@ -171,7 +171,7 @@ open TSyntax.Compat in
 private def mkShrinkableInstanceCmds (ctx : Deriving.Context) (typeNames : Array Name) :
     TermElabM (Array Command) := do
   let mut instances := #[]
-  for i in [:ctx.typeInfos.size] do
+  for i in 0...ctx.typeInfos.size do
     let indVal := ctx.typeInfos[i]!
     if typeNames.contains indVal.name then
       let auxFunName := ctx.auxFunNames[i]!
@@ -193,14 +193,16 @@ private def mkShrinkableInstanceCmd (declName : Name) : TermElabM (Array Syntax)
 
 /-- Deriving handler for `Shrinkable` -/
 def mkShrinkableInstanceHandler (declNames : Array Name) : CommandElabM Bool := do
-  if (← declNames.allM isInductive) then
-    for declName in declNames do
-      let cmds ← liftTermElabM $ mkShrinkableInstanceCmd declName
-      cmds.forM elabCommand
-    return true
-  else
+  if !(← declNames.allM isInductive) then
     throwError "Cannot derive instance of Shrinkable typeclass for non-inductive types"
-    return false
+  for declName in declNames do
+    let indVal ← liftTermElabM $ getConstInfoInduct declName
+    if indVal.numIndices > 0 then
+      throwError "Cannot derive instance of Shrinkable typeclass for indexed inductive type '{declName}'"
+  for declName in declNames do
+    let cmds ← liftTermElabM $ mkShrinkableInstanceCmd declName
+    cmds.forM elabCommand
+  return true
 
 initialize
   registerDerivingHandler ``Shrinkable mkShrinkableInstanceHandler

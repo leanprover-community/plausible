@@ -73,4 +73,12 @@ info: [{ x := 5, y := 20 },
 #guard_msgs in
 #eval Shrinkable.shrink (Point.mk 10 20)
 
+inductive Vec : Nat → Type where
+  | nil : Vec 0
+  | cons (x : Nat) (xs : Vec n) : Vec (n + 1)
+
+/-- error: Cannot derive instance of Shrinkable typeclass for indexed inductive type 'ShrinkableTests.Vec' -/
+#guard_msgs in
+deriving instance Shrinkable for Vec
+
 end ShrinkableTests
