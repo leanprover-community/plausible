@@ -51,7 +51,7 @@ open Shrinkable
 
 /-- Returns `(argument_name, argument_type)` pairs for a constructor,
     skipping the inductive's type parameters. Freshens names to avoid macro scopes. -/
-private def getCtorArgsNamesAndTypes (indVal : InductiveVal) (ctorName : Name) :
+def getCtorArgsNamesAndTypes (indVal : InductiveVal) (ctorName : Name) :
     MetaM (Array (Name × Expr)) := do
   let ctorInfo ← getConstInfoCtor ctorName
   forallTelescopeReducing ctorInfo.type fun args _ => do
@@ -67,7 +67,7 @@ private def getCtorArgsNamesAndTypes (indVal : InductiveVal) (ctorName : Name) :
 open TSyntax.Compat in
 /-- Builds a `Header` with only implicit + instance binders (no explicit target binder).
     Adapted from `Plausible.mkHeaderWithOnlyImplicitBinders`. -/
-private def mkShrinkableHeader (indVal : InductiveVal) : TermElabM Header := do
+def mkShrinkableHeader (indVal : InductiveVal) : TermElabM Header := do
   let argNames ← mkInductArgNames indVal
   let binders ← mkImplicitBinders argNames
   let targetType ← mkInductiveApp indVal argNames
@@ -81,7 +81,7 @@ private def mkShrinkableHeader (indVal : InductiveVal) : TermElabM Header := do
     - argument shrinks: for each `xᵢ`, shrink it and reconstruct `C` with the shrunk value
     For recursive fields (type = T), uses `auxFn` for the recursive call instead of
     `Shrinkable.shrink`, since the instance doesn't exist yet during derivation. -/
-private def mkCtorShrinkExpr (targetTypeName : Name) (ctorIdent : Ident)
+def mkCtorShrinkExpr (targetTypeName : Name) (ctorIdent : Ident)
     (freshIdents : Array Ident) (argTypes : Array Expr)
     (auxFn : Ident) : TermElabM Term := do
   let mut listTerms : Array Term := #[]
@@ -120,7 +120,7 @@ private def mkCtorShrinkExpr (targetTypeName : Name) (ctorIdent : Ident)
 /-! ## Auxiliary function and instance generation -/
 
 /-- Creates the auxiliary shrink function definition for one inductive type. -/
-private def mkAuxFunction (ctx : Deriving.Context) (i : Nat) : TermElabM Command := do
+def mkAuxFunction (ctx : Deriving.Context) (i : Nat) : TermElabM Command := do
   let auxFunName := ctx.auxFunNames[i]!
   let indVal := ctx.typeInfos[i]!
   let header ← mkShrinkableHeader indVal
@@ -160,7 +160,7 @@ private def mkAuxFunction (ctx : Deriving.Context) (i : Nat) : TermElabM Command
     `(def $auxFn:ident $binders:bracketedBinder* : $fullType := $body)
 
 /-- Creates a `mutual ... end` block containing the shrink function definitions -/
-private def mkMutualBlock (ctx : Deriving.Context) : TermElabM Syntax := do
+def mkMutualBlock (ctx : Deriving.Context) : TermElabM Syntax := do
   let mut auxDefs := #[]
   for i in 0...ctx.typeInfos.size do
     auxDefs := auxDefs.push (← mkAuxFunction ctx i)
@@ -168,7 +168,7 @@ private def mkMutualBlock (ctx : Deriving.Context) : TermElabM Syntax := do
 
 open TSyntax.Compat in
 /-- Creates instance commands for the `Shrinkable` typeclass -/
-private def mkShrinkableInstanceCmds (ctx : Deriving.Context) (typeNames : Array Name) :
+def mkShrinkableInstanceCmds (ctx : Deriving.Context) (typeNames : Array Name) :
     TermElabM (Array Command) := do
   let mut instances := #[]
   for i in 0...ctx.typeInfos.size do
@@ -185,7 +185,7 @@ private def mkShrinkableInstanceCmds (ctx : Deriving.Context) (typeNames : Array
   return instances
 
 /-- Derives a `Shrinkable` instance for a single inductive type -/
-private def mkShrinkableInstanceCmd (declName : Name) : TermElabM (Array Syntax) := do
+def mkShrinkableInstanceCmd (declName : Name) : TermElabM (Array Syntax) := do
   let ctx ← mkContext ``Plausible.Shrinkable "shrink" declName
   let cmds := #[← mkMutualBlock ctx] ++ (← mkShrinkableInstanceCmds ctx #[declName])
   trace[plausible.deriving.shrinkable] "\n{cmds}"
