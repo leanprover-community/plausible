@@ -17,6 +17,7 @@ import PlausibleTest.DeriveArbitrary.BitVecStructureTest
 import PlausibleTest.DeriveArbitrary.MissingNonRecursiveConstructorTest
 import PlausibleTest.DeriveArbitrary.ParameterizedTypeTest
 import PlausibleTest.DeriveArbitrary.MutuallyRecursiveTypeTest
+import PlausibleTest.DeriveArbitrary.StructureParameterTest
 
 -- Tests for `deriving Shrinkable`
 import PlausibleTest.DeriveShrinkable.DeriveShrinkableTest

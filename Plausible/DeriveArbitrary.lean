@@ -96,6 +96,63 @@ def getCtorArgsNamesAndTypes (_header : Header) (indVal : InductiveVal) (ctorNam
 -- Note: the following functions closely follow the implementation of the deriving handler for `Repr` / `BEq`
 -- (see https://github.com/leanprover/lean4/blob/master/src/Lean/Elab/Deriving/Repr.lean).
 
+/-- Recursively expand a structure-typed expression into `[className proj]` binders
+    for each leaf field of type `Type u`. Nested structures are expanded recursively.
+    Non-Type, non-structure fields cause an error. -/
+private partial def expandStructBinders (className : Name) (indName : Name) (argName : Name)
+    (expr : Expr) (syn : TSyntax `term) : TermElabM (Array Syntax) := do
+  let ty ← inferType expr
+  if ty.isSort then
+    try
+      let c ← mkAppM className #[expr]
+      if (← isTypeCorrect c) then
+        return #[← `(instBinderF| [$(mkCIdent className):ident $syn])]
+    catch _ => pure ()
+    return #[]
+  else
+    let env ← getEnv
+    let some sName := ty.constName? |
+      throwError m!"Cannot derive {className} for '{indName}': structure parameter \
+        '{mkIdent argName}' has a field of type '{ty}', which is not a Type or \
+        structure of Types. This makes the type effectively indexed."
+    let some sInfo := getStructureInfo? env sName |
+      throwError m!"Cannot derive {className} for '{indName}': structure parameter \
+        '{mkIdent argName}' has a field of type '{ty}', which is not a Type or \
+        structure of Types. This makes the type effectively indexed."
+    let mut result : Array Syntax := #[]
+    for field in sInfo.fieldNames do
+      let projName := sName ++ field
+      let projExpr := mkApp (mkConst projName) expr
+      let projSyn ← `($(mkIdent projName) $syn)
+      result := result ++ (← expandStructBinders className indName argName projExpr projSyn)
+    return result
+
+open TSyntax.Compat in
+/-- Creates inst-implicit binders for a typeclass, handling both
+    normal type parameters and structure parameters (with recursive expansion).
+
+    For a normal `Type` parameter `α`, emits `[className α]`.
+    For a structure parameter `T : S`, recursively expands `Type`-valued fields
+    and emits binders like `[className T.Field]` for each. Nested structures
+    are expanded recursively. Non-Type, non-structure fields cause an error. -/
+def mkArbitraryInstBinders (className : Name) (indVal : InductiveVal) (argNames : Array Name) :
+    TermElabM (Array Syntax) := do
+  forallBoundedTelescope indVal.type indVal.numParams fun params _ => do
+    let mut binders : Array Syntax := #[]
+    for h : i in [:params.size] do
+      let param := params[i]
+      let argName := argNames[i]!
+      let normalOk ← try
+        let c ← mkAppM className #[param]
+        isTypeCorrect c
+      catch _ => pure false
+      if normalOk then
+        binders := binders.push
+          (← `(instBinderF| [$(mkCIdent className):ident $(mkIdent argName):ident]))
+      else
+        binders := binders ++ (← expandStructBinders className indVal.name argName param (mkIdent argName))
+    return binders
+
 open TSyntax.Compat in
 /-- Variant of `Deriving.Util.mkHeader` where we don't add an explicit binder
     of the form `($targetName : $targetType)` to the field `binders`
@@ -107,7 +164,7 @@ def mkHeaderWithOnlyImplicitBinders (className : Name) (arity : Nat) (indVal : I
   let mut targetNames := #[]
   for _ in [:arity] do
     targetNames := targetNames.push (← mkFreshUserName `x)
-  let binders := binders ++ (← mkInstImplicitBinders className indVal argNames)
+  let binders := binders ++ (← mkArbitraryInstBinders className indVal argNames)
   return {
     binders := binders
     argNames := argNames
@@ -129,7 +186,7 @@ def mkArbitraryFueledInstanceCmds (ctx : Deriving.Context) (typeNames : Array Na
       let auxFunName   := ctx.auxFunNames[i]!
       let argNames     ← mkInductArgNames indVal
       let binders      ← mkImplicitBinders argNames
-      let binders      := binders ++ (← mkInstImplicitBinders ``Arbitrary indVal argNames)  -- this line is changed from
+      let binders      := binders ++ (← mkArbitraryInstBinders ``Arbitrary indVal argNames)
       let indType      ← mkInductiveApp indVal argNames
       let type         ← `($(mkCIdent ``ArbitraryFueled) $indType)
       let mut val      := mkIdent auxFunName
