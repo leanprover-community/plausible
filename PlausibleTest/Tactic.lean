@@ -169,3 +169,37 @@ warning: declaration uses `sorry`
 #guard_msgs in
 theorem true_example_with_guard (a : Nat) (ha : 4 ≤ a) : a = a := by
   plausible
+
+private structure NoTestableInstance where
+  x : Nat
+
+/--
+error: Failed to create a `testable` instance for `∀ (a : NoTestableInstance), a.x = 0`.
+What to do:
+1. make sure that the types you are using have `Plausible.SampleableExt` instances
+ (you can use `#sample my_type` if you are unsure);
+2. make sure that the relations and predicates that your proposition use are decidable;
+3. if your hypothesis is big consider increasing `set_option synthInstance.maxSize` to a
+    ⏎
+  higher power of two
+    ⏎
+4. make sure that instances of `Plausible.Testable` exist that, when combined,
+  apply to your decorated proposition:
+```
+Plausible.NamedBinder "a" (∀ (a : NoTestableInstance), a.x = 0)
+```
+
+Use `set_option trace.Meta.synthInstance true` to understand what instances are missing.
+
+Try this:
+set_option trace.Meta.synthInstance true
+#synth Plausible.Testable (Plausible.NamedBinder "a" (∀ (a : NoTestableInstance), a.x = 0))
+-/
+#guard_msgs in
+example (a : NoTestableInstance) : a.x = 0 := by
+  plausible
+
+/-- warning: declaration uses `sorry` -/
+#guard_msgs in
+example (a : NoTestableInstance) : a.x = 0 := by
+  plausible (config := { sorryIfNoTestable := true })
