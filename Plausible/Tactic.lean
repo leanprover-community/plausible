@@ -172,7 +172,11 @@ elab_rules : tactic | `(tactic| plausible $[$cfg]?) => withMainContext do
       || (← isTracingEnabledFor `plausible.shrink.candidates) }
   let inst ← try
     synthInstance (← mkAppM ``Testable #[tgt'])
-  catch _ => throwError "\
+  catch _ =>
+    if cfg.sorryIfNoTestable then
+      admitGoal g
+      return
+    throwError "\
       Failed to create a `testable` instance for `{tgt}`.\
     \nWhat to do:\
     \n1. make sure that the types you are using have `Plausible.SampleableExt` instances\

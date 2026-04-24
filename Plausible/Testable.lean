@@ -136,15 +136,20 @@ structure Configuration where
   Disable output.
   -/
   quiet : Bool := false
+  /--
+  If `true`, when the `Testable` instance required to begin testing cannot be synthesized,
+  silently admit the goal with `sorry` instead of throwing an error.
+  -/
+  sorryIfNoTestable : Bool := false
   deriving Inhabited
 
 open Lean in
 instance : ToExpr Configuration where
   toTypeExpr := mkConst `Configuration
-  toExpr cfg := mkApp9 (mkConst ``Configuration.mk)
+  toExpr cfg := mkApp10 (mkConst ``Configuration.mk)
     (toExpr cfg.numInst) (toExpr cfg.maxSize) (toExpr cfg.numRetries) (toExpr cfg.traceDiscarded)
     (toExpr cfg.traceSuccesses) (toExpr cfg.traceShrink) (toExpr cfg.traceShrinkCandidates)
-    (toExpr cfg.randomSeed) (toExpr cfg.quiet)
+    (toExpr cfg.randomSeed) (toExpr cfg.quiet) (toExpr cfg.sorryIfNoTestable)
 
 /--
 Allow elaboration of `Configuration` arguments to tactics.
