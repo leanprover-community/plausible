@@ -141,7 +141,7 @@ admit. If it gives up or finds a counter-example, it reports an error.
 For more information on writing your own `Sampleable` and `Testable`
 instances, see `Testing.Plausible.Testable`.
 
-Optional arguments given with `plausible (config : { ... })`
+Optional arguments given with `plausible (config := { ... })`
 * `numInst` (default 100): number of examples to test properties with
 * `maxSize` (default 100): final size argument
 
