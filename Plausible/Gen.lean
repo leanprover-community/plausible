@@ -37,6 +37,34 @@ deriving Inhabited, Repr, BEq
 
 def Gen.genericFailure : GenError := .genError "Generation failure."
 
+/-! ### Order-theoretic instances on `Except GenError`
+
+These exist so that `Gen` (and definitions in it) can be the target of
+`partial_fixpoint`. We give `Except GenError α` the flat order with
+`Except.error default` as the bottom element, representing a
+non-terminating / undefined computation. Any other `.error e` is then
+incomparable with `.ok _`, which is why the `bind_mono_*` proofs only
+need the `bot` and `refl` cases. -/
+section
+open Lean.Order
+
+instance instPartialOrderExceptGenError : PartialOrder (Except GenError α) :=
+  FlatOrder.instOrder (b := Except.error default)
+
+instance instCCPOExceptGenError : CCPO (Except GenError α) :=
+  FlatOrder.instCCPO (b := Except.error default)
+
+instance instMonoBindExceptGenError : MonoBind (Except GenError) where
+  bind_mono_left h := by
+    cases h with
+    | bot => exact FlatOrder.rel.bot
+    | refl => exact FlatOrder.rel.refl
+  bind_mono_right h := by
+    cases ‹Except GenError _› with
+    | error => exact FlatOrder.rel.refl
+    | ok a => exact h a
+end
+
 /-- Monad to generate random examples to test properties with.
 It has a `Nat` parameter so that the caller can decide on the
 size of the examples. It allows failure to generate via the `Except` monad -/
