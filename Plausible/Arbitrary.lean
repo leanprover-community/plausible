@@ -5,7 +5,7 @@ Authors: AWS
 -/
 module
 
-public meta import Plausible.Gen
+public import Plausible.Gen
 
 public meta section
 

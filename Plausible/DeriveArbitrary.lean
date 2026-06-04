@@ -5,11 +5,9 @@ Authors: Ernest Ng
 -/
 module
 
-import Lean.Elab
 import Lean.Elab.Deriving.Basic
 import Lean.Elab.Deriving.Util
 
-import Plausible.Arbitrary
 import Plausible.ArbitraryFueled
 
 open Lean Elab Meta Parser Term
