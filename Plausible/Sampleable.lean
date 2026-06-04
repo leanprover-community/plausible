@@ -7,9 +7,7 @@ module
 
 public meta import Lean.Elab.Command
 public meta import Lean.Meta.Eval
-public meta import Plausible.Gen
 public meta import Plausible.Arbitrary
-public import Plausible.Shrinkable
 public meta import Plausible.Shrinkable
 
 public meta section

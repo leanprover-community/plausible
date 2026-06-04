@@ -8,7 +8,7 @@ module
 import Lean.Elab.Deriving.Basic
 import Lean.Elab.Deriving.Util
 
-import Plausible.Sampleable
+import Plausible.Shrinkable
 
 open Lean Elab Meta Parser Term
 open Elab.Deriving

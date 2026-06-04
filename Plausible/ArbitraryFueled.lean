@@ -6,7 +6,6 @@ Authors: AWS
 module
 
 public import Plausible.Arbitrary
-public import Plausible.Gen
 
 public section
 

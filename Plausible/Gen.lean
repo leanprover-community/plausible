@@ -5,7 +5,7 @@ Authors: Henrik Böving, Simon Hudon
 -/
 module
 
-public meta import Plausible.Random
+public import Plausible.Random
 
 public meta section
 
