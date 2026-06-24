@@ -7,10 +7,10 @@ module
 
 public meta import Lean.Elab.Command
 public meta import Lean.Meta.Eval
-public meta import Plausible.Arbitrary
-public meta import Plausible.Shrinkable
+public import Plausible.Arbitrary
+public import Plausible.Shrinkable
 
-public meta section
+public section
 
 /-!
 # `SampleableExt` Class
@@ -232,7 +232,7 @@ directly. For this return:
 - a `Repr α` instance
 - a `Gen α` generator to run in order to sample
 -/
-private def mkGenerator (e : Expr) : MetaM (Level × Expr × Expr × Expr) := do
+private meta def mkGenerator (e : Expr) : MetaM (Level × Expr × Expr × Expr) := do
   let exprTyp ← inferType e
   let .sort u ← whnf (← inferType exprTyp) | throwError m!"{exprTyp} is not a type"
   let .succ u := u | throwError m!"{exprTyp} is not a type with computational content"

@@ -6,9 +6,12 @@ Authors: Henrik Böving, Simon Hudon
 module
 
 public meta import Lean.Elab.Tactic.Config
-public meta import Plausible.Sampleable
+public import Lean.CoreM
+public import Lean.Exception
+public import Lean.Log
+public import Plausible.Sampleable
 
-public meta section
+public section
 
 
 /-!
@@ -143,6 +146,8 @@ structure Configuration where
   sorryIfNoTestable : Bool := false
   deriving Inhabited
 
+meta section
+
 open Lean in
 instance : ToExpr Configuration where
   toTypeExpr := mkConst `Configuration
@@ -155,6 +160,8 @@ instance : ToExpr Configuration where
 Allow elaboration of `Configuration` arguments to tactics.
 -/
 declare_config_elab elabConfig Configuration
+
+end
 
 /--
 `PrintableProp p` allows one to print a proposition so that
@@ -555,11 +562,11 @@ end IO
 
 namespace Decorations
 
-open Lean
+open Lean Elab.Tactic Meta
 
 /-- Traverse the syntax of a proposition to find universal quantifiers
 quantifiers and add `NamedBinder` annotations next to them. -/
-partial def addDecorations (e : Expr) : MetaM Expr :=
+meta partial def addDecorations (e : Expr) : MetaM Expr :=
   Meta.transform e fun expr => do
     if not (← Meta.inferType expr).isProp then
       return .done expr
@@ -576,9 +583,6 @@ partial def addDecorations (e : Expr) : MetaM Expr :=
 that the goal should be satisfied with a proposition equivalent to `p`
 with added annotations. -/
 abbrev DecorationsOf (_p : Prop) := Prop
-
-open Elab.Tactic
-open Meta
 
 /-- In a goal of the shape `⊢ DecorationsOf p`, `mk_decoration` examines
 the syntax of `p` and adds `NamedBinder` around universal quantifications
