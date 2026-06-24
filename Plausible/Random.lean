@@ -5,7 +5,7 @@ Authors: Henrik Böving
 -/
 module
 
-public meta section
+public section
 
 /-!
 # Rand Monad and Random Class

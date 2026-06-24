@@ -7,7 +7,7 @@ module
 
 public import Plausible.Gen
 
-public meta section
+public section
 
 
 /-!
