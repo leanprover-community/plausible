@@ -1,10 +1,10 @@
 name = "plausible"
 version = "0.1.0"
 defaultTargets = ["Plausible"]
-testRunner = "Test"
+testRunner = "PlausibleTest"
 
 [[lean_lib]]
-name = "Test"
+name = "PlausibleTest"
 
 [[lean_lib]]
 name = "Plausible"

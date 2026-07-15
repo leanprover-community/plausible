@@ -4,9 +4,8 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Henrik Böving
 -/
 module
-meta import Init.Data.Random
 
-public meta section
+public section
 
 /-!
 # Rand Monad and Random Class

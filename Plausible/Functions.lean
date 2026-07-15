@@ -6,7 +6,6 @@ Authors: Simon Hudon
 module
 
 public meta import Plausible.Sampleable
-public meta import Plausible.Testable
 
 @[expose] public meta section
 

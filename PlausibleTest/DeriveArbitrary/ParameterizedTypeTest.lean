@@ -36,6 +36,16 @@ trace: [plausible.deriving.arbitrary] ⏎
 #guard_msgs in
 deriving instance Arbitrary for MyList
 
+-- Test that we reject attempts to derive `Arbitrary` on indexed types
+
+inductive Vec : Nat → Type where
+  | nil : Vec 0
+  | cons (x : Nat) (xs : Vec n) : Vec (n + 1)
+
+/-- error: Cannot derive instance of Arbitrary typeclass for indexed inductive type 'Vec' -/
+#guard_msgs in
+deriving instance Arbitrary for Vec
+
 -- Test that we can successfully synthesize instances of `Arbitrary` & `ArbitraryFueled`
 -- when `α` is specialized to `Nat`
 
