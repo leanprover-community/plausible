@@ -5,7 +5,7 @@ Authors: Simon Hudon, Kim Morrison
 -/
 module
 
-public meta import Lean.Util.Trace
+meta import Lean.Util.Trace
 
 public meta section
 

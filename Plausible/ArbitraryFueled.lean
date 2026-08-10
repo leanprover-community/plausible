@@ -6,7 +6,6 @@ Authors: AWS
 module
 
 public import Plausible.Arbitrary
-public import Plausible.Gen
 
 public section
 
@@ -26,7 +25,7 @@ class ArbitraryFueled (α : Type) where
   arbitraryFueled : Nat → Gen α
 
 /-- Every `ArbitraryFueled` instance gives rise to an `Arbitrary` instance -/
-meta instance [ArbitraryFueled α] : Arbitrary α where
+instance [ArbitraryFueled α] : Arbitrary α where
   arbitrary := Gen.sized ArbitraryFueled.arbitraryFueled
 
 end Plausible
