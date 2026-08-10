@@ -73,9 +73,7 @@ The `Shrinkable` class, , has a `shrink` function so that we can use
 specialized knowledge while shrinking a value. It is not responsible
 for the whole shrinking process however. It only has to take one step
 in the shrinking process. `Plausible` will repeatedly call `shrink`
-until no more steps can be taken. Because `shrink` guarantees that the
-size of the candidates it produces is strictly smaller than the
-argument, we know that `Plausible` is guaranteed to terminate.
+until no more steps can be taken.
 
 ## Tags
 
