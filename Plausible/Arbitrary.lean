@@ -88,32 +88,38 @@ instance Fin.Arbitrary {n : Nat} : Arbitrary (Fin (n.succ)) where
 
 instance BitVec.Arbitrary {n : Nat} : Arbitrary (BitVec n) where
   arbitrary := do
-    let m ← choose Nat 0 (min (← getSize) (2^n)) (Nat.zero_le _)
+    -- `choose` is inclusive; `2^n` wraps to 0 via `ofNat`, overweighting 0
+    let m ← choose Nat 0 (min (← getSize) (2^n - 1)) (Nat.zero_le _)
     return BitVec.ofNat _ m
 
 instance UInt8.Arbitrary : Arbitrary UInt8 where
   arbitrary := do
-    let n ← choose Nat 0 (min (← getSize) UInt8.size) (Nat.zero_le _)
+    -- `choose` is inclusive; `UInt8.size` wraps to 0 via `ofNat`
+    let n ← choose Nat 0 (min (← getSize) (UInt8.size - 1)) (Nat.zero_le _)
     return UInt8.ofNat n
 
 instance UInt16.Arbitrary : Arbitrary UInt16 where
   arbitrary := do
-    let n ← choose Nat 0 (min (← getSize) UInt16.size) (Nat.zero_le _)
+    -- `choose` is inclusive; `UInt16.size` wraps to 0 via `ofNat`
+    let n ← choose Nat 0 (min (← getSize) (UInt16.size - 1)) (Nat.zero_le _)
     return UInt16.ofNat n
 
 instance UInt32.Arbitrary : Arbitrary UInt32 where
   arbitrary := do
-    let n ← choose Nat 0 (min (← getSize) UInt32.size) (Nat.zero_le _)
+    -- `choose` is inclusive; `UInt32.size` wraps to 0 via `ofNat`
+    let n ← choose Nat 0 (min (← getSize) (UInt32.size - 1)) (Nat.zero_le _)
     return UInt32.ofNat n
 
 instance UInt64.Arbitrary : Arbitrary UInt64 where
   arbitrary := do
-    let n ← choose Nat 0 (min (← getSize) UInt64.size) (Nat.zero_le _)
+    -- `choose` is inclusive; `UInt64.size` wraps to 0 via `ofNat`
+    let n ← choose Nat 0 (min (← getSize) (UInt64.size - 1)) (Nat.zero_le _)
     return UInt64.ofNat n
 
 instance USize.Arbitrary : Arbitrary USize where
   arbitrary := do
-    let n ← choose Nat 0 (min (← getSize) USize.size) (Nat.zero_le _)
+    -- `choose` is inclusive; `USize.size` wraps to 0 via `ofNat`
+    let n ← choose Nat 0 (min (← getSize) (USize.size - 1)) (Nat.zero_le _)
     return USize.ofNat n
 
 instance Int.Arbitrary : Arbitrary Int where
@@ -130,7 +136,8 @@ and it otherwise chooses a character from `chars` with uniform probability. -/
 def Char.arbitraryFromList (p : Nat) (chars : List Char) (pos : 0 < chars.length) :
     Arbitrary Char where
   arbitrary := do
-    let x ← choose Nat 0 p (Nat.zero_le _)
+    -- `choose` is inclusive; use `0..(p-1)` so unrestricted chance is `1/p`
+    let x ← choose Nat 0 (p - 1) (Nat.zero_le _)
     if x.val == 0 then
       let n ← arbitrary
       pure <| Char.ofNat n
