@@ -116,6 +116,10 @@ structure Configuration where
   maxSize : Nat := 100
   numRetries : Nat := 10
   /--
+  The maximum number of shrink steps to perform.
+  -/
+  maxShrinks : Nat := 10000
+  /--
   Enable tracing of values that didn't fulfill preconditions and were thus discarded.
   -/
   traceDiscarded : Bool := false
@@ -151,10 +155,10 @@ meta section
 open Lean in
 instance : ToExpr Configuration where
   toTypeExpr := mkConst `Configuration
-  toExpr cfg := mkApp10 (mkConst ``Configuration.mk)
-    (toExpr cfg.numInst) (toExpr cfg.maxSize) (toExpr cfg.numRetries) (toExpr cfg.traceDiscarded)
-    (toExpr cfg.traceSuccesses) (toExpr cfg.traceShrink) (toExpr cfg.traceShrinkCandidates)
-    (toExpr cfg.randomSeed) (toExpr cfg.quiet) (toExpr cfg.sorryIfNoTestable)
+  toExpr cfg := mkAppN (mkConst ``Configuration.mk)
+    #[toExpr cfg.numInst, toExpr cfg.maxSize, toExpr cfg.numRetries, toExpr cfg.maxShrinks,
+      toExpr cfg.traceDiscarded, toExpr cfg.traceSuccesses, toExpr cfg.traceShrink, toExpr cfg.traceShrinkCandidates,
+      toExpr cfg.randomSeed, toExpr cfg.quiet, toExpr cfg.sorryIfNoTestable]
 
 /--
 Allow elaboration of `Configuration` arguments to tactics.
@@ -371,10 +375,8 @@ variable {α : Sort _}
 
 /-- Shrink a counter-example `x` by using `Shrinkable.shrink x`, picking the first
 candidate that falsifies a property and recursively shrinking that one.
-The process is guaranteed to terminate because `shrink x` produces
-a proof that all the values it produces are smaller (according to `SizeOf`)
-than `x`. -/
-partial def minimizeAux [SampleableExt α] {β : α → Prop} [∀ x, Testable (β x)] (cfg : Configuration)
+The number of shrink steps is limited to `cfg.maxShrinks` to ensure termination. -/
+def minimizeAux [SampleableExt α] {β : α → Prop} [∀ x, Testable (β x)] (cfg : Configuration)
     (var : String) (x : SampleableExt.proxy α) (n : Nat) :
     OptionT Gen (Σ x, TestResult (β (SampleableExt.interp x))) := do
   let candidates := SampleableExt.shrink.shrink x
@@ -385,20 +387,28 @@ partial def minimizeAux [SampleableExt α] {β : α → Prop} [∀ x, Testable (
       slimTrace s!"Trying {var} := {repr candidate}"
     let res ← OptionT.lift <| Testable.runProp (β (SampleableExt.interp candidate)) cfg true
     if res.isFailure then
-      if cfg.traceShrink then
-        slimTrace s!"{var} shrunk to {repr candidate} from {repr x}"
-      let currentStep := OptionT.lift <| return Sigma.mk candidate (addShrinks (n + 1) res)
-      let nextStep := minimizeAux (β := β) cfg var candidate (n + 1)
-      return ← (nextStep <|> currentStep)
+      if _ : n + 1 ≥ cfg.maxShrinks then
+        if !cfg.quiet then
+          slimTrace s!"The shrinking process exceeded `cfg.maxShrinks` ({cfg.maxShrinks}) steps and was stopped. (Does the shrinker always reduce the size of the example?)"
+        failure
+      else
+        if cfg.traceShrink then
+          slimTrace s!"{var} shrunk to {repr candidate} from {repr x}"
+        let currentStep := OptionT.lift <| return Sigma.mk candidate (addShrinks (n + 1) res)
+        let nextStep := minimizeAux (β := β) cfg var candidate (n + 1)
+        return ← (nextStep <|> currentStep)
   if cfg.traceShrink then
     slimTrace s!"No shrinking possible for {var} := {repr x}"
   failure
+termination_by cfg.maxShrinks - n
 
 /-- Once a property fails to hold on an example, look for smaller counter-examples
 to show the user. -/
 def minimize [SampleableExt α] {β : α → Prop} [∀ x, Testable (β x)] (cfg : Configuration)
     (var : String) (x : SampleableExt.proxy α) (r : TestResult (β <| SampleableExt.interp x)) :
     Gen (Σ x, TestResult (β <| SampleableExt.interp x)) := do
+  if cfg.maxShrinks == 0 then
+     return ⟨x, r⟩
   if cfg.traceShrink then
      slimTrace "Shrink"
      slimTrace s!"Attempting to shrink {var} := {repr x}"
